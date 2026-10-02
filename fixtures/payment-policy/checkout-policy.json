@@ -1,0 +1,14 @@
+{
+  "id": "checkout-policy-v1",
+  "version": 1,
+  "statement": "An order has at most one charge and one confirmation, including when a processed payment response is lost.",
+  "scope": ["checkout-api/client/retry.mjs", "checkout-api/server/charge.mjs"],
+  "kind": "checkable",
+  "check_ref": "platform:lost-response-exactly-once-v1",
+  "parameter": "retry_failed_response",
+  "allowed_values": [false, true],
+  "validity_scope": ["client/retry.mjs"],
+  "maxChargesPerOrder": 1,
+  "maxConfirmationsPerOrder": 1,
+  "requestIdentity": "One idempotency key identifies one order across retries."
+}

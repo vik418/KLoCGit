@@ -1,0 +1,20 @@
+# syntax=docker/dockerfile:1
+ARG EXECUTOR_BASE_IMAGE=node:24-bookworm-slim
+FROM ${EXECUTOR_BASE_IMAGE}
+WORKDIR /app
+# During managed-cloud builds provide the inherited combined CA bundle as proxy_ca.
+# The public session CA is mounted for networked build steps and never copied into a layer.
+RUN --mount=type=secret,id=proxy_ca \
+    ca_path=/etc/ssl/certs/ca-certificates.crt; \
+    if [ -f /run/secrets/proxy_ca ]; then ca_path=/run/secrets/proxy_ca; fi; \
+    apt-get -o Acquire::https::CaInfo="$ca_path" update && \
+    apt-get -o Acquire::https::CaInfo="$ca_path" install -y --no-install-recommends git ca-certificates bubblewrap util-linux && \
+    rm -rf /var/lib/apt/lists/* && \
+    useradd --uid 10001 --create-home converge && \
+    mkdir -p /var/lib/converge && chown converge:converge /var/lib/converge
+COPY --chown=10001:10001 core/ ./core/
+COPY --chown=10001:10001 server/ ./server/
+COPY --chown=10001:10001 fixtures/trusted/ ./fixtures/trusted/
+USER 10001:10001
+EXPOSE 8788
+CMD ["node", "server/executor-entry.mjs"]

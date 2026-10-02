@@ -1,6 +1,7 @@
 node_modules/
 dist/
 .demo/
+.demo-v2/
 .wrangler/
 .dev.vars
 .env

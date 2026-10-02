@@ -1,69 +1,73 @@
-# Converge — decision-centric Git collaboration
+# Converge — decisions above Git
 
-A deterministic, runnable prototype of the model in the brief. Git owns code. Converge owns immutable coordination inputs, provenance, decisions and bounded evidence.
+A deterministic prototype of the decision-centric Git platform. Git owns code; Converge owns coordination, immutable versions, decisions and bounded evidence. The interface stays small: a material context question, then decisions with alternatives and progressively revealed evidence.
 
-## Run
+## Run locally
 
 ```sh
 npm install
 npm run dev
 ```
 
-Open http://localhost:5173. The first run creates two ordinary bare Git repositories, five isolated concurrent producers and eight proposals. The local demo explicitly uses a demo identity; it is not production authentication.
+Open <http://localhost:5173>. A fresh workspace uses `.demo-v2/` and starts with two ordinary Git repositories: the runnable payment HTTP application `checkout-api` and its versioned constraint repository `payment-policy`.
 
-The default screen presents two decisions. Review alternatives, evidence and revisions; record a rationale; apply a composed tree. Resolving the first decision changes the basis of the second. Refresh the second decision before applying it. Demo controls replay the fixture, simulate an external Git update, or change a constraint version.
+Behavioral validation requires Linux, Node 22 or later, Git, bubblewrap, util-linux and private namespace support; see the [runner requirements](fixtures/README.md).
 
-```sh
-npm test                  # 20 deterministic acceptance tests
-npm run build             # browser production bundle
-npm run check:worker      # Cloudflare deployment dry run
-node scripts/verify-demo.mjs # regenerate docs/demo-report.json
-```
+Startup retrieves the policy at an immutable commit and asks whether the client should retry a failed response after the service may already have accepted the request. The actual user answer remains pending until submitted. No coordinated demo producer starts before an answer or an explicitly recorded assumption. Acceptance tests use a named test actor; their answer is not the user's answer. Ordinary untagged Git work can still be ingested while this task waits.
+
+Answer the question, then start the five simulated concurrent producers. They make eight real Git proposals. The retry-enabled acceptance scenario yields two review decisions from declared retry-timing choices and an observed interaction. Its review compression ratio is 2/8 = 0.25; counting the earlier clarification gives three human inputs in total. Components and alternatives are derived from immutable relationships rather than a scripted list of decision IDs. A different context answer can change the resulting work and decision count.
 
 ## Implemented
 
-- Standard Git branch ingestion, observed commit/tree/scope facts, unknown provenance, content-addressed revisions and implementation reuse without proposal-history collapse.
-- Immutable intent/context/evidence/relationship/decision records. Mutable operation status is separate from the immutable decision. Append-only audit records form a hash chain.
-- Progressive scope indexing before comparisons; exact tree identity is the only automatic implementation-equivalence rule. No LLM is required.
-- Actual Git candidate compositions with retained candidate refs, platform-owned structural checks, a cross-repository contract fixture, and evidence eligibility derived from pinned heads, constraints and check configuration.
-- Decisions that cover selected revisions, current candidate membership, relevant relationships, constraint versions, evidence versions and eligibility, alternatives, assumptions and repository heads.
-- A serialized workspace boundary, prepared-operation journal, actual Git ref CAS, stale-basis rejection (`409 DECISION_STALE`), and crash reconciliation against the exact target commit.
-- Decision-focused UI, proposal histories and exact diffs, evidence library, work graph and audit activity. A browser WebMCP read tool is registered where supported.
-- Cloudflare Worker APIs, Artifacts create/register/fork/read integration, approved producer-fork mapping, native Artifacts push-event Queue consumption, and one Durable Object per workspace.
-- An authenticated trusted Git executor bridge using standard Git `--force-with-lease` for remote canonical writes. The Worker refuses canonical advancement if that executor is not configured.
+- Standard Git ingestion, unknown provenance, content-addressed revisions, separate histories and exact-tree implementation reuse.
+- A small context compiler for one explicit task schema, cross-repository immutable retrieval, answer/assumption records and Git artifact/trailer binding.
+- Connected decision groups from unresolved alternative/conflict edges; bounded candidate enumeration; independent work included in explicitly reviewed compositions. Unknown executable work remains conventional review.
+- Actual Git candidate trees and a platform-owned HTTP effects validator. Evidence pins the candidate tree, policy version, configuration and canonical heads; changed inputs make historical evidence ineligible.
+- Reviewed-basis checks, actual Git old-OID CAS, serialized coordination, a prepared-operation journal, conservative recovery and hash-chained audit history.
+- A minimal decision interface with alternatives, rationale, evidence, proposals, exact diffs and activity available through progressive detail.
+- Cloudflare Artifacts/Worker/Queue/Durable Object integration code, an authenticated Container executor, remote Git leases and a live verification harness. Account integration remains unverified.
 
-## Six-case adversarial demo
+## The real semantic interaction
 
-| Case | Concrete fixture | Result |
-|---|---|---|
-| Duplicate functionality | Atlas and Mira implement identical request-ID trees | One implementation, two histories |
-| Independent compatible change | CI adds latency metrics in an independent file | Included in actual retry compositions |
-| Competing decisions | Fixed intervals versus exponential backoff | Human retry-policy decision |
-| Textually mergeable semantic conflict | API switches to cents; client keeps dollars | Trusted $10 fixture observes a 10-cent charge |
-| Missing provenance | Git client supplies documentation without provenance | Ingested as unknown; included for explicit review |
-| Stale evidence | Canonical API advances after the first decision | Historical evidence remains immutable and becomes ineligible |
+The trusted validator runs the candidate HTTP application in isolation and counts effects received by an external simulated provider. A platform proxy loses one response only after the payment service processes it.
 
-Two decisions resolve all eight candidates by applying selected implementations and deferring competing behavior changes. A resolved decision does not mean every proposal was merged.
+| Exact candidate | Charges | Confirmations | Trusted check |
+|---|---:|---:|---|
+| Baseline | 1 | 1 | Pass |
+| A: retry with the same order identity | 1 | 1 | Pass |
+| B: confirm before replay detection | 1 | 1 | Pass |
+| A+B: clean Git composition | 1 | 2 | Fail |
 
-The API-cents proposal is deferred because neither offered composition safely migrates the existing client. Cross-repository changes are never represented as atomic. Each resolution advances exactly one repository.
+The host application suite passes these finite scenarios. This establishes the demonstrated interaction, not correctness across all inputs or failures. Payments and email are simulated; producer tests, application ledgers and stdout cannot supply the trusted counts.
 
-The generated [demo report](docs/demo-report.json) records observed metrics: 0.25 compression, zero stale evidence accepted, 87.5% supplied producer-intent traceability, and indexing comparisons avoided. These are results of the bounded fixture, not global correctness claims.
+Other cases cover exact duplicate tracing implementations, independent metrics, declared fixed/exponential timing alternatives, unknown-provenance documentation and evidence becoming stale after canonical advancement. Producers are concurrent Git-generating loops, not autonomous AI agents or external CI.
 
-## Clone the result
-
-After resolving the UI decisions:
+## Verification and cloneability
 
 ```sh
-git clone .demo/repositories/checkout-api.git checkout-api-result
-git clone .demo/repositories/storefront.git storefront-result
+npm test
+npm run build
+npm run check:worker
+node scripts/verify-demo.mjs
 ```
 
-These repositories work independently of the coordination server. Stopping Converge leaves ordinary Git clone/fetch/push available. `.demo/` is ignored and contains only disposable demo repositories; replay deletes and recreates that fixture.
+Tests cover application behavior/isolation, context/provenance, generic graph derivation, Git CAS/versioning/recovery and mocked Cloudflare boundaries. Wrangler's dry run proves bundling, not live service behavior. Read the generated report's scope and status before treating metrics as observed results.
 
-## Cloudflare deployment
+After local resolution:
 
-See [Cloudflare setup](docs/cloudflare.md) and [architecture and limits](docs/architecture.md). No live Cloudflare credentials are configured in this workspace, so no remote resources were created and no public site was deployed. The Worker bundle passes Wrangler's dry run. Live Artifacts authentication, push events and remote Git lease behavior still require integration verification.
+```sh
+git clone .demo-v2/repositories/checkout-api.git checkout-api-result
+git clone .demo-v2/repositories/payment-policy.git payment-policy-result
+cd checkout-api-result
+node app.mjs
+```
 
-This is a deterministic prototype, not a complete GitHub replacement or production rollout. Generic evidence runners, a context retrieval compiler, probabilistic relationship hints, organizational identity integration and high-scale indexing are outside this implementation. Unclassified incoming work remains available for conventional review; arbitrary Git ingestion does not silently create safe convergence decisions.
+The application prints its loopback port. Stopping Converge leaves ordinary Git clone/fetch/push available. Replay recreates only the disposable `.demo-v2/` fixture.
 
-For the complete account of what was built, what the demo proves, and what remains unfinished, read the [implementation briefing](docs/implementation-briefing.md). The default UI now uses one decision column and progressively reveals workspace metrics and technical details.
+## Deployment and detailed briefing
+
+No live Cloudflare resources were created or deployed. Account preflight is blocked by missing authentication. The executor image and gateway bundle build, but the default local Docker sandbox denies its namespace probe; Cloudflare Container support for required isolation remains unverified. The executor fails closed when isolated validation cannot start.
+
+Read the [detailed implementation briefing](docs/implementation-briefing.md), [Cloudflare setup](docs/cloudflare.md), [live verification runbook](docs/live-cloudflare.md) and [application fixture](fixtures/README.md).
+
+This prototype does not discover arbitrary unknown semantics, prove global correctness, offer atomic multi-repository updates, implement organizational identity or provide a production CI fleet. Ordinary Git ingestion does not require an agent-specific workflow.

@@ -1,169 +1,201 @@
-# Implementation briefing
+# Implementation briefing — v2
 
-Converge is a deterministic prototype of the decision-centric Git model. It demonstrates real Git ingestion, immutable coordination records, composed candidates, versioned evidence, reviewed decision bases, and conditional canonical advancement. The browser is now intentionally small: a summary line, one navigation row, and the decisions that need attention.
+Converge is a deterministic coordination prototype above ordinary Git. It turns immutable changes and bounded evidence into reviewable choices, then applies a chosen tree only while the reviewed basis and target Git head match. V2 strengthens the running application demonstration, derives components from relationships, adds a cross-repository context question and retains the minimal interface.
 
-This briefing distinguishes functioning local behavior, Cloudflare integration code, scripted demonstration behavior, and work still needed. The complete specification has not yet been implemented or verified on live infrastructure.
+This briefing distinguishes implemented mechanisms, observed local results and deployment work that has not run. The previous configuration-only demo is not evidence for the new HTTP application or a completed Cloudflare rollout.
 
-## Why the interface was simplified
+## Why the interface is minimal
 
-The original interface presented four metric tiles, a sidebar, duplicate navigation tabs, a convergence diagram, repository-head panels, producer avatars and included-work details alongside the decisions. That made the default screen behave like an operations dashboard. The primary job is to choose an outcome, so the extra framing created avoidable reading.
+The main view presents the workspace, work/decision counts, a pending material context question when needed and the decisions themselves. Each decision gives its question, alternatives, tradeoffs, scope and evidence/staleness status. A user can choose an outcome and record a rationale without starting from raw code.
 
-The revised screen removes the sidebar, dashboard tiles, duplicate navigation, convergence diagram and producer stack. It shows the workspace, the count of proposals and pending decisions, and the decisions themselves. Each card has the question, the reason judgment is needed, the scope, evidence/staleness status, and one Review decision action.
+Evidence, revisions, diffs, activity, repository heads and operation details are available through progressive detail. The earlier sidebar, dashboard tiles, redundant convergence diagram and producer avatar stack were removed. Navigation stays small and the layout supports desktop/mobile widths.
 
-Alternatives are shown inside the decision. Rationale, included work and material assumptions remain visible because they affect the choice. Technical hashes, constraint versions and Git destination are behind a collapsed Technical review details disclosure. Metrics and canonical heads are behind Workspace details on the Proposals view. Evidence and Activity remain available through the single navigation row. The source stylesheet was reduced from roughly 40 KB to roughly 20 KB of built CSS rather than retaining the removed dashboard styling.
+Minimal presentation does not remove version checks. A changed basis requires refreshed candidates and renewed review. Evidence remains tied to exact inputs and Git still enforces the expected old head.
 
-The safety behavior did not change: stale decisions still require a refresh and renewed review, validation still refers to exact trees, and canonical writes still use Git's expected-old-head check.
+## Source map
 
-## Deliverable and source map
-
-The project is in `/workspace/decision-git`. It uses React for the browser, Vite for local development and browser builds, Node for the local HTTP/Git executor, and Cloudflare Worker code for the production API path. It introduces no coding agent, Git storage format, IDE, or complete repository-hosting UI.
-
-| File | Responsibility |
+| Source | Responsibility |
 |---|---|
-| `core/hash.mjs` | Stable sorted serialization, SHA-256 identifiers, immutable record creation, domain errors |
-| `core/engine.mjs` | Ingestion, revision identity, relationships, evidence eligibility, compositions, decision bases, canonical transitions, recovery, workspace views |
-| `server/git.mjs` | Real local Git commands and platform-owned fixture checks |
-| `server/local.mjs` | Local HTTP API, explicit demo actor, serialized operations, JSON persistence, Vite integration |
-| `server/bridge.mjs` | Authenticated remote Git execution bridge, scoped credential selectors and lease-protected push |
-| `worker/artifacts.mjs` | Artifacts binding reads, observed scope traversal, trusted executor calls |
-| `worker/index.mjs` | Worker API authentication, Durable Object coordinator, repository create/register/fork, Queue ingestion |
-| `scripts/demo.mjs` | Concurrent producer simulation, repository fixtures, eight proposals and two declared decision components |
-| `scripts/verify-demo.mjs` | Bounded metric report, two resolutions, stale rejection, clone and Git integrity checks |
-| `src/main.jsx` | Minimal decisions, alternatives, evidence, proposals, local diffs and activity |
-| `src/style.css` | Responsive layout, readable typography, disclosures and dialog styling |
-| `tests/acceptance.test.mjs` | Sixteen deterministic local acceptance tests |
-| `tests/artifacts.test.mjs` | Four mocked Artifacts/Worker boundary tests |
-| `wrangler.jsonc` | Worker assets, Artifacts, Durable Object migration and Queue consumer declarations |
+| `core/hash.mjs` | Canonical serialization, SHA-256 identities, immutable record creation, errors |
+| `core/engine.mjs` | Ingestion, context binding, evidence, interaction analysis, compositions, basis, CAS, dispositions, recovery |
+| `core/components.mjs` | Generic relationship components and bounded maximal consistent candidate enumeration |
+| `core/context.mjs` | Explicit task schema, immutable retrieval, question, answer/assumption, snapshot, authorization |
+| `server/git.mjs` | Ordinary Git, retained candidate commits, validation dispatch, local CAS |
+| `server/runner.mjs` | Safe immutable materialization and bounded isolated execution |
+| `fixtures/trusted/supervisor.mjs` | Trusted external effects, lost-response proxy, finite observations/checks |
+| `fixtures/checkout-api/` | Runnable Node payment HTTP application and retrying client |
+| `fixtures/payment-policy/` | Versioned exactly-once policy and prior confirmation decision |
+| `scripts/workspace.mjs`, `scripts/demo.mjs` | Unanswered baseline preparation and concurrent ordinary Git producers |
+| `server/local.mjs` | Local API, explicit demo identity, serialization, JSON persistence, Vite |
+| `server/bridge.mjs`, `server/remote-git.mjs` | Authenticated executor API, retained remote candidates and lease-protected push |
+| `worker/artifacts.mjs`, `worker/index.mjs` | Artifacts reads, Worker APIs, Durable Object, ingress/analysis queues |
+| `worker/executor.mjs`, `Dockerfile.executor` | Container gateway, service authentication, bounded runner image, optional fault controls |
+| `scripts/cloudflare-live.mjs` | Preflight, event provisioning, bounded live acceptance harness |
+| `src/main.jsx`, `src/style.css` | Minimal decisions and progressive review detail |
 
-## Local code path
+## Local startup and the actual user question
 
-`npm run dev` starts the local application at `http://localhost:5173`. On a fresh workspace it generates the demonstration. Metadata is stored in `.demo/state.json`. Saves write a temporary file and rename it into place. The local HTTP coordinator serializes operations through the engine's queue.
+`npm run dev` serves the browser/API at `http://localhost:5173`. The v2 fixture lives in `.demo-v2/`; saves write a temporary JSON file and rename it. An in-process queue serializes mutations. Local calls use `demo-owner`, a demonstration identity rather than organizational authentication.
 
-The local actor is explicitly `demo-owner`. This is a demonstration identity, not proof of a real signed-in human. Cross-origin browser mutations are rejected. The live Worker path requires a separately configured owner credential and actor identity.
+Fresh startup creates ordinary `checkout-api` and `payment-policy` repositories and prepares the task “Recover checkout when a processed payment response is lost.” Before authorizing its producer, the compiler resolves the policy ref to a full commit and reads `checkout-policy.json` at that immutable version. The source captures repository, path, commit and content hash.
 
-The engine treats Git refs as the source of truth for code. Producer statements are metadata. Stopping the platform leaves the Git repositories usable; they are not served through a proprietary storage format.
+The policy requires at most one charge and one confirmation per order, including after a processed response is lost. It permits both retry answers and contains no prior answer for this parameter. The compiler therefore asks exactly one material question:
 
-## Immutable records and histories
+> Should the client retry a failed response after the service may already have accepted the request?
 
-The implementation separates logical proposals from immutable revisions. A proposal identifies a repository, producer repository and branch. A revision binds the proposal to the observed base commit, head commit, Git tree, affected paths, context version, and provenance state.
+The answer changes retry behavior and the possibility of repeated effects. The actual interactive answer remains pending until the user submits it. Fresh startup starts zero coordinated producers. Named test actors supply acceptance-test answers; they do not answer on behalf of the user.
 
-Revision and other record identifiers are hashes of canonical serialized inputs. Object keys are sorted before hashing. Newly created record objects are recursively frozen in memory. The code creates separate implementation records keyed by repository and complete Git tree, so different proposals can share an implementation without losing their separate intents or producer histories.
+An answer is declared information with actor, time, task, question and scope. The captured policy is retrieved information. An explicit unresolved assumption is a declared item whose truth remains unresolved with a required rationale and a visible human-review obligation. Elapsed time never counts as an answer. A producer can proceed under that explicit assumption without converting uncertainty into fact.
 
-Intents and context snapshots are stored, but the context system is minimal. It captures supplied intent, constraint identifiers, observed repository heads and affected scope. It does not retrieve issues, documentation or historical specifications, identify equivalent capabilities through semantic reasoning, or run a clarification pipeline. Context items do not yet provide the full separately versioned ContextItem/Assumption lifecycle from the specification.
+The compiler implements only `retry-response-v1`, an explicit schema and boolean parameter. A supplied task answer, a retrieved existing decision with a decision ID, or a checkable constraint allowing one value can eliminate the question. Advice cannot force an answer or reject another permitted choice. Unsupported task prose does not cause invented questions. Broad issue/specification retrieval and semantic ambiguity analysis remain future work.
 
-The persistence model is one workspace aggregate. The storage layer does not independently enforce append-only immutable tables. Records reloaded from JSON are ordinary JavaScript objects; immutability is preserved through application behavior, not an external database guarantee. Audit hashes help expose changes to a chain, but there is no signed external audit anchor.
+Ordinary Git clients can still push while this task waits. Missing or unbound context is recorded rather than rejecting ingestion. The pause applies only to the producer following this explicitly prepared task.
 
-## Git ingestion and version gating
+The local API exposes task listing and task answer/assumption operations, `/api/demo/start`, `/api/analysis` and `/api/recover`, alongside workspace, event, diff and decision endpoints. Replay resets the disposable demo; it does not operate on arbitrary repositories.
 
-A push event supplies a repository, ref and immutable head. The engine resolves the current ref through the Git adapter before accepting it as the active version. If the event's head differs from the authoritative ref, it is treated as out of order. Delivery timestamps never establish freshness.
+## Context carried into code and revisions
 
-Immutable event-input hashing makes repeat delivery idempotent. Duplicate processing returns the existing revision receipt and reconciles the active ref pointer when appropriate. Force-pushes and rebases create new revisions, retaining historical revisions and their relationships. Returning a branch from A to B to A restores the observed active pointer without erasing the intermediate revision.
+Resolution creates an immutable ContextSnapshot containing retrieved constraints, declared answer or unresolved assumption, captured sources, parameter value and references. A separate authorization binds the snapshot and whether human review remains necessary.
 
-Missing provenance is accepted as `unknown`. It does not block ingestion. Producer statements are labeled declared or inferred; commit/tree/path facts are observed. Events for a canonical branch update the observed canonical state rather than creating a new producer proposal.
+The task producer commits `.converge/context.json` and task/context/authorization/answer Git trailers. Ingestion parses actual trailing records, checks their exact identifiers against stored authorization, verifies the target repository and checks source freshness. A matching revision uses that exact snapshot and answer reference. Forged, missing or mismatched context remains unknown or invalid; naming an unanswered task cannot make it authoritative.
 
-Forked producer repositories are mapped back to the approved canonical repository. This mapping participates in ingestion identity, preventing identical branch names in different forks from silently sharing one logical proposal.
+Composed-tree validation also checks observed behavior against the bound answer: the trusted lost-response transport must observe two attempts for retry or one for no retry. Carrying a correct provenance reference alone cannot make code that contradicts the selected answer eligible for application.
 
-The implementation currently uses a fixed registered repository baseline for affected-scope comparison. It does not provide a general evolving merge-base/context compiler for arbitrary histories, nor complete handling of all Git event types such as branch deletion.
+The artifact carries coordination references and bounded source/parameter information, not secrets or private prompts. This is task provenance for the demonstration, not a mandatory protocol for every agent or Git client.
 
-## Deterministic relationships and actual compositions
+## Immutable records and ordinary Git ingress
 
-Exact complete-tree identity establishes implementation equivalence. It does not establish identical intent. Overlapping paths without exact equality produce an `unknown` relationship. No LLM analysis or confidence score authorizes a merge.
+Logical proposals and immutable revisions are separate. A proposal identifies canonical repository, producer repository and branch. A revision binds observed base/head commits, complete tree, affected paths, context version, provenance and optional declared choice. Repository/tree implementation identity lets exact duplicates share implementation while preserving separate intent and producer histories.
 
-Before relationship comparisons, the engine filters by canonical repository and affected-path overlap, while retaining an exact-tree identity check. This saves comparisons in the fixture. It still scans arrays of revision metadata; it is not a production inverted index. Subsystem, symbol and dependency indexing have not been implemented.
+IDs hash canonical serialized inputs and newly created records are deep-frozen. Mutable statuses, active ref pointers and evidence eligibility are separate. Persistence remains one workspace aggregate rather than independently enforced immutable database tables. Reloaded JSON is ordinary JavaScript data. Audit records reference previous hashes, without a signed external audit anchor.
 
-An offered alternative is built as an actual Git candidate. The local adapter creates an isolated temporary clone, starts at the current canonical head, applies selected revision patches with Git's three-way support, writes the resulting tree, creates a candidate commit, and retains it under a candidate ref. Identical selected trees are applied once while their proposal revision identifiers remain in the composition history.
+Ingress re-reads the authoritative Git ref. A delivered head different from that ref is out of order; timestamps are not version counters. Event hashing makes duplicates idempotent. Rebase/force-push creates a new revision. An A→B→A return can restore the active pointer while keeping B's history. Canonical branch events observe Git movement instead of inventing proposals.
 
-A textual merge conflict rejects composition. It cannot be turned into an applicable baseline fallback. A textual success still requires validation and, for the demonstrated architectural/semantic choices, a human decision.
+Approved forks participate in identity and map back to their canonical repository. Unknown provenance is valid. Producer claims stay declared metadata and Git commit/tree/path facts stay observed. Scope currently uses a fixed registered baseline; evolving arbitrary merge bases and all Git event types, including deletion, remain incomplete.
 
-Generic incoming changes do not automatically become intelligently grouped decisions. In the demo the two components are explicitly authored. The production API can accept owner-created decision components, then builds and checks their alternatives. Automatic discovery of arbitrary decision components is future work.
+## Generic relationship and decision derivation
 
-## Evidence and its precise claims
+Complete-tree identity establishes implementation equivalence only. Path overlap without evidence creates `unknown`. Versioned producer metadata may declare a `decision_key` and `choice`; different choices create a declared alternative edge. This is a producer claim that outcomes compete, not inferred architecture or a platform-selected preference.
 
-The current validator is platform-owned JavaScript. It reads JSON configuration and does not execute repository scripts, producer-supplied tests or generated code. It checks valid configuration, a retry-attempt range, explicit currency units, and a small cross-repository currency scenario.
+Interaction analysis filters pairs by platform suite footprint. The baseline and each singleton candidate require current passing trusted evidence on the same captured canonical base. The engine constructs a real pair tree and runs the same check. If individually passing changes compose cleanly but fail together, it records the exact revision heads/trees, composed tree, individual evidence, configuration, pinned heads and finite result as observed interaction evidence.
 
-An evidence record includes an exact subject reference, tree hash, validation configuration hash, result, source, timestamp, constraint identifiers, and pinned canonical heads. Cross-repository fixture evidence additionally records both subject trees.
+The component algorithm connects active revisions through unresolved alternative/conflict edges. It has no hard-coded retry-policy or semantic-demo decision IDs. Equivalence, compatibility hints, dependencies and unknown overlaps do not connect unrelated decisions. Branch names and ingestion order do not define the groups.
 
-Evidence records stay historical. Current eligibility is derived. A relevant pinned head change, configuration change or constraint-version change makes previous evidence stale. A newly added active constraint also changes eligibility; checking only removed constraint versions would have missed this case.
+Bounded maximal consistent subsets enumerate options that avoid the component's blocking edges. Same-tree aliases preserve histories while sharing implementation search identity. Budget overflow yields explicit conventional review rather than an incomplete option list presented as complete. Missing, forged or stale failure evidence remains an unresolved claim requiring judgment.
 
-During resolution, evidence must be current and passing, identify the exact selected composition and resulting tree, and come from the platform-owned trusted-validation path. A producer's passing-test claim does not satisfy that requirement.
+Independent validated work stays outside the graph and can accompany alternatives in an explicitly reviewed, freshly checked composition. Unknown executable work stays conventional review. Unknown documentation remains visible for explicit review. Independence or high confidence never authorizes an automatic canonical write.
 
-The checks establish only their stated scope. They do not prove general semantic correctness, payment correctness across all inputs, production performance, security, or compatibility across all dependencies. There is no general CI scheduler, sandboxed test execution fleet, security scan engine or arbitrary checkable-constraint interpreter. The demo retry constraint is enforced by fixture-specific platform code.
+This is generic graph derivation from declared/observed relationships. It does not discover arbitrary unknown semantics or establish global compatibility from absent edges. Path/suite filtering saves expensive comparisons while still scanning arrays; production subsystem, symbol and dependency indexes remain unfinished.
 
-## Reviewed decision basis and canonical advancement
+## The running HTTP application and A/B/A+B
 
-The decision basis hashes the component's revisions, active candidate membership in its scope, relevant relationship identifiers, active constraints, offered alternatives, evidence identifiers and eligibility, unresolved assumptions, and observed repository heads. Adding a relevant candidate or changing a constraint can therefore invalidate a previously reviewed basis.
+The v2 baseline contains executable code. `node app.mjs` starts a loopback service. `/checkout` uses the retry client and `/charge` deduplicates payment by idempotency key; health, metrics and demonstration state are available. Payments and confirmations are simulated effects, with no real money or email.
 
-Resolution re-reads canonical heads, recalculates the basis, and compares the submitted basis and expected canonical head. A mismatch returns `409 DECISION_STALE`. The UI offers a refresh that constructs new candidates and evidence before another decision can be applied.
+A modifies `client/retry.mjs` to retry using the same order identity. B modifies the disjoint `server/charge.mjs` to send confirmation before replay detection. The trusted proxy loses one response only after payment and external effects have completed.
 
-After passing those checks, the engine creates an immutable decision recording the selected revisions, reviewed basis, observed head, rationale, actor and time. Operational status is stored separately. It persists a prepared operation with the exact expected head and target commit before calling Git.
+| Exact version | Attempts | Provider charges | Provider confirmations | Check |
+|---|---:|---:|---:|---|
+| Baseline | 1 | 1 | 1 | Pass |
+| A alone | 2 | 1 | 1 | Pass |
+| B alone | 1 | 1 | 1 | Pass |
+| Clean Git composition A+B | 2 | 1 | 2 | Fail |
 
-The local adapter uses `git update-ref <ref> <new> <old>`. This is an actual conditional ref update. The expected old head is captured before asynchronous persistence, so an external push during persistence cannot cause the operation to adopt and overwrite the new head.
+Baseline can return 502 after processing a payment. The finite contract concerns one charge and one confirmation; it does not require successful transport recovery. A recovers without repeated effects. B alone confirms once. Together the retried request sends another confirmation before the duplicate-payment return path.
 
-The remote bridge uses `git push --force-with-lease=<ref>:<expected>`. The Durable Object serializes platform work and checks metadata; Git's old-OID enforcement protects against external Git clients that bypass the platform. A Durable Object metadata check alone would not be enough.
+This replaces the old unit-configuration conflict with an interaction arising only in the combined individually passing changes. A fresh host run of `node --test tests/application.test.mjs` passed all four application tests: A/B/A+B, fabricated ledger/test-output claims, secret/filesystem/network restrictions and symlink rejection. Those finite simulated-provider observations do not establish global correctness.
 
-Only one repository advances per resolution. Other repository heads are basis/evidence dependencies. An external writer can change another repository after the last observation; the implementation does not claim atomic multi-repository advancement. A stronger production dependency policy would need immutable dependency versions or an explicit recoverable protocol.
+## Trusted evidence and isolation
 
-## Journal, audit and crash recovery
+The runner materializes exact ordinary Git blobs without hooks or producer scripts. It rejects symlinks, submodules, unsafe paths and oversized trees. Execution uses a read-only candidate/runtime, scrubbed environment and private loopback network namespace. Node permissions restrict outside filesystem access, child processes, native addons and workers. Outer CPU, memory, descriptors, output and wall time are bounded.
 
-Each audit entry references the previous entry's immutable hash. The prepared operation pins a decision and target commit. After successful Git CAS, an applied receipt and canonical-updated audit record are persisted.
+A platform-owned supervisor runs the candidate separately from its trusted provider/proxy. It counts actual provider HTTP effects. Candidate `/state`, tests, passing stdout and provenance cannot supply these counts. Candidate output is separated from the supervisor result channel. The suite checks normal checkout, one lost processed response, requested payment amount and retained order keys.
 
-If the executor's outcome is uncertain, the operation is marked for recovery and further canonical transitions are blocked. Startup recovery checks the authoritative ref against the exact prepared target. An exact match is recorded as applied without pushing again. Any ambiguous state remains recovery-required. The implementation does not silently retry an uncertain irreversible write.
+Evidence binds exact subject/tree, trusted configuration, policy commit/tree, result, source, time, constraints and canonical dependency heads. Historical evidence stays unchanged. A changed pinned head, new/changed constraint or configuration makes it ineligible. Resolution requires fresh passing trusted evidence for the exact selected composition/tree.
 
-The tests simulate the critical crash window after Git advancement and before the final persistence receipt. This is a deterministic recovery test, not a live Cloudflare or process-kill durability experiment across all possible crash windows.
+Unavailable isolation returns `validation-unavailable` and `passed:false`; there is no unsandboxed fallback. The host application suite passed. Separately, default local Docker security denied the bubblewrap namespace probe. Cloudflare Container namespace support is unverified. A successful image build does not establish that deployed isolated validation can run.
 
-## Cloudflare implementation and the external executor
+There is no general CI fleet, arbitrary constraint-language interpreter or security scanner. The platform owns the demonstrated suite and pinned policy schema. These limits do not constitute a full hostile-code isolation audit or proof across all failures.
 
-The Worker declares an Artifacts binding, a native push-event Queue consumer, browser assets and a workspace Durable Object. It includes repository create/register/fork operations and immutable commit/tree reads. Approved forks are mapped to their canonical repository for ingestion. Untrusted paths such as `__proto__` are handled with a null-prototype path map rather than ordinary object assignment.
+## Reviewed basis, Git CAS and recovery
 
-Creation and registration are separate when a repository is empty: create returns the remote and an initial-commit requirement; a normal Git client seeds the repository before it can be registered with a canonical head.
+Candidates start from the observed canonical head in a temporary clone. Selected patches use Git's three-way support; identical implementations are applied once while their history IDs remain in the composition. Candidate commits/trees are retained under refs. A textual conflict stops composition rather than falling back to a passing baseline.
 
-The documented Artifacts read binding did not expose a verified conditional ref-write method. The implementation therefore routes expensive composition, validation and canonical push through a trusted Node Git executor. The Worker refuses canonical advancement without the executor, its service credential, and an exact validation configuration hash.
+The basis covers graph identity, selected/current revisions, relevant relationships, active constraints, offered alternatives, evidence identities/eligibility, assumptions, context versions and repository heads. Added work or changed reviewed inputs can stale an open decision.
 
-`server/bridge.mjs` contains the service code. It selects repository-scoped credentials by configured environment-variable names, never through producer metadata. The bridge performs normal authenticated Git operations and protects remote writes with an explicit lease. A container/gateway connecting that Node service to the Worker service binding remains to be provisioned.
+Resolution re-observes heads, recalculates the basis and checks both submitted basis and expected head. Mismatch returns `409 DECISION_STALE`. Refresh derives the current graph and builds new candidates/evidence; changed membership requires presenting the new choices.
 
-No Cloudflare account resources were created or deployed. Live repository authentication, fork object access, native event delivery, service bindings, remote lease races and recovery remain untested. Wrangler's dry run proves bundling/configuration compatibility, not those live properties. Exact diffs work locally; the Worker currently has no production `/api/diff` route and the Artifacts adapter's diff path is deliberately unavailable.
+Before writing Git, the engine persists an immutable decision with selected/deferred revisions, context references, rationale, actor and reviewed inputs. A separate prepared operation pins exact old head and target commit. Local Git uses `update-ref <ref> <new> <old>`. Remote Git uses explicit `--force-with-lease=<ref>:<expected>`. Capturing the old head before asynchronous persistence protects against an external client's racing push.
 
-## What the competition fixture actually demonstrates
+Success records dispositions and audit receipt. An uncertain executor result blocks later transitions. Recovery observes authoritative Git, recognizes only the exact prepared target and never pushes again to guess the outcome. Ambiguity remains recovery-required. The Container gateway forwards a canonical operation once and does not retry a lost response.
 
-The two repositories are real Git repositories named `checkout-api` and `storefront`. Their contents are JSON configuration and README files. There is no running checkout server or storefront application.
+One operation advances one repository. Dependency heads are reviewed inputs, but another repository can change after observation. There is no atomic multi-repository transaction. Production releases need immutable dependency pins or an explicitly recoverable protocol.
 
-Five concurrent producer loops operate in isolated clones. Their names represent Atlas, Mira, Rowan, CI/reliability and an ordinary Git client. They are simulated producers, not separately running AI agents or a real external CI service.
+## The eight-proposal scenario and compression
 
-They produce eight proposals: two request-ID implementations with identical complete trees, one metrics file, two retry alternatives, an API currency-unit change, a client-rounding change, and documentation with unknown provenance.
+Five concurrent ordinary Git-producing loops represent Atlas, Mira, Rowan, CI/reliability and a Git client. These simulate producers; they are not live coding agents or external CI. Their isolated clones produce eight application proposals: two identical tracing histories, metrics, fixed/exponential timing alternatives, context-bound retry, confirmation-before-replay, and unknown-provenance documentation.
 
-The first declared decision chooses a retry policy and includes request tracing and metrics in its checked composition. The second declared decision chooses client behavior while preserving the current API contract, or defers the behavior changes and applies documentation. Selecting an outcome can defer a proposal; resolving all components does not mean all proposal code is merged.
+For the explicitly retry-enabled test answer, relationships yield a timing choice and observed duplicate-confirmation interaction. Independent work accompanies reviewed compositions. A decision can apply selected code and defer competing code; resolving every group does not mean merging every proposal. A no-retry answer can change the interaction and downstream decision count.
 
-The semantic fixture shows a cleanly mergeable but incompatible currency contract: the client sends dollars while the changed API interprets cents, making a $10 input become 10 cents. Its limitation is significant: the API change is already unsafe against the baseline client, and the fixture does not evaluate the client `roundAt` field. It does not demonstrate two individually system-safe changes becoming unsafe only when combined. A stronger adversarial application fixture remains needed for that case.
+The user's context clarification is an additional human input. The retry-enabled acceptance path has two downstream review choices plus one earlier clarification: three human inputs when both stages are counted. Its 2/8 = 0.25 ratio measures review compression only. End-to-end human interaction counts must include the clarification and any conventional review; the interface exposes recorded context answers and pending clarifications separately.
 
-Applying the first decision advances canonical state. Previously valid evidence becomes stale, and the second decision is rejected until refreshed. Both resulting repositories are cloned and checked with `git fsck` in the verification script.
+After canonical advancement, earlier evidence and another open basis can become stale. The latter requires refresh. Clone/integrity checks verify ordinary Git results. Read the generated report's recorded scope/status; historical v1 values such as 433 ms and twelve avoided comparisons are not v2 measurements.
 
-## Verification and metrics
+The current [local report](demo-report.json), generated on 2026-10-02, records these bounded outcomes:
 
-The test suite contains twenty tests: sixteen local Git/engine acceptance tests and four mocked Artifacts/Worker tests. It covers separate duplicate histories, bounded currency failure, unknown provenance, two resolutions and cloneability, stale heads/evidence, changed constraints, duplicate and out-of-order events, force-push/ABA handling, added candidates, external pushes during prepared persistence, concurrent resolution, recovery after Git advancement, missing identity, forged evidence, merge conflicts, audit chaining, canonical events, untrusted path names, missing Artifacts objects, fail-closed executor behavior, and unauthenticated production API calls.
-
-The browser checks exercise both decisions, the mandatory refresh between them, rationale entry, local exact diffs, and responsive desktop/mobile layouts. The simplified UI also verifies that technical details begin collapsed and workspace metrics remain accessible through disclosure. Browser checks do not prove server invariants or live deployment behavior.
-
-The recorded bounded report contains:
-
-| Metric | Recorded value | Interpretation |
+| Observation | Recorded result | Scope |
 |---|---:|---|
-| Proposals / producers / repositories | 8 / 5 / 2 | Scripted fixture sizes |
-| Human decisions | 2 | Predefined decision components |
-| Compression ratio | 0.25 | 2 / 8 in this fixture; not generic grouping performance |
-| Supplied intent traceability | 87.5% | Seven of eight revisions have declared provenance |
-| Relationship comparisons / avoided | 4 / 12 | Filtering compared with sixteen potential pairs |
-| Analysis duration | 433 ms | One local fixture run, including producer generation |
-| Stale decision rejection | 1 | Rejected between the two verification resolutions |
-| Previously current evidence made stale | 11 | Historical records remain ineligible after canonical change |
-| Stale evidence accepted | 0 | Bounded fixture/tests; no production telemetry claim |
-| Incorrect duplicate classifications | 0 | Expected single identical-tree pair; no broad false-positive study |
-| Automatic reversals | 0 | No automatic canonical convergence in the fixture |
-| Ordinary clone and integrity checks | Passed | Both resulting repositories clone and pass Git integrity checks |
+| Proposals / producers / repositories | 8 / 5 / 2 | Constructed running-application scenario |
+| Generated review decisions | 2 | Declared timing alternatives and one observed interaction |
+| Review compression | 0.25 | Two downstream reviews; one context clarification is additional |
+| Applied/deferred revision histories | 8 | Every fixture proposal has an explicit disposition |
+| Rejected stale CAS attempt | 1 | Old reviewed basis submitted after canonical advancement |
+| Historical evidence made stale | 26 | Remains ineligible rather than being rewritten |
+| Relationship comparisons / avoided | 2 / 26 | Metadata filtering versus 28 possible pairs |
+| Supplied producer-intent traceability | 87.5% | Seven histories declared provenance; documentation remains unknown |
+| Analysis latency | 2,852 ms | Final refresh analysis in this run, not a production or initial-ingress benchmark |
+| Invalid pair / selected canonical effects | 1 charge, 2 confirmations / 1 charge, 1 confirmation | Actual trusted-provider lost-response observations |
+| Ordinary Git result | Clone and fsck pass | Both repositories remain usable independently |
+| Selected context binding | Answer reference retained | Named verification actor; not the actual user's answer |
 
-The zero counters are initialized instrumentation plus fixture assertions. They should not be presented as mature production safety statistics. The 0.25 ratio demonstrates the UI and deterministic coordination flow for constructed choices; it does not establish automatic compression across arbitrary repository work.
+Saved browser captures show the [pending context question](evidence/context-before-code.png) and [derived decisions](evidence/derived-decisions.png). The latter uses an isolated acceptance fixture; the actual user task is still unanswered.
 
-## Remaining work against the implementation phases
+The report's zero reversals, stale-evidence acceptance and duplicate errors are bounded fixture results. The duplicate-error check verifies the expected exact-tree pair, not a broad semantic false-positive study.
 
-Phase 1 has local Git behavior and Cloudflare integration code, with live Artifacts/executor verification outstanding. Phase 2 provides the core immutable records, with production storage/indexing enforcement outstanding. Phase 3 provides exact-state evidence and staleness for fixture-owned checks, with a general runner outstanding. Phase 4 provides exact-tree identity and real compositions, with broader deterministic indexes and generic convergence grouping outstanding. Phase 5 provides the single-repository basis/CAS/journal model, with live remote lease and organizational identity verification outstanding. Phase 6 provides a functioning decision-focused interface, now simplified; production exact diffs remain missing. Phase 7 has only ingestion context snapshots, without retrieval, ambiguity handling, questions or a semantic analyzer. Phase 8 has a scripted adversarial fixture rather than the full required application demonstration.
+## Cloudflare implementation and live status
 
-The next work should strengthen the actual application fixture and emergent semantic interaction, verify the complete Cloudflare Git/event/executor path, and add authenticated multi-user identity. The minimal interface should remain focused on the question, its alternatives, the evidence relevant to that choice and the recorded outcome.
+The production path is browser → authenticated Worker → workspace Durable Object. Native Artifacts events enter through a Queue; expensive analysis is scheduled separately. The adapter provides immutable reads, and repositories/approved forks can be created/registered. Empty repositories are seeded with standard Git. Exact diffs use the trusted executor.
+
+The separately deployed Container gateway starts the Node bridge with private manifest/credential bindings. Trusted configuration selects scoped repository credentials, and registered validation profiles/context dependencies must match the executor manifest. Producer claims cannot select the validation profile. Canonical writes use normal Git smart HTTP and explicit leases. Candidate retention must survive ephemeral Container disk; remote candidate-ref acceptance remains a live verification item.
+
+Identity currently represents one configured owner and separate trusted ingress. Organizational multi-user identity and granular authorization are unfinished. Producers need separate scoped Git credentials. Secrets stay out of provenance and browser output.
+
+On 2026-10-02, preflight found no configured account authentication and Wrangler was unauthenticated. No account resources were created, no live deployment was attempted and native delivery, remote races and recovery remain unverified. Both Worker bundles pass, and the final executor image builds and passes syntax checks as its configured non-root user; neither proves Container isolation or account behavior.
+
+The live harness provides concrete experiments: provision native subscriptions; push an untagged branch; observe its exact head through native ingress; derive reviews from real workspace state; reject an external push's stale basis; race identical resolutions; withhold one successful CAS reply; restart the Container; reconcile the prepared target; fetch and check ordinary Git. Opt-in fault controls use a distinct credential. These experiments are authored but unrun against Cloudflare. A hard coordinator-process-kill experiment is also outside that harness.
+
+See [live-cloudflare.md](live-cloudflare.md) for the failed preflight and prerequisites. Missing authentication is a deployment dependency, not a new approval requirement. Unverified Container sandbox support is a technical dependency; validation fails closed.
+
+## Verification, metrics and remaining work
+
+The completed suite passes 80 tests. `npm test` runs current application, context, graph, Git acceptance, mocked Artifacts and gateway tests. `npm run build` builds the browser. `npm run check:worker` bundles the application Worker; the executor's separate command is in the live runbook. `node scripts/verify-demo.mjs` generates bounded local evidence under a named test actor. Desktop and 390-pixel browser checks passed without application errors or horizontal overflow. Browser checks verify interface behavior rather than server invariants or live hosting.
+
+Compression counts required convergence decisions divided by proposals, including conventional review instead of hiding unknown work. Supplied-intent traceability counts declared provenance, not independently verified intent. Exact-tree checks establish implementation equality, not semantic equivalence. Latency/comparisons are local measurements. Zero fixture stale acceptance, reversals or duplicate errors are not production safety statistics.
+
+Remaining work includes live Artifacts/Queue/Container verification, organizational identity, independent immutable/audit storage enforcement, production indexes, a broader evidence scheduler, more context/policy schemas and robust dependency releases. Probabilistic hints are absent; if added later, they must remain human-reviewed hints rather than authority for irreversible convergence.
+
+Against the original implementation order:
+
+| Phase | Current implementation | Remaining boundary |
+|---|---|---|
+| 1: Git/Artifacts/workspaces | Ordinary repositories, isolated producers, approved forks, native ingress/analysis code | Live account/token/event/executor verification |
+| 2: Proposals/revisions | Content-addressed revisions, contexts and shared implementations with separate histories | Independently enforced immutable storage and production indexing |
+| 3: Evidence/staleness | Real isolated HTTP checks, exact tree/policy/configuration, stale eligibility | General evidence scheduler and broader trusted profiles |
+| 4: Relationships/compositions | Tree identity, declared choices, observed exact-pair failure, generic groups and real candidates | Scalable symbol/dependency indexes and unknown-semantic interpretation |
+| 5: Decisions/CAS | Reviewed basis, actual Git CAS, dispositions, prepared journal, conservative recovery | Live remote failure experiments and stronger dependency release protocol |
+| 6: Decision UI | Minimal context/decision view with progressive rationale, evidence and code | Organizational identity and broader production usability |
+| 7: Context/intelligence | One deterministic cross-repository schema, material question, explicit assumptions and code binding | General retrieval/ambiguity compiler; optional semantic hints remain absent |
+| 8: Adversarial demo | Running HTTP application, exact duplicates, compatible metrics, declared alternatives, emergent A+B failure, unknown provenance and stale evidence | Live Cloudflare rendition and evidence beyond finite simulated scenarios |
+
+The [architecture document](architecture.md) maps I1–I6 explicitly, including the application-managed storage limit, lack of cross-repository atomicity and ordinary Git failure floor.
+
+The interface should continue to center the question, alternatives, relevant evidence and recorded outcome as those foundations grow.

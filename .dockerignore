@@ -1,0 +1,10 @@
+*
+!Dockerfile.executor
+!core/
+!core/**
+!server/
+!server/**
+!fixtures/
+fixtures/*
+!fixtures/trusted/
+!fixtures/trusted/**

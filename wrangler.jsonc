@@ -7,6 +7,7 @@
   "durable_objects": {"bindings": [{"name":"COORDINATOR", "class_name":"WorkspaceCoordinator"}]},
   "migrations": [{"tag":"v1", "new_sqlite_classes":["WorkspaceCoordinator"]}],
   "artifacts": [{"binding":"ARTIFACTS", "namespace":"converge"}],
-  "queues": {"consumers":[{"queue":"converge-git-events", "max_batch_size":10, "max_batch_timeout":5}]},
+  "services": [{"binding":"GIT_EXECUTOR","service":"converge-git-executor"}],
+  "queues": {"producers":[{"binding":"ANALYSIS_QUEUE","queue":"converge-git-events"}],"consumers":[{"queue":"converge-git-events", "max_batch_size":1, "max_batch_timeout":5}]},
   "vars": {"WORKSPACE_ID":"northstar", "ARTIFACTS_NAMESPACE":"converge"}
 }

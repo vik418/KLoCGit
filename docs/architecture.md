@@ -1,30 +1,54 @@
-# Architecture and guarantees
+# Architecture and bounded guarantees
 
-Browser → authenticated Worker → workspace Durable Object → immutable coordination records. Native Artifacts push events enter through a Queue. Expensive Git composition and platform-owned validation run in the trusted executor, separate from API event handling. Local development uses the same engine with ordinary bare Git repositories and a serialized HTTP coordinator.
+The browser calls an authenticated Worker. One Durable Object serializes coordination and canonical transitions per workspace. Git remains authoritative for code; the workspace aggregate holds immutable coordination inputs and mutable status. Native Artifacts pushes enter a Queue; accepted work schedules a separate analysis message. A trusted Container executor builds Git candidates, runs bounded platform-owned validation and performs normal Git writes.
 
-## Invariants
+Local development uses the same engine with ordinary bare repositories, a serialized Node HTTP coordinator and the host's isolated runner. The local v2 workspace starts in `.demo-v2/` with an unanswered cross-repository context question and zero coordinated producers.
 
-- **I1:** Revision, context, implementation, relationship, evidence and decision IDs hash canonical serialized inputs. Immutable decisions are separate from mutable operation envelopes. Evidence refers to exact tree/configuration/constraint/dependency versions; derived eligibility changes without rewriting historical evidence. Audit records reference the previous immutable audit ID.
-- **I2:** All application operations go through the workspace serialization gate. The basis covers candidate membership, shown alternatives, relationships, assumptions, constraint versions, evidence identities/eligibility and observed repository heads. The exact reviewed head is captured before persistence, then passed to an actual Git old-OID CAS.
-- **I3:** Exact Git tree identity is machine-checkable; platform checks inspect data without executing producer scripts. Human resolution is required for architecture, unknown provenance included in review, assumptions, and semantic interactions. No inferred confidence authorizes Git advancement.
-- **I4:** Producer intent is declared; Git facts and fixture results are observed; missing provenance is unknown. There is no aggregate confidence score. The demo's alternatives are declared scenarios, not inferred facts.
-- **I5:** Evidence lists checks, subject trees and configuration; finite structural checks and a currency fixture do not establish global correctness.
-- **I6:** Coordination never changes Git storage format or requires its service for ordinary Git operations. Producer clones remain isolated. Canonical Git repositories are independently cloneable.
+## Invariants and their scope
 
-## Canonical journal and recovery
+- **I1 — immutable derivation:** Context sources/snapshots, revisions, implementations, relationships, compositions, evidence, decisions and audit entries use content hashes of canonical inputs. Records refer to immutable Git/configuration/policy versions. Evidence eligibility and operation status change separately. Storage remains an application-managed workspace aggregate; it does not independently enforce append-only database tables or signed audit roots.
+- **I2 — safe advancement:** The basis covers graph/candidate membership, alternatives, relationships, contexts, assumptions, constraints, evidence identities/eligibility and observed heads. Resolution checks the submitted basis and expected target head, then uses actual old-OID Git CAS. Another repository can change after observation; this is not a multi-repository transaction.
+- **I3 — machine-checkable automation:** Exact tree equivalence and bounded trusted check outcomes are deterministic. Human review chooses competing outcomes and resolves observed/unverified interactions. Declared producer choices and inferred hints never authorize autonomous canonical convergence. Candidate executable code runs only under isolation; producer tests do not establish trusted evidence.
+- **I4 — epistemic integrity:** Policy sources are retrieved; user answers and producer alternatives are declared; Git facts and provider counts are observed; explicit unresolved assumptions are inferred and visible. Missing provenance remains unknown. No aggregate confidence score is used.
+- **I5 — bounded claims:** Evidence specifies exact subjects, checks, policy and runner versions. The normal/lost-response HTTP scenarios establish only their observed counts and amount/identity behavior. They do not establish global semantic correctness, production security or a complete sandbox audit.
+- **I6 — Git failure floor:** Repositories retain ordinary Git storage and independently clone/fetch/push. Producer clones are isolated. Missing or corrupt coordination metadata does not trigger destructive repository recreation on startup. Explicit demo replay recreates only its disposable fixture.
 
-Persist the immutable decision and a prepared operation before the external Git CAS. Pin the expected old head and target commit. After Git advancement, append an audit receipt and persist applied operation status. On startup, reconcile uncertain operations against the exact target head. An ambiguous outcome blocks further canonical transitions until reconciled. Recovery does not blindly repeat a push.
+## Context before coordinated production
 
-There is no multi-repository transaction. A decision chooses an applicable tree for one repository. Other repository heads are pinned evidence/basis inputs; they are checked when presenting and resolving a decision. External changes to another repository can still occur after the last observation. This is a known cross-repository race and cannot be eliminated by the workspace Durable Object. Production dependency policy needs immutable pinned dependency releases or an explicit recoverable multi-repository protocol.
+The explicit `retry-response-v1` task reads a registered `payment-policy` source at an immutable commit before authorizing its producer. A supplied answer, reliably identified existing decision or single allowed checkable value can avoid clarification. Otherwise it asks one material retry question. The interactive answer stays pending until submitted; test actors do not answer for the actual user.
 
-## Scope indexing and convergence
+An answer or explicit assumption produces a versioned ContextSnapshot and authorization. The producer commits a context artifact and Git trailers. Ingestion verifies their binding to stored authorization. Changed source content invalidates the context; missing/forged bindings do not become authority. Ordinary unrelated Git work remains ingestible while the coordinated task waits. The compiler is one schema, not an arbitrary prose interpreter or general context retrieval system.
 
-Candidates are filtered by canonical repository and affected-path intersection before comparison. Identical complete trees can share one implementation while retaining separate proposal histories. Scope overlap is classified as unknown. The prototype does not use LLM semantic reasoning or equate textual merge success with compatibility. Path indexing is intentionally minimal; subsystem/symbol/dependency indexes remain future scale work.
+## Relationships, groups and candidates
 
-The demo groups declared retry alternatives into one decision and the observed currency-contract interaction into another. Compatible work is included in reviewed compositions. Generic incoming work is preserved for conventional review; the prototype does not autonomously synthesize decision components for arbitrary semantics.
+Ingress filters costly comparisons by repository, path/tree identity and declared decision key. Shared trusted-suite footprints select interaction pairs. Exact trees share implementation identity without collapsing intent/provenance histories. Overlap alone remains unknown. Metadata declaring different choices for one decision key produces declared alternative edges, not inferred semantics.
 
-## Known prototype limits
+A trusted interaction edge requires exact individually passing revisions and a cleanly composed tree failing the finite check. Connected unresolved alternative/conflict edges produce generic decision components. Unknown/compatible/equivalent/dependency edges do not join unrelated decisions. Bounded maximal consistent subsets generate options; exhausted budgets or unverified claims remain review work.
 
-Metadata is one durable aggregate per workspace rather than an indexed production database. The trusted validator is specific to the demonstrated checkout configuration; it does not provide a general CI scheduler or security scanner. A generic checkable-constraint rejection engine and optional context retrieval compiler are not implemented. Constraints participate in evidence and basis versioning; the demo's retry-budget constraint is enforced by platform code.
+Independent checked revisions may accompany explicitly reviewed alternatives, which are rebuilt and validated as actual Git trees. Unknown executable work or unattached work counts as conventional review. Whole-tree duplicate identity is the only automatic implementation-equivalence claim. No LLM semantic analyzer is implemented.
 
-The local demo uses a named demo principal. Cloudflare uses a configured owner credential with a fixed authenticated identity; organizational multi-user identity is not implemented. Tokens are never embedded in provenance or browser build output. Live Cloudflare integration was not possible without account credentials and executor infrastructure.
+This filters expensive comparisons but still scans metadata arrays. Subsystem/symbol/dependency inverted indexes and high-scale scheduling are unfinished. Absent graph edges are not evidence of global compatibility.
+
+## Trusted executable application checks
+
+The checkout fixture and policy repository are executable application/pinned context inputs. The real interaction is same-identity retry versus confirmation before replay detection: baseline/A/B yield one charge and confirmation, while clean A+B yields one charge and two confirmations in the lost-response case.
+
+A platform-owned supervisor observes effects received by its external simulated HTTP provider. It suppresses one response only after processing. Candidate ledger, stdout and repository tests cannot supply provider counts. Read-only trees/runtime, private namespaces, scrubbed environment, Node permissions and resource limits bound execution. Unsafe entries are rejected before execution.
+
+Unavailable isolation returns failing `validation-unavailable` evidence. There is no unsandboxed fallback. The host application suite passes; the default Docker sandbox's namespace probe fails and live Cloudflare Container namespace capability remains unverified.
+
+## CAS journal and recovery
+
+Persist an immutable decision and prepared operation before external Git CAS. Pin exact expected old head and target commit. Retain candidate Git objects; the remote executor pushes/observes candidate refs before a canonical operation can be prepared. After success, persist applied/deferred dispositions and an audit receipt.
+
+An uncertain write blocks further advancement. Recovery compares authoritative Git to the exact prepared target, records a match without another push and preserves ambiguity otherwise. The Container gateway never retries a canonical request after forwarding it. A later analysis-enqueue failure does not misreport an already completed canonical update.
+
+Only one repository advances per operation. Other heads are evidence/basis dependencies, not an atomic lock over external clients. Production dependency handling requires immutable pinned releases or an explicit recoverable multi-repository protocol.
+
+## Live and production limits
+
+Cloudflare code provides Artifacts reads/create/fork, native ingress/analysis queues, a workspace Durable Object and authenticated Container executor. Exact diffs are routed through that executor. Live account integration remains blocked by missing credentials. Worker/image build checks are not evidence of native delivery, Artifacts ref retention, remote lease races or deployed sandbox behavior.
+
+Local identity is one fixed demo principal, optionally token-authenticated. Cloudflare has a configured owner identity and separate ingress/service credentials. Organizational multi-user identity, independent immutable storage enforcement, a general checkable-constraint language, broad evidence runners and a production CI fleet remain unfinished.
+
+See the [detailed briefing](implementation-briefing.md), [Cloudflare setup](cloudflare.md) and [live acceptance status](live-cloudflare.md).
