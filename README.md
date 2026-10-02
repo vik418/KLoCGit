@@ -14,7 +14,7 @@ Open http://localhost:5173. The first run creates two ordinary bare Git reposito
 The default screen presents two decisions. Review alternatives, evidence and revisions; record a rationale; apply a composed tree. Resolving the first decision changes the basis of the second. Refresh the second decision before applying it. Demo controls replay the fixture, simulate an external Git update, or change a constraint version.
 
 ```sh
-npm test                  # 19 deterministic acceptance tests
+npm test                  # 20 deterministic acceptance tests
 npm run build             # browser production bundle
 npm run check:worker      # Cloudflare deployment dry run
 node scripts/verify-demo.mjs # regenerate docs/demo-report.json

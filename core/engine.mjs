@@ -13,6 +13,7 @@ export class Engine {
     const repo=this.repo(event.repo);
     if(event.source_repo&&event.source_repo!==repo.id&&!this.state.forks.some(f=>f.id===event.source_repo&&f.repo===repo.id))throw new DomainError('UNREGISTERED_FORK','Producer repository is not registered for this canonical repository',403);
     const sourceRepo=event.source_repo?{...repo,id:event.source_repo}:repo;
+    if(sourceRepo.id===repo.id&&event.ref===repo.canonical_ref){await this.syncHeads();return {canonical:true,head:repo.head};}
     const eventId=await hash({repo:event.repo,source_repo:sourceRepo.id,ref:event.ref,before:event.before??null,after:event.after});
     if(this.state.events[eventId]){const head=await this.git.ref(sourceRepo,event.ref);if(head===event.after)this.state.refVersions[`${sourceRepo.id}:${event.ref}`]=head;await this.save(this.state);return {duplicate:true,revision_id:this.state.events[eventId]};}
     // Ref freshness comes from authoritative Git. Timestamps are never used as version counters.
