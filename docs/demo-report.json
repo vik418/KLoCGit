@@ -1,0 +1,26 @@
+{
+  "generated_at": "2026-10-02T13:58:14.907Z",
+  "scope": "Deterministic local Git fixture; live Artifacts behavior is not verified.",
+  "candidate_proposals": 8,
+  "concurrent_producers": 5,
+  "repositories": 2,
+  "human_decisions_required": 2,
+  "decision_compression_ratio": 0.25,
+  "automatic_actions_later_reversed": 0,
+  "incorrect_duplicate_classifications": 0,
+  "stale_evidence_accepted": 0,
+  "canonical_CAS_failures_handled": 1,
+  "previously_valid_evidence_now_stale": 11,
+  "producer_intent_traceability": 0.875,
+  "analysis_latency_ms": 433,
+  "relationship_comparisons": 4,
+  "relationship_comparisons_avoided": 12,
+  "resolved_decisions": 2,
+  "ordinary_git_clone_and_fsck": "passed",
+  "semantic_interaction": "$10 produces 10 cents in the rejected composed contract",
+  "limits": [
+    "Structural validation and one contract fixture do not establish global correctness.",
+    "No live Cloudflare account is configured.",
+    "Cross-repository updates are not atomic."
+  ]
+}
