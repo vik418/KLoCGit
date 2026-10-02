@@ -65,3 +65,5 @@ These repositories work independently of the coordination server. Stopping Conve
 See [Cloudflare setup](docs/cloudflare.md) and [architecture and limits](docs/architecture.md). No live Cloudflare credentials are configured in this workspace, so no remote resources were created and no public site was deployed. The Worker bundle passes Wrangler's dry run. Live Artifacts authentication, push events and remote Git lease behavior still require integration verification.
 
 This is a deterministic prototype, not a complete GitHub replacement or production rollout. Generic evidence runners, a context retrieval compiler, probabilistic relationship hints, organizational identity integration and high-scale indexing are outside this implementation. Unclassified incoming work remains available for conventional review; arbitrary Git ingestion does not silently create safe convergence decisions.
+
+For the complete account of what was built, what the demo proves, and what remains unfinished, read the [implementation briefing](docs/implementation-briefing.md). The default UI now uses one decision column and progressively reveals workspace metrics and technical details.
