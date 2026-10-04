@@ -31,13 +31,28 @@ The application Worker needs `AUTH_TOKEN`, `ACTOR_ID`, separate `INGEST_TOKEN`, 
     },
     "payment-policy": {
       "remote": "https://<ACCOUNT_ID>.artifacts.cloudflare.net/git/converge/payment-policy.git",
-      "tokenEnv": "PAYMENT_POLICY_READ_TOKEN"
+      "tokenEnv": "PAYMENT_POLICY_EXECUTOR_GIT_TOKEN",
+      "validation_profile": "context-document-v1"
     }
   }
 }
 ```
 
 `GIT_REPOSITORY_TOKENS_JSON` maps those environment variable names to token values. Provision it using secret-management stdin, never a committed file or command-line argument. Tokens minted by Artifacts use the documented repo token scope and expiry. The control-plane API token and repo Git tokens are different credentials.
+
+The policy repository needs a scoped write token if its proposals/candidates can be composed or applied: candidate retention writes Git refs too. A read-only token is sufficient only for a repository used strictly as a dependency. Every producer fork used by the executor needs a manifest entry with its approved profile/dependency configuration and scoped token.
+
+The executor's `workers_dev` is disabled, so its health/profile endpoints are private service operations. Compute the expected validation hash from the exact packaged source before deployment:
+
+```sh
+node --input-type=module -e "import {applicationValidationConfigHash} from './server/runner.mjs'; console.log(await applicationValidationConfigHash());"
+```
+
+This hash covers runner/supervisor source and limits, not machine-specific runtime paths. Configure it as the application's `VALIDATION_CONFIG_HASH` secret. An unrelated local preview or a guessed value cannot substitute for the deployed source hash.
+
+Create and seed the repositories and Queue before starting the application consumer. Deploy the executor first, because the application names it in a service binding. Wrangler supports `deploy --secrets-file /path/outside/repository/executor-secrets.json --config wrangler.executor.jsonc` for initial service secrets; apply the same pattern with the main config and its own secrets. Then register policy before checkout and attach native push subscriptions. The REST provisioning harness requires `CLOUDFLARE_API_TOKEN` independently of a successful `wrangler login`. Do not treat the fault-injection `verify` harness as an initial smoke test.
+
+Build the complete executor manifest before its first startup. The Node bridge receives secrets/configuration when its Container starts; changing bindings alone does not prove a running bridge refreshed them. Token rotation or adding a fork requires a verified restart/rollout path. The existing fault-test restart route is not a general owner maintenance interface.
 
 ## Provision and route the services
 
