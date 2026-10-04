@@ -7,17 +7,19 @@ import {Engine} from '../core/engine.mjs';
 import {LocalGit} from './git.mjs';
 import {createDemo,produceWork} from '../scripts/demo.mjs';
 import {record,DomainError} from '../core/hash.mjs';
+import {handleWorkflowRequest} from './workflow-api.mjs';
 const project=fileURLToPath(new URL('../',import.meta.url));const root=process.env.DECISION_GIT_ROOT?path.resolve(process.env.DECISION_GIT_ROOT):path.join(project,'.demo-v2');const stateFile=path.join(root,'state.json');
 const localActor=process.env.LOCAL_ACTOR_ID??'demo-owner';const ownerToken=process.env.LOCAL_OWNER_TOKEN;
 const save=async state=>{await mkdir(root,{recursive:true});await writeFile(stateFile+'.tmp',JSON.stringify(state,null,2));await rename(stateFile+'.tmp',stateFile);};
 let engine;
 let existingState;
 try{existingState=JSON.parse(await readFile(stateFile,'utf8'));}catch(error){if(error.code!=='ENOENT')throw error;}
-if(existingState){engine=new Engine(existingState,await new LocalGit(root).init(),save);await engine.recover();}
+if(existingState){existingState.workspace.owner_id=localActor;engine=new Engine(existingState,await new LocalGit(root).init(),save);await engine.recover();}
 else{
   // Missing coordination metadata must not erase intact Git repositories.
   try{await stat(path.join(root,'repositories'));throw new DomainError('WORKSPACE_METADATA_MISSING','Existing Git repositories need their coordination metadata restored; startup will preserve them.',503);}catch(error){if(error.code!=='ENOENT')throw error;}
   ({engine}=await createDemo(root,save,{pending:true}));
+  engine.state.workspace.owner_id=localActor;await save(engine.state);
 }
 const vite=await createViteServer({root:project,server:{middlewareMode:true},appType:'spa'});
 async function body(req){let raw='';for await(const chunk of req){raw+=chunk;if(raw.length>1000000)throw new DomainError('PAYLOAD_TOO_LARGE','Request exceeds 1MB',413);}try{return raw?JSON.parse(raw):{};}catch{throw new DomainError('INVALID_JSON','Request body must be JSON');}}
@@ -37,13 +39,14 @@ const server=http.createServer(async(req,res)=>{
     // actors; LOCAL_OWNER_TOKEN optionally authenticates API callers. Production
     // uses the Worker's configured owner credential.
     const result=await engine.serial(async()=>{
+      const workflow=await handleWorkflowRequest(engine,{method:req.method,url,input,actor});if(workflow!==null)return workflow;
       if(url.pathname==='/api/workspace'&&req.method==='GET')return engine.view();
       if(url.pathname==='/api/tasks'&&req.method==='GET')return {tasks:engine.state.tasks};
       if(url.pathname==='/api/tasks'&&req.method==='POST')return engine.prepareTask(input.task??input,actor);
       const taskMatch=url.pathname.match(/^\/api\/tasks\/([^/]+)(?:\/(answer|assume))?$/);
       if(taskMatch&&req.method==='GET'&&!taskMatch[2]){const task=engine.state.tasks.find(t=>t.task.id===taskMatch[1]);if(!task)throw new DomainError('TASK_NOT_FOUND','Task not found',404);return task;}
       if(taskMatch&&req.method==='POST'&&taskMatch[2])return engine.resolveTask(taskMatch[1],{value:input.value,rationale:input.rationale},actor,taskMatch[2]==='assume');
-      if(url.pathname==='/api/demo/reset'&&req.method==='POST'){const next=await createDemo(root,save,{pending:true});engine.state=next.state;engine.git=next.adapter;return engine.view();}
+      if(url.pathname==='/api/demo/reset'&&req.method==='POST'){const next=await createDemo(root,save,{pending:true});engine.state=next.state;engine.state.workspace.owner_id=localActor;engine.git=next.adapter;await save(engine.state);return engine.view();}
       if(url.pathname==='/api/demo/start'&&req.method==='POST'){
         const task=engine.state.tasks[0];if(!task?.authorization)throw new DomainError('CONTEXT_REQUIRED','Answer or explicitly assume the retrieved-policy question before starting the coordinated producers.',409);
         const validity=await engine.contextValidity({sources:[task.source]});if(validity.status!=='current')throw new DomainError('CONTEXT_STALE','The policy changed after task review. Prepare and review the current context before starting producers.',409,{reason:validity.reason});

@@ -1,0 +1,70 @@
+{
+  "version": 1,
+  "observed_at": "2026-10-03T12:46:03.614Z",
+  "status": "local-verification-only",
+  "source_sha256": {
+    "server/workflow-api.mjs": "b4fdc6a690c4adbbc44e2c5dc0862db4c7daae47fcb158cb91d4ae17da138d40",
+    "server/local.mjs": "657b5ae9f2e70c14d5e5b84b4dc12afb14da955b5dfa9da7319674f01b63dc26",
+    "worker/index.mjs": "cff0cd1bc6cfd9323352e9f6cfd17974273ac62fc769338c35d1a13ac998482e",
+    "tests/workflow-api.test.mjs": "57f92a2835667cb8ede960cc75aaf7404799d8893340782d13b9dcf23890f836",
+    "wrangler.jsonc": "080faa47cf04cb3ad6ae1d5f0d9c6a1ad9a830ccba89f3e0e33fa1226124d99b"
+  },
+  "checks": [
+    {
+      "name": "workflow-api-and-artifacts-boundaries",
+      "command": "node --test tests/workflow-api.test.mjs tests/artifacts.test.mjs",
+      "passed": true,
+      "tests": 19,
+      "workflow_api_tests": 11,
+      "claim": "Provider-neutral dispatch, authenticated actor selection, immutable review/queue pins, trusted validation routing, native deletion forwarding and mocked Cloudflare boundary tests pass. This run does not establish live Cloudflare delivery or deployed execution."
+    },
+    {
+      "name": "source-syntax",
+      "command": "node --check server/workflow-api.mjs; node --check server/local.mjs; node --check worker/index.mjs",
+      "passed": true
+    },
+    {
+      "name": "worker-bundle",
+      "command": "npx wrangler deploy --dry-run --outdir .wrangler/workflow-api-dry-run",
+      "passed": true,
+      "total_upload_kib": 153.09,
+      "gzip_kib": 35.43,
+      "bindings": [
+        "COORDINATOR",
+        "ANALYSIS_QUEUE",
+        "ARTIFACTS",
+        "GIT_EXECUTOR",
+        "ASSETS",
+        "WORKSPACE_ID",
+        "ARTIFACTS_NAMESPACE"
+      ],
+      "claim": "Current API source and configured bindings bundle successfully. Static assets were reused from the existing dist directory; no claim is made about the latest UI build. No account resources were created or deployed."
+    }
+  ],
+  "live": {
+    "status": "unverified",
+    "credential_status": "Previously observed runtime credentials and Cloudflare authentication were absent; this run did not retry authentication.",
+    "unrun": [
+      "Cloudflare Artifacts actual pushes",
+      "native push-event delivery",
+      "Queue delivery",
+      "deployed Durable Object serialization/recovery",
+      "Cloudflare Container sandbox support",
+      "live trusted Git executor canonical lease/CAS"
+    ]
+  },
+  "followup_verifications": [
+    {
+      "observed_at": "2026-10-03T13:00:56.173Z",
+      "name": "malformed-native-merge-queue-jobs",
+      "source_sha256": {
+        "worker/index.mjs": "d0567f01966be8ee9088814e3f3ce11266a22c2fa7e7fd7c3151a2d21dcacded",
+        "tests/workflow-api.test.mjs": "e77a56a3a91b351ecbf19f2341784886e3e0b5ce7d3bd4987983f611c4979813"
+      },
+      "command": "node --test tests/workflow-api.test.mjs",
+      "passed": true,
+      "tests": 12,
+      "claim": "Missing, nonstring, blank and over-200-character native queue processing IDs are acknowledged without coordinator fetch or Git mutation; valid immutable request IDs are forwarded. Mocked queue delivery only. The earlier bundle result predates this filter."
+    }
+  ]
+}

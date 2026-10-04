@@ -1,12 +1,14 @@
 # Live Cloudflare verification
 
-Live Cloudflare acceptance is **blocked and unrun** in this session. On 2026-10-02, the managed runtime reported current readiness with no secrets, runtime variables or outbound identities, and `wrangler whoami` reported unauthenticated. No account resources were created and no production deployment was attempted. [cloudflare-preflight.json](./evidence/cloudflare-preflight.json) records the failed preflight rather than a successful integration report.
+Live Cloudflare acceptance is **blocked and unrun** in this session. On 2026-10-02, the managed runtime reported current readiness with no secrets, runtime variables or outbound identities, and `wrangler whoami` reported unauthenticated. Authentication preflight repeated on 2026-10-03 found no credential variables and remained blocked. No account resources were created and no production deployment was attempted. [cloudflare-preflight.json](./evidence/cloudflare-preflight.json) records the failed preflight rather than a successful integration report.
 
 Local checks establish only these narrower facts:
 
 - The executor Worker bundles with Wrangler 4.147.0 and `--dry-run --containers-rollout=none`.
 - The executor Docker image builds with the platform CA mounted only during networked build steps. Docker Hub initially returned HTTP 429; the official Node image mirror at `mirror.gcr.io/library/node:24-bookworm-slim` succeeded.
 - The default local Docker security configuration denies the bubblewrap namespace probe. The executor does not relax that boundary. Cloudflare Container support for the required private namespaces remains unverified; unavailable validation must prevent canonical advancement.
+
+The native workflow build also passed application and executor Worker dry runs, an executor image build, and packaged-source syntax checks under UID 10001. Those checks cover the MR, queue, ancestry and revert source; they establish no live event delivery or Container sandbox execution. See the [workflow coverage matrix](workflows.md).
 
 ## Credentials and account selection
 

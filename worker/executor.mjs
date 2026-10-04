@@ -2,7 +2,7 @@ import {DurableObject} from 'cloudflare:workers';
 import {hash} from '../core/hash.mjs';
 
 const json=(data,status=200)=>new Response(JSON.stringify(data),{status,headers:{'Content-Type':'application/json','Cache-Control':'no-store'}});
-const operations=new Set(['/compose','/validate','/cas','/profile','/trailers','/suite','/diff','/health']);
+const operations=new Set(['/compose','/revert','/is-ancestor','/merge-base','/validate','/cas','/profile','/trailers','/suite','/diff','/health']);
 async function authorized(request,secret){return Boolean(secret)&&await hash(request.headers.get('Authorization')??'')===await hash('Bearer '+secret);}
 
 // A separately deployed service binding routes to this named Container DO.

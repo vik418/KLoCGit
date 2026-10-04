@@ -95,5 +95,22 @@
     "Concurrent authenticated resolution requests",
     "Successful remote CAS response loss, Container restart and exact-target recovery",
     "Hard coordinator process kill after remote CAS before final metadata receipt"
+  ],
+  "followup_observations": [
+    {
+      "observed_at": "2026-10-03T13:02:41.830Z",
+      "command": "node scripts/cloudflare-live.mjs preflight",
+      "status": "blocked",
+      "checks": [
+        {
+          "name": "cloudflare-authentication",
+          "passed": false,
+          "credential_variable_names": [],
+          "reason": "Wrangler did not establish an authenticated account."
+        }
+      ],
+      "resources_created": 0,
+      "claim": "Authentication remains absent. No live account resources or canonical repository writes occurred."
+    }
   ]
 }

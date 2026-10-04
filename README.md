@@ -1,6 +1,6 @@
 # Converge — decisions above Git
 
-A deterministic prototype of the decision-centric Git platform. Git owns code; Converge owns coordination, immutable versions, decisions and bounded evidence. The interface stays small: a material context question, then decisions with alternatives and progressively revealed evidence.
+A deterministic prototype of the decision-centric Git platform. Git owns code; Converge owns coordination, immutable versions, decisions and bounded evidence. The default interface presents decisions with alternatives and progressively revealed evidence. Native merge requests, conventional review and an exact-composition merge queue are available under Work.
 
 ## Run locally
 
@@ -24,6 +24,8 @@ Answer the question, then start the five simulated concurrent producers. They ma
 - Connected decision groups from unresolved alternative/conflict edges; bounded candidate enumeration; independent work included in explicitly reviewed compositions. Unknown executable work remains conventional review.
 - Actual Git candidate trees and a platform-owned HTTP effects validator. Evidence pins the candidate tree, policy version, configuration and canonical heads; changed inputs make historical evidence ineligible.
 - Reviewed-basis checks, actual Git old-OID CAS, serialized coordination, a prepared-operation journal, conservative recovery and hash-chained audit history.
+- Native merge requests with draft/ready/close/reopen, revision-bound reviews, batch review, file/line threads, declared CI reports, required platform checks and pinned dependencies.
+- Explicit single/batch compositions for MR and standalone Git work, an immutable reviewed merge queue that stops for stale inputs, and validated inverse candidates reviewed before revert CAS.
 - A minimal decision interface with alternatives, rationale, evidence, proposals, exact diffs and activity available through progressive detail.
 - Cloudflare Artifacts/Worker/Queue/Durable Object integration code, an authenticated Container executor, remote Git leases and a live verification harness. Account integration remains unverified.
 
@@ -53,6 +55,14 @@ node scripts/verify-demo.mjs
 
 Tests cover application behavior/isolation, context/provenance, generic graph derivation, Git CAS/versioning/recovery and mocked Cloudflare boundaries. Wrangler's dry run proves bundling, not live service behavior. Read the generated report's scope and status before treating metrics as observed results.
 
+The focused native workflow integration suite uses real Git without running candidate application code:
+
+```sh
+node --test tests/workflow-integration.test.mjs
+```
+
+It covers lifecycle and exact reviews, source pushes that arrive before their events, trusted checks, dependency ordering, stale queue tickets, batch requirements, ordinary non-MR work, external merges/force pushes/deletions, reviewed inverse code and MR/queue recovery.
+
 After local resolution:
 
 ```sh
@@ -68,6 +78,8 @@ The application prints its loopback port. Stopping Converge leaves ordinary Git 
 
 No live Cloudflare resources were created or deployed. Account preflight is blocked by missing authentication. The executor image and gateway bundle build, but the default local Docker sandbox denies its namespace probe; Cloudflare Container support for required isolation remains unverified. The executor fails closed when isolated validation cannot start.
 
-Read the [detailed implementation briefing](docs/implementation-briefing.md), [Cloudflare setup](docs/cloudflare.md), [live verification runbook](docs/live-cloudflare.md) and [application fixture](fixtures/README.md).
+Read the [native workflow guide and coverage matrix](docs/workflows.md), [detailed implementation briefing](docs/implementation-briefing.md), [Cloudflare setup](docs/cloudflare.md), [live verification runbook](docs/live-cloudflare.md) and [application fixture](fixtures/README.md).
 
-This prototype does not discover arbitrary unknown semantics, prove global correctness, offer atomic multi-repository updates, implement organizational identity or provide a production CI fleet. Ordinary Git ingestion does not require an agent-specific workflow.
+The footer's **Capabilities** view and authenticated `GET /api/capabilities` expose the same scoped registry as [capabilities.md](docs/capabilities.md). Supported claims cite automated tests; partial, experimental and unsupported workflows keep their limits visible. Run `node scripts/check-capabilities.mjs` to verify references and generated documentation. The [full product roadmap](docs/product-roadmap.md) plans all nineteen domains in dependency order without claiming they are all delivered.
+
+The selected integration is native Artifacts; GitHub and GitLab connectors are not built. The application uses one configured owner. Its default policy requires no separate MR approval; the explicit reviewed Decision still authorizes every canonical change. Positive approval requirements and self-approval are configurable, while organizational multi-user identity is deferred. This prototype does not discover arbitrary unknown semantics, prove global correctness, offer atomic multi-repository updates or provide a production CI fleet. Ordinary Git ingestion does not require an agent-specific workflow.

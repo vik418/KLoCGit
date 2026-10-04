@@ -29,10 +29,13 @@ export async function createBridge({manifest,token=process.env.GIT_BRIDGE_TOKEN}
       let input;try{input=JSON.parse(raw);}catch{throw new DomainError('INVALID_JSON','Executor input must be JSON');}
       if(input.configHash!==adapter.configHash)throw new DomainError('CONFIG_STALE','Executor validation configuration changed',409);
       const job=tail.then(async()=>{
-        const repo=adapter.configured({id:input.repo,canonical_ref:input.ref??'refs/heads/main'});
+        const repo=adapter.configured({id:input.repo,canonical_ref:input.ref??'refs/heads/main',canonical_repo:input.canonical_repo,source_repo:input.source_repo});
         if(req.url==='/profile')return {validation_profile:repo.validation_profile??null,context_repo:repo.context_repo??null};
-        if(['/compose','/validate','/suite','/cas'].includes(req.url)&&((input.validation_profile??null)!==(repo.validation_profile??null)||(input.context_repo??null)!==(repo.context_repo??null)))throw new DomainError('VALIDATION_PROFILE_MISMATCH','Repository validation configuration differs between coordinator and trusted executor',409);
+        if(['/compose','/revert','/is-ancestor','/merge-base','/validate','/suite','/cas'].includes(req.url)&&((input.validation_profile??null)!==(repo.validation_profile??null)||(input.context_repo??null)!==(repo.context_repo??null)))throw new DomainError('VALIDATION_PROFILE_MISMATCH','Repository validation configuration differs between coordinator and trusted executor',409);
         if(req.url==='/compose')return adapter.compose(repo,input.head,input.revisions);
+        if(req.url==='/revert')return adapter.revert(repo,input.head,input.target,input.mainline);
+        if(req.url==='/is-ancestor')return {isAncestor:await adapter.isAncestor(repo,input.ancestor,input.descendant)};
+        if(req.url==='/merge-base')return {base:await adapter.mergeBase(repo,input.head,input.canonical)};
         if(req.url==='/validate'||req.url==='/suite')return adapter.validate(repo,input.commit,input.constraints,input.validityHeads);
         if(req.url==='/trailers')return adapter.trailers(repo,input.commit);
         if(req.url==='/diff')return {diff:await adapter.diff(repo,input.base,input.head)};

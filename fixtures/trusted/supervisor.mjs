@@ -147,7 +147,7 @@ async function run() {
       detail: `HTTP ${normal.status}; charges=${normalEffects.charges}; confirmations=${normalEffects.confirmations}.`},
     {name: 'Platform transport loses one processed payment response', passed: transport.suppressedResponses === 1 && transport.processedResponses >= 1,
       detail: `${transport.processedResponses} processed HTTP response(s); one was suppressed after payment processing.`},
-    {name: 'Lost-response checkout has exactly one charge and one confirmation', passed: lostEffects.charges === 1 && lostEffects.confirmations === 1,
+    {name: 'Lost-response checkout has exactly one charge and one confirmation', check_ref: CHECK_ID, passed: lostEffects.charges === 1 && lostEffects.confirmations === 1,
       detail: `HTTP ${lost.status}; attempts=${transport.attempts}; charges=${lostEffects.charges}; confirmations=${lostEffects.confirmations}.`},
     {name: 'Trusted provider received the requested payment amount', passed: trustedLedger.charges.length === 2 && trustedLedger.charges.every(item => item.amountCents === 1000),
       detail: `${trustedLedger.charges.length} provider-side charge(s); all observed amounts must equal 1,000 cents.`},

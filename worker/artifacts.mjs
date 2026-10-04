@@ -19,8 +19,11 @@ export class ArtifactsGit {
    const data=await response.json();if(!response.ok)throw new DomainError(data.error??'GIT_EXECUTOR_FAILED',data.message??'Git executor failed',response.status);return data;
  }
  async profile(repo){return this.execute('profile',{repo:repo.id});}
- descriptor(repo){return {repo:repo.id,validation_profile:repo.validation_profile??null,context_repo:repo.context_repo??null};}
+ descriptor(repo){return {repo:repo.id,validation_profile:repo.validation_profile??null,context_repo:repo.context_repo??null,...(repo.canonical_repo?{canonical_repo:repo.canonical_repo}:{}),...(repo.source_repo?{source_repo:repo.source_repo}:{})};}
  async compose(repo,head,revisions){return this.execute('compose',{...this.descriptor(repo),head,revisions});}
+ async isAncestor(repo,ancestor,descendant){if(![ancestor,descendant].every(value=>/^[a-f0-9]{40}$/.test(value??'')))throw new DomainError('INVALID_COMMIT','Ancestry checks require immutable commit hashes');const result=await this.execute('is-ancestor',{...this.descriptor(repo),ancestor,descendant});if(typeof result.isAncestor!=='boolean')throw new DomainError('GIT_EXECUTOR_FAILED','Executor returned invalid ancestry evidence',503);return result.isAncestor;}
+ async mergeBase(repo,head,canonical){if(![head,canonical].every(value=>/^[a-f0-9]{40}$/.test(value??'')))throw new DomainError('INVALID_COMMIT','Merge base checks require immutable commit hashes');const result=await this.execute('merge-base',{...this.descriptor(repo),head,canonical});if(!/^[a-f0-9]{40}$/.test(result.base??''))throw new DomainError('GIT_EXECUTOR_FAILED','Executor returned an invalid immutable merge base',503);return result.base;}
+ async revert(repo,head,target,mainline){if(![head,target].every(value=>/^[a-f0-9]{40}$/.test(value??'')))throw new DomainError('INVALID_COMMIT','Revert candidates require immutable commit hashes');return this.execute('revert',{...this.descriptor(repo),head,target,...(mainline!==undefined&&mainline!==null?{mainline}:{})});}
  async validate(repo,commit,constraints,validityHeads){return this.execute('validate',{...this.descriptor(repo),commit,constraints,validityHeads});}
  async cas(repo,expected,commit){const result=await this.execute('cas',{...this.descriptor(repo),ref:repo.canonical_ref,expected,commit});return result.updated===true;}
  async diff(repo,base,head){const result=await this.execute('diff',{repo:repo.id,base,head});return result.diff;}

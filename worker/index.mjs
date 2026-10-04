@@ -1,12 +1,16 @@
 import {Engine,emptyState} from '../core/engine.mjs';
 import {ArtifactsGit} from './artifacts.mjs';
 import {DomainError,hash} from '../core/hash.mjs';
+import {handleWorkflowRequest} from '../server/workflow-api.mjs';
 const json=(data,status=200)=>new Response(JSON.stringify(data),{status,headers:{'Content-Type':'application/json','Cache-Control':'no-store'}});
 async function authenticated(request,secret){if(!secret)return false;const value=request.headers.get('Authorization')??'';const [a,b]=await Promise.all([hash(value),hash('Bearer '+secret)]);return a===b;}
+async function scheduleAnalysis(env,trigger){try{if(!env.ANALYSIS_QUEUE)return 'not-enqueued';await env.ANALYSIS_QUEUE.send({kind:'analyze',workspace:env.WORKSPACE_ID??'default',trigger});return 'enqueued';}catch{return 'enqueue-failed';}}
 export class WorkspaceCoordinator {
- constructor(ctx,env){this.ctx=ctx;this.env=env;this.ready=ctx.blockConcurrencyWhile(async()=>{const state=await ctx.storage.get('state')??emptyState();state.workspace.mode='artifacts';state.workspace.producers??=[];this.engine=new Engine(state,new ArtifactsGit(env),async state=>ctx.storage.put('state',state));await this.engine.recover();});}
+ constructor(ctx,env){this.ctx=ctx;this.env=env;this.ready=ctx.blockConcurrencyWhile(async()=>{const state=await ctx.storage.get('state')??emptyState();state.workspace.mode='artifacts';state.workspace.producers??=[];if(typeof env.ACTOR_ID==='string'&&env.ACTOR_ID.trim())state.workspace.owner_id=env.ACTOR_ID;this.engine=new Engine(state,new ArtifactsGit(env),async state=>ctx.storage.put('state',state));await this.engine.recover();});}
  async fetch(request){await this.ready;return this.engine.serial(async()=>{try{
    const url=new URL(request.url),input=request.method==='GET'?{}:await request.json();const engine=this.engine;
+   if(url.pathname==='/internal/merge-queue'&&request.method==='POST'){const result=await engine.queue.process({request_id:input.request_id},'merge-queue-coordinator');if(result.processed)await scheduleAnalysis(this.env,{queue_entry:result.entry?.id});return json(result);}
+   const workflow=await handleWorkflowRequest(engine,{method:request.method,url,input,actor:this.env.ACTOR_ID});if(workflow!==null){if(url.pathname==='/api/merge-queue/process'&&workflow.processed)await scheduleAnalysis(this.env,{queue_entry:workflow.entry?.id});return json(workflow);}
    if(url.pathname==='/api/workspace'&&request.method==='GET')return json(await engine.view());
    if((url.pathname==='/api/analysis'||url.pathname==='/internal/analysis')&&request.method==='POST')return json(await engine.analyzeWork({actor:url.pathname.startsWith('/internal/')?'coordinator':this.env.ACTOR_ID,refresh:input.refresh===true}));
    if(url.pathname==='/api/recover'&&request.method==='POST'){await engine.recover();return json(await engine.view());}
@@ -37,8 +41,7 @@ export class WorkspaceCoordinator {
    if(url.pathname==='/api/events'&&request.method==='POST')return json(await engine.ingest(input.event,input.metadata??{}));
    const match=url.pathname.match(/^\/api\/decisions\/([^/]+)\/(refresh|resolve)$/);if(match&&request.method==='POST'){
      if(match[2]==='refresh')return json(await engine.refreshDecision(match[1]));
-     const result=await engine.resolve(match[1],input,this.env.ACTOR_ID);let analysis='not-enqueued';
-     try{if(this.env.ANALYSIS_QUEUE){await this.env.ANALYSIS_QUEUE.send({kind:'analyze',workspace:this.env.WORKSPACE_ID??'default',trigger:{decision:result.decision_id,head:result.canonical_head}});analysis='enqueued';}}catch{analysis='enqueue-failed';}
+     const result=await engine.resolve(match[1],input,this.env.ACTOR_ID),analysis=await scheduleAnalysis(this.env,{decision:result.decision_id,head:result.canonical_head});
      // Git and the applied audit receipt are already durable. A later analysis
      // enqueue failure must not misrepresent a completed canonical update.
      return json({...result,analysis});
@@ -56,6 +59,12 @@ export default {
  },
  async queue(batch,env){for(const message of batch.messages){try{
    const event=message.body,workspace=env.WORKSPACE_ID??'default',stub=env.COORDINATOR.get(env.COORDINATOR.idFromName(workspace));
+   if(event?.kind==='process_merge_queue'&&event.workspace===workspace){
+     // Malformed jobs cannot name an immutable replayable operation. Discard
+     // them before entering coordination; retrying cannot repair the payload.
+     if(typeof event.request_id!=='string'||!event.request_id.trim()||event.request_id.length>200){message.ack();continue;}
+     const response=await stub.fetch(new Request('https://coordinator/internal/merge-queue',{method:'POST',body:JSON.stringify({request_id:event.request_id})}));if(!response.ok)throw new Error('Merge queue processing not acknowledged');message.ack();continue;
+   }
    if(event?.kind==='analyze'&&event.workspace===workspace){const response=await stub.fetch(new Request('https://coordinator/internal/analysis',{method:'POST',body:JSON.stringify({refresh:false})}));if(!response.ok)throw new Error('Analysis not acknowledged');message.ack();continue;}
    if(event?.type!=='cf.artifacts.repo.pushed'||event.source?.namespace!==env.ARTIFACTS_NAMESPACE){message.ack();continue;}
    const response=await stub.fetch(new Request('https://coordinator/internal/push',{method:'POST',body:JSON.stringify({event:{repo:event.source.repoName,ref:event.payload.ref,before:event.payload.before,after:event.payload.after}})}));if(!response.ok)throw new Error('Ingestion not acknowledged');

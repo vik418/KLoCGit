@@ -1,7 +1,7 @@
 import {mkdir} from 'node:fs/promises';
 import {execFile} from 'node:child_process';
 import {promisify} from 'node:util';
-import {LocalGit,git} from './git.mjs';
+import {LocalGit,git,protectedGitArguments} from './git.mjs';
 import {DomainError} from '../core/hash.mjs';
 const exec=promisify(execFile);
 const commit=value=>{if(!/^[a-f0-9]{40}$/.test(value??''))throw new DomainError('INVALID_COMMIT','Full immutable Git commit hashes are required');return value;};
@@ -17,8 +17,9 @@ export class RemoteGit extends LocalGit {
   }
   configured(repo){const entry=this.entry(repo.id);return {...repo,validation_profile:entry.validation_profile,context_repo:entry.context_repo??entry.dependencies?.[0]};}
   async remote(id,args){
-    const entry=this.entry(id),env={...process.env,GIT_TERMINAL_PROMPT:'0',GIT_CONFIG_NOSYSTEM:'1',GIT_CONFIG_GLOBAL:'/dev/null',GIT_CONFIG_COUNT:'1',GIT_CONFIG_KEY_0:'http.extraHeader',GIT_CONFIG_VALUE_0:'Authorization: Bearer '+process.env[entry.tokenEnv]};
-    try{return (await exec('/usr/bin/git',args,{cwd:this.dir({id}),env,maxBuffer:4*1024*1024,timeout:60000})).stdout.trim();}
+    const entry=this.entry(id),transportEnvironment=Object.fromEntries(['HTTP_PROXY','HTTPS_PROXY','ALL_PROXY','NO_PROXY','http_proxy','https_proxy','all_proxy','no_proxy','SSL_CERT_FILE','GIT_SSL_CAINFO'].filter(key=>process.env[key]).map(key=>[key,process.env[key]]));
+    const env={...transportEnvironment,PATH:'/usr/bin:/bin',LANG:'C.UTF-8',GIT_TERMINAL_PROMPT:'0',GIT_CONFIG_NOSYSTEM:'1',GIT_CONFIG_GLOBAL:'/dev/null',GIT_CONFIG_COUNT:'1',GIT_CONFIG_KEY_0:'http.extraHeader',GIT_CONFIG_VALUE_0:'Authorization: Bearer '+process.env[entry.tokenEnv]};
+    try{return (await exec('/usr/bin/git',[...protectedGitArguments,...args],{cwd:this.dir({id}),env,maxBuffer:4*1024*1024,timeout:60000})).stdout.trim();}
     catch{throw new DomainError('REMOTE_GIT_FAILED','Authenticated Git operation failed; credentials are excluded from diagnostics',503);}
   }
   async ensure(id){
@@ -27,17 +28,31 @@ export class RemoteGit extends LocalGit {
     await this.remote(id,['fetch','--quiet',entry.remote,'+refs/heads/*:refs/heads/*','+refs/converge/candidates/*:refs/converge/candidates/*']);
   }
   async ensureCommit(id,oid){commit(oid);await this.ensure(id);try{await git(this.dir({id}),['cat-file','-e',`${oid}^{commit}`]);}catch{await this.remote(id,['fetch','--quiet',this.entry(id).remote,oid]);}}
+  async ensureGraphCommit(repo,oid){
+    commit(oid);this.entry(repo.id);try{await git(this.dir(repo),['cat-file','-e',`${oid}^{commit}`]);return;}catch{}
+    try{await this.ensureCommit(repo.id,oid);return;}catch{}
+    const other=repo.canonical_repo??repo.source_repo;
+    if(other&&other!==repo.id){await this.ensureCommit(other,oid);await git(this.dir(repo),['fetch','--quiet',this.dir({id:other}),oid]);return;}
+    throw new DomainError('MISSING_COMMIT','An immutable ancestry input is unavailable from the configured Git sources',404);
+  }
+  async retainCandidate(repo,result){
+    commit(result.commit);const ref=`refs/converge/candidates/${result.commit}`;
+    await this.remote(repo.id,['push','--porcelain',this.entry(repo.id).remote,`${result.commit}:${ref}`]);
+    const observed=await this.remote(repo.id,['ls-remote',this.entry(repo.id).remote,ref]);
+    if(observed.split(/\s/)[0]!==result.commit)throw new DomainError('CANDIDATE_RETENTION_FAILED','The immutable candidate is not retained in authoritative Git',503);
+    return {...result,retention_ref:ref};
+  }
   async compose(repo,head,revisions){
     commit(head);await this.ensureCommit(repo.id,head);
     for(const revision of revisions){commit(revision.head_commit);commit(revision.base_commit);const source=revision.source_repo??repo.id;await this.ensureCommit(source,revision.head_commit);await this.ensureCommit(source,revision.base_commit);
       if(source!==repo.id)for(const oid of [revision.head_commit,revision.base_commit])await git(this.dir(repo),['fetch','--quiet',this.dir({id:source}),oid]);}
     const result=await super.compose(this.configured(repo),head,revisions);
     // Retain the actual candidate before the engine prepares a canonical operation.
-    const ref=`refs/converge/candidates/${result.commit}`;
-    await this.remote(repo.id,['push','--porcelain',this.entry(repo.id).remote,`${result.commit}:${ref}`]);
-    const observed=await this.remote(repo.id,['ls-remote',this.entry(repo.id).remote,ref]);
-    if(observed.split(/\s/)[0]!==result.commit)throw new DomainError('CANDIDATE_RETENTION_FAILED','The immutable candidate is not retained in authoritative Git',503);
-    return {...result,retention_ref:ref};
+    return this.retainCandidate(repo,result);
+  }
+  async revert(repo,currentHead,targetCommit,mainline){
+    commit(currentHead);commit(targetCommit);await this.ensureGraphCommit(repo,currentHead);await this.ensureGraphCommit(repo,targetCommit);
+    return this.retainCandidate(repo,await super.revert(this.configured(repo),currentHead,targetCommit,mainline));
   }
   async validate(repo,oid,constraints,validityHeads={}){
     await this.ensureCommit(repo.id,oid);for(const [id,head] of Object.entries(validityHeads))await this.ensureCommit(id,head);

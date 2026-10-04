@@ -1,0 +1,100 @@
+{
+  "version": 1,
+  "generated_at": "2026-10-04T17:22:04.157670+00:00",
+  "scope": "Local Git workflows, finite trusted validators, authenticated capability API and actual read-only browser checks; no live Cloudflare verification.",
+  "suite": {
+    "command": "node --test tests/*.test.mjs",
+    "tests": 202,
+    "passed": 202,
+    "failed": 0,
+    "duration_ms": 207035.734534
+  },
+  "capabilities": {
+    "records": 45,
+    "gate_cases": 12,
+    "source": "core/capabilities.mjs",
+    "generated_docs": "docs/capabilities.md",
+    "validation_command": "node scripts/check-capabilities.mjs",
+    "claim": "All supported claims reference real automated tests; docs/API/product use the same registry. Individual scopes and limits remain authoritative."
+  },
+  "source_sha256_raw": {
+    "core/capabilities.mjs": "e773674d6c107049d0aafd3709fc5ea42a1c4a5ab24bf35b01b97da361adf082",
+    "core/components.mjs": "67086d4038b885fb3633078ea8a7315678cc2c32368e98d54917fbdb6e69c3ef",
+    "core/context.mjs": "10470f8e0344d51ddf8ef10c7502a04c60ec58ef4103b531043bdd28ba5e4056",
+    "core/engine.mjs": "4e5fd8c3c129fd8507e58a0f60e10b940cf9c84a069a7a7be7aca9493c7e24f1",
+    "core/evidence.mjs": "3720853bcb12d7f222439f9bd7f44eedeb4e6c28ffa76d071e8d32ddcf811d58",
+    "core/hash.mjs": "fa7726fabed879b11b360f08b93b834c4219a630aba830ba66cc71833146d08d",
+    "core/merge-queue.mjs": "e955975872c2bf7272d941dfa5cebb1bede1f91b9f7fb28c059cec57b7ed2706",
+    "core/merge-requests.mjs": "14d9b7fa9a4221e76672604db664d8d77e24bad633949914ab51b84a20dfca8d",
+    "scripts/check-capabilities.mjs": "2a22c9c0b57c59b09d4e3355afc64eaafb8cf25055289abaa633a277b8ef0907",
+    "server/bridge.mjs": "8b6b6e1a03c238d0141a4bd4276a4bbd02de79f8b12b6578ca0d770743f3c3c8",
+    "server/executor-entry.mjs": "b4796f7acb0c21cc699de4faeb0bf90e20ca097367ef2307a0882797c912d1a2",
+    "server/git.mjs": "b29a54f11db62b937ef97a955017bdc44cb9742d085a0d940a1d37ac4bd2a1a2",
+    "server/local.mjs": "657b5ae9f2e70c14d5e5b84b4dc12afb14da955b5dfa9da7319674f01b63dc26",
+    "server/remote-git.mjs": "cca52d76dc2ba79dc3837d1bb4ffcca2294281a680c48886cc04a70d25be3961",
+    "server/runner.mjs": "0b9cd00e90db6882bd3c1311f150b13aa6d725ac7e07e1148f81dfa7c3d13fa4",
+    "server/workflow-api.mjs": "c258ae1f14306fde9d09e9357a5088d4fe62e29aa6aaf9c00b4b1870120c9a5e",
+    "src/main.jsx": "de0c5a59997224c3652010f30a5de9a453b36083465497a21743c225b537e65a",
+    "src/style.css": "29667baaeb6ee251918ff3b373bc099597cf32af7796eeedb6d34213b70413d2",
+    "tests/acceptance.test.mjs": "0237e8c90175265b35965cde9fdd0ecb7cc25187bb88f826255bf2e33d0ce367",
+    "tests/application.test.mjs": "1d426b88399263a4d46942df453991bad0dc131f9470367ae2aae2d29697847a",
+    "tests/artifacts.test.mjs": "75bff3a5151be48af7f4443a943d3a11ab979166b7773e4d645f36ea5489ddb7",
+    "tests/capabilities.test.mjs": "37436e18fa8ab4c2de59b28f8d1f5f28392873bea68617fc6dfadfea373cd107",
+    "tests/components.test.mjs": "6723b4fd29f10858d4ef5d74e1b333b3545f0462bb0025ee1a835dd188a93deb",
+    "tests/context.test.mjs": "8501f8fcafe584b1b109a151ab327f9da2b4f776df84d0b98fb59b042cd5e14b",
+    "tests/evidence-safety.test.mjs": "bbb8dc22aee038f1bef9a1beb2eb49d00d28251d0f2a353675ad4ad2af9064e5",
+    "tests/executor.test.mjs": "082e410e30949e1fae15a8759f8ee33150aff7ceff40c9a8392f619c2e5048cd",
+    "tests/merge-queue.test.mjs": "48d2be2af242da485546624d9c4f0b61fdf254e4ff4ab2a83b1c17492f2bda3f",
+    "tests/merge-requests.test.mjs": "178a3cde9786b6ca4ebfa9c0e144297e2496d4311f2caf6f3fd5ce118b0036c5",
+    "tests/remote-git.test.mjs": "4a148805fcd919570ed3728ab4ba22c92cb24e61dd8dc5918c39a4b65ded1a80",
+    "tests/revert.test.mjs": "0b39210e7350d8f9032ed8c59a119d77726783be67e5566a07b25abb69686ae3",
+    "tests/workflow-api.test.mjs": "e77a56a3a91b351ecbf19f2341784886e3e0b5ce7d3bd4987983f611c4979813",
+    "tests/workflow-integration.test.mjs": "368cc029a621e3f096409fb36a00a053ca3dac1575f5cb16ddf8d5fed632351f",
+    "worker/artifacts.mjs": "11e2dc8b49cc6bf8fb82031a8be15174545d1d59f9a9b20970f23d211a67c9b2",
+    "worker/executor.mjs": "ac4107f2cdb95365fb3138324536293e4af44910a9a1e9fc8b18817b50ee1da8",
+    "worker/index.mjs": "d0567f01966be8ee9088814e3f3ce11266a22c2fa7e7fd7c3151a2d21dcacded"
+  },
+  "browser_report": "capabilities-browser.json",
+  "native_browser_report": "native-workflows-browser.json",
+  "builds": {
+    "browser": "passed",
+    "application_worker_dry_run": {
+      "status": "passed",
+      "total_upload_kib": 202.27,
+      "gzip_kib": 45.48,
+      "deployed": false
+    },
+    "executor_worker_dry_run": {
+      "status": "passed",
+      "total_upload_kib": 6.93,
+      "gzip_kib": 2.5,
+      "container_deployment": false
+    },
+    "executor_image": {
+      "status": "passed",
+      "image_id": "sha256:c5cb6aa4b0a440e353930adb5c8511abefda3579a4f4e94b23cf78215f548149",
+      "user_id": 10001,
+      "packaged_source_syntax": "passed",
+      "claim": "Built image and non-root packaged-source checks; no deployed Container isolation established."
+    }
+  },
+  "actual_workspace": {
+    "proposals": 0,
+    "pending_context_answers": 1,
+    "canonical_heads_match_registered_baselines": true
+  },
+  "cloudflare": {
+    "status": "unverified",
+    "current_runtime_secret_bindings": 0,
+    "current_runtime_outbound_identities": 0,
+    "current_network_observation": "unknown enforcement state; no readiness inference",
+    "resources_created": 0,
+    "previous_authentication_preflight": "2026-10-03 blocked"
+  },
+  "limits": [
+    "SUPPORTED is scoped local behavior, not universal Git/client compatibility.",
+    "No organizational RBAC, generic CI fleet, GitHub/GitLab connectors or atomic multi-repo updates.",
+    "Finite application checks and fixture decision compression do not prove global semantic correctness.",
+    "The full nineteen-domain product roadmap is a delivery plan, not a completed production feature claim."
+  ]
+}

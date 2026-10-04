@@ -1,5 +1,5 @@
 {
-  "generated_at": "2026-10-02T17:02:53.696Z",
+  "generated_at": "2026-10-03T13:02:45.958Z",
   "scope": "Local ordinary Git repositories and sandboxed real HTTP application; live Cloudflare behavior is separate and unverified.",
   "candidate_proposals": 8,
   "concurrent_producers": 5,
@@ -16,7 +16,7 @@
   "canonical_CAS_failures_handled": 1,
   "previously_valid_evidence_now_stale": 26,
   "producer_intent_traceability": 0.875,
-  "analysis_latency_ms": 2852,
+  "analysis_latency_ms": 2615,
   "relationship_comparisons": 2,
   "relationship_comparisons_avoided": 26,
   "resolved_decisions": 2,
@@ -55,62 +55,62 @@
     "retrieved_repository": "payment-policy",
     "answered_by": "explicit-verification-context-actor",
     "selected_context_answer_refs": [
-      "context_item_d4e9664258e8174ae49d416a51f252af64eb82fdcb3fa0d0c201ef90b130b6df"
+      "context_item_7b898d5d6c24c53877fbfedf261dc78a8a7357a21f88d092819ce10ff0fb6231"
     ]
   },
   "immutable_inputs": {
     "canonical_repositories": [
       {
         "repo": "checkout-api",
-        "head_commit": "67869d92562bbc0993c394edb6f542501b697b35",
-        "tree_hash": "49347be11648ac40b73619c9353fa4a75a15f1b4"
+        "head_commit": "d3bdaea94308cfe68d375f02ff0f086bd0fda209",
+        "tree_hash": "a26d6c9e1b4093cd44d1f0bb86d44fa079e070e7"
       },
       {
         "repo": "payment-policy",
-        "head_commit": "a9fa135dd635d60a036414df134435af5f86f2c8",
+        "head_commit": "ab2920c99b7ac7ccd01a8f97d5964242aa798139",
         "tree_hash": "007533264993902181511afd00d6faa4277941a5"
       }
     ],
     "interaction": {
-      "evidence_id": "ev_8f74fcd94d03891421891f6cb576642a894b4fac7324744451d3444349e242dc",
+      "evidence_id": "ev_788e854335544d4f290fdcd1382fd0180c52c7b44dcdf7f53f8e51a125c8e278",
       "subject_versions": [
         {
-          "revision_id": "rev_5f9bbb644526629e0de2454d3e85691ce2d43da652e2be4182f65797deedc45b",
-          "head_commit": "71cc81cec7428492553b6d4fa8c2bed1ab105c8c",
+          "revision_id": "rev_6ec6de0d9bdf9bb3c48e12f15517f3346102193f9531e3f3713f7b5ee11ffbc6",
+          "head_commit": "54b75986e98ecdf5cb2a60b856d2f899029c2ac3",
           "tree_hash": "46b4a7eb2750e5281d7a301ab54bf18063e3ec1a"
         },
         {
-          "revision_id": "rev_debc99528908d919fc61947e4e15e464a24bd6ce46383f2522cfe0521048c42f",
-          "head_commit": "47eff57ac31b52a0a5ec2bddc34eac00c6373d08",
-          "tree_hash": "2a11ccb1a8b965794e1c0a92288742912a925d5d"
+          "revision_id": "rev_c2168a11ffceb0b624f0673ea4de398620cbb606394c7e18123adb1f16d6c68b",
+          "head_commit": "db8ec0db997ebd9571040cf6ae074273c2147a4a",
+          "tree_hash": "3660f40b0d79d8ec8c9a7468ef43d04ec03f15c4"
         }
       ],
-      "composition_ref": "comp_4e2f0e917ee47442d6bb62638130f670a247f10b383bb8a30cf717f0e9a9144c",
-      "resulting_tree": "81a6aa72c8826766d2bbc62d5d14c468c0080852",
-      "config_hash": "8d112f8e2bc92ae2833bf27fdce87488950671343c4e6fb6abf92ded36ad71bc",
+      "composition_ref": "comp_a1f20b6a93e15c0697e736af1ef6498081991700ac69d9479aa66d41ceada95d",
+      "resulting_tree": "e1b9e531e6d9a4280bafaa714a41d92dad4668de",
+      "config_hash": "091653c50b6d3d95e18f3645b99f5b97f2341e3ac2a295ce4f530fb317907ff0",
       "validity_heads": {
-        "checkout-api": "1c5d84d125617fb05d51b16e8d0e82681d24a2c7",
-        "payment-policy": "a9fa135dd635d60a036414df134435af5f86f2c8"
+        "checkout-api": "3c4420b48409ccb86cbd48fd2597bc0f9f840e0f",
+        "payment-policy": "ab2920c99b7ac7ccd01a8f97d5964242aa798139"
       },
-      "baseline_evidence_id": "ev_89545725e8e7c3d6e43b61564ad743f68240312c2c4289623ae4647f483fa263",
+      "baseline_evidence_id": "ev_ff9f50d373d02229c07e0155fe19d41bb11747e3e5d15cf391b4a4e8a395f731",
       "individual_evidence_ids": [
-        "ev_93971abdefaeec58bd5024dd8fbb89a53233232e02232ab0d62f42d54b9699b0",
-        "ev_bb19e2defbcf7921c72df3227359c9ebc1be801b3cf8198fa9f0a429f0bc4aa2"
+        "ev_cf98dd96a59a31618362dedf23202d7b5bcc8c57df55d91c001704ad4a636d5f",
+        "ev_74baff6a65ea776039e774ee869883b697b78684cc12a8938afb721a4d8ef2b3"
       ]
     },
     "context_source": {
-      "id": "context_source_4f9182fc344dfe81d66d1f73b8e57a9bcaa62b73e5f4743a2b51f11eb820f59b",
+      "id": "context_source_dda9a200ab4d7eb2f5bb065bacb81672b876ad0db93208e4df752b7348587505",
       "repo": "payment-policy",
       "ref_seen": "refs/heads/main",
-      "commit": "a9fa135dd635d60a036414df134435af5f86f2c8",
+      "commit": "ab2920c99b7ac7ccd01a8f97d5964242aa798139",
       "path": "checkout-policy.json",
       "content_hash": "6358ba65c62086efdb8a003916095ec89f9e2b74535c862511f872ca151ee1d0",
       "hash_format": "sha256-stable-json-v1"
     },
-    "context_snapshot_id": "ctx_5d38846f3302f3722dc1e7636284b203e1b13d310869faa89d84167335af326b",
+    "context_snapshot_id": "ctx_dbf227ef0684d01c5dae390c728d79ea46aba393ea677ccdd6ab7cc5ce351e53",
     "decision_ids": [
-      "decision_d300307cd6b8233b930e7d08b23132ab77edd1bde82b95957f7dfcb5e2686acf",
-      "decision_22e0fba7dd601bcc42473ca2391341928dfa48b3662dc08e97bb4538c4f1fb2f"
+      "decision_177e84a6f3c47c859539091832505481a9ba671ee1fc53d5bdff5e10e3a1983e",
+      "decision_3fa2ace3aa5cbd833f6e329dc09e8e47df3e4f7dc6e45cbf5feb989f0e3d4a04"
     ]
   },
   "limits": [
