@@ -13,7 +13,7 @@ npm install
 npm run dev
 ```
 
-Open <http://localhost:5173>. A fresh workspace uses `.demo-v2/` and starts with two ordinary Git repositories: the runnable payment HTTP application `checkout-api` and its versioned constraint repository `payment-policy`.
+Open <http://localhost:43187>. Set `PORT` to use another local port, for example `PORT=43188 npm run dev`. A fresh workspace uses `.demo-v2/` and starts with two ordinary Git repositories: the runnable payment HTTP application `checkout-api` and its versioned constraint repository `payment-policy`.
 
 Behavioral validation requires Linux, Node 22 or later, Git, bubblewrap, util-linux and private namespace support; see the [runner requirements](fixtures/README.md).
 

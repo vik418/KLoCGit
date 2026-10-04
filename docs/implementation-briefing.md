@@ -38,7 +38,7 @@ Minimal presentation does not remove version checks. A changed basis requires re
 
 ## Local startup and the actual user question
 
-`npm run dev` serves the browser/API at `http://localhost:5173`. The v2 fixture lives in `.demo-v2/`; saves write a temporary JSON file and rename it. An in-process queue serializes mutations. Local calls use `demo-owner`, a demonstration identity rather than organizational authentication.
+`npm run dev` serves the browser/API at `http://localhost:43187`; `PORT` overrides the local default. The v2 fixture lives in `.demo-v2/`; saves write a temporary JSON file and rename it. An in-process queue serializes mutations. Local calls use `demo-owner`, a demonstration identity rather than organizational authentication.
 
 Fresh startup creates ordinary `checkout-api` and `payment-policy` repositories and prepares the task “Recover checkout when a processed payment response is lost.” Before authorizing its producer, the compiler resolves the policy ref to a full commit and reads `checkout-policy.json` at that immutable version. The source captures repository, path, commit and content hash.
 
