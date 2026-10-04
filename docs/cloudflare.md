@@ -4,6 +4,16 @@ The implementation targets Cloudflare Artifacts, Workers, Queues, a workspace Du
 
 ClocGit uses the existing `converge` deployment namespace and candidate/provenance identifiers shown in the runbook. Renaming those identifiers requires a separate migration.
 
+## First account deployment
+
+The application Worker is named `clocgit`, matching the Cloudflare Workers Builds project. Connect `vik418/ClocGit` with build command `npm run build` and deploy command `npx wrangler deploy`. The executor is a separate Worker named `converge-git-executor`.
+
+Artifacts requires Workers Paid. A successful Vite build followed by Cloudflare error `10403` means the account plan blocks the Artifacts binding; changing the build command cannot enable that feature. Check the account's Workers plan before retrying deployment. Wrangler may already have created `converge-git-events` before this error; reuse that Queue.
+
+For initial setup, use Node 24, Git and a running Docker engine on your computer. From the source directory, run `npm ci`, `npx wrangler login` and `npx wrangler whoami`, selecting the same account as the dashboard project. Then follow the [live runbook](live-cloudflare.md): create and seed both Artifacts repositories, prepare scoped Git credentials and executor secrets, deploy the executor first, and deploy the application with its owner/ingress/service credentials and exact validation hash.
+
+After bootstrap, Workers Builds can redeploy the application from GitHub. Register `payment-policy` before `checkout-api` using authenticated `POST /api/repositories`, then create the `retry-response-v1` task through `POST /api/tasks`. Open the deployed application and enter the owner credential configured as `AUTH_TOKEN`. A fresh Cloudflare workspace starts empty; the local demo's producers are not started automatically.
+
 The checked-in application config binds Artifacts, the native-event/analysis Queue, the workspace coordinator, browser assets and `GIT_EXECUTOR`. The executor's separate config defines its authenticated gateway and named Container. Before deployment, configure owner identity, separate ingress/service credentials, scoped repository credentials and the exact validation hash. No values belong in Git or provenance.
 
 Create and seed `payment-policy` and `checkout-api` with ordinary Git, register their trusted validation profiles in that order, and configure repository-level native `cf.artifacts.repo.pushed` subscriptions. Register producer forks and subscribe to their push events too. The live harness provisions native subscriptions through the documented REST API because Wrangler's current subscription CLI does not expose Artifacts namespace/repository filters.

@@ -18,6 +18,10 @@ export class Engine {
     const repo=this.repo(event.repo);
     if(event.source_repo&&event.source_repo!==repo.id&&!this.state.forks.some(f=>f.id===event.source_repo&&f.repo===repo.id))throw new DomainError('UNREGISTERED_FORK','Producer repository is not registered for this canonical repository',403);
     const sourceRepo=event.source_repo?{...repo,id:event.source_repo,canonical_repo:repo.id}:repo;
+    // Trusted compositions retain Git objects under this namespace. Their push
+    // events are persistence receipts, not new producer work. Canonical tracking
+    // still takes precedence if the registered canonical ref uses this prefix.
+    if(typeof event.ref==='string'&&event.ref.startsWith('refs/converge/candidates/')&&!(sourceRepo.id===repo.id&&event.ref===repo.canonical_ref))return {ignored:true,reason:'INTERNAL_CANDIDATE_REF'};
     if(/^0{40,64}$/.test(event.after)&&!(sourceRepo.id===repo.id&&event.ref===repo.canonical_ref))return this.withdrawRef(event,sourceRepo);
     if(sourceRepo.id===repo.id&&event.ref===repo.canonical_ref){await this.syncHeads();return {canonical:true,head:repo.head};}
     const eventId=await hash({repo:event.repo,source_repo:sourceRepo.id,ref:event.ref,before:event.before??null,after:event.after});
