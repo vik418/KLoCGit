@@ -13,11 +13,11 @@
     "bindings": [{ "name": "COORDINATOR", "class_name": "WorkspaceCoordinator" }],
   },
   "migrations": [{ "tag": "v1", "new_sqlite_classes": ["WorkspaceCoordinator"] }],
-  "artifacts": [{ "binding": "ARTIFACTS", "namespace": "converge" }],
-  "services": [{ "binding": "GIT_EXECUTOR", "service": "converge-git-executor" }],
+  "artifacts": [{ "binding": "ARTIFACTS", "namespace": "klocgit" }],
+  "services": [{ "binding": "GIT_EXECUTOR", "service": "klocgit-git-executor" }],
   "queues": {
-    "producers": [{ "binding": "ANALYSIS_QUEUE", "queue": "converge-git-events" }],
-    "consumers": [{ "queue": "converge-git-events", "max_batch_size": 1, "max_batch_timeout": 5 }],
+    "producers": [{ "binding": "ANALYSIS_QUEUE", "queue": "klocgit-git-events" }],
+    "consumers": [{ "queue": "klocgit-git-events", "max_batch_size": 1, "max_batch_timeout": 5 }],
   },
-  "vars": { "WORKSPACE_ID": "northstar", "ARTIFACTS_NAMESPACE": "converge" },
+  "vars": { "WORKSPACE_ID": "northstar", "ARTIFACTS_NAMESPACE": "klocgit" },
 }

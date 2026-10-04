@@ -1,12 +1,12 @@
 {
-  "name": "clocgit",
+  "name": "klocgit",
   "version": "0.1.0",
   "private": true,
   "type": "module",
   "description": "Decision coordination for concurrent Git work",
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/vik418/ClocGit.git"
+    "url": "git+https://github.com/vik418/KLoCGit.git"
   },
   "engines": {
     "node": "24.x",

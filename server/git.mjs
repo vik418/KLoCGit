@@ -12,9 +12,9 @@ const gitEnvironment = {
   GIT_CONFIG_NOSYSTEM: '1',
   GIT_CONFIG_GLOBAL: '/dev/null',
   GIT_TERMINAL_PROMPT: '0',
-  GIT_AUTHOR_NAME: 'Converge',
+  GIT_AUTHOR_NAME: 'KLoCGit',
   GIT_AUTHOR_EMAIL: 'platform@local',
-  GIT_COMMITTER_NAME: 'Converge',
+  GIT_COMMITTER_NAME: 'KLoCGit',
   GIT_COMMITTER_EMAIL: 'platform@local',
 };
 export const protectedGitArguments = [
@@ -164,7 +164,7 @@ export class LocalGit {
       immutableCommit(revision.head_commit);
       immutableCommit(revision.base_commit);
     }
-    const temp = await mkdtemp(path.join(os.tmpdir(), 'converge-'));
+    const temp = await mkdtemp(path.join(os.tmpdir(), 'klocgit-'));
     const cwd = path.join(temp, 'work');
     try {
       await git(temp, ['clone', '--quiet', '--no-checkout', '--no-hardlinks', this.dir(repo), cwd]);
@@ -238,7 +238,7 @@ export class LocalGit {
           '-p',
           selected,
           '-m',
-          'Converge: internal immutable Git composition',
+          'KLoCGit: internal immutable Git composition',
         ]);
       }
       const trailers = [
@@ -256,10 +256,10 @@ export class LocalGit {
       const commit = await git(
         cwd,
         ['commit-tree', tree, ...[head, ...maximal].flatMap((parent) => ['-p', parent])],
-        ['Converge: immutable reviewed candidate', '', ...trailers, ''].join('\n'),
+        ['KLoCGit: immutable reviewed candidate', '', ...trailers, ''].join('\n'),
       );
       await git(this.dir(repo), ['fetch', '--quiet', cwd, commit]);
-      await git(this.dir(repo), ['update-ref', `refs/converge/candidates/${commit}`, commit]);
+      await git(this.dir(repo), ['update-ref', `refs/klocgit/candidates/${commit}`, commit]);
       return { tree, commit, baseTree, source_heads: maximal, canonical_parent: head };
     } finally {
       await rm(temp, { recursive: true, force: true });
@@ -292,7 +292,7 @@ export class LocalGit {
         'A mainline parent is accepted only for a real merge commit',
         422,
       );
-    const temp = await mkdtemp(path.join(os.tmpdir(), 'converge-revert-')),
+    const temp = await mkdtemp(path.join(os.tmpdir(), 'klocgit-revert-')),
       cwd = path.join(temp, 'work');
     try {
       await git(temp, ['clone', '--quiet', '--no-checkout', '--no-hardlinks', this.dir(repo), cwd]);
@@ -314,7 +314,7 @@ export class LocalGit {
       const tree = await git(cwd, ['write-tree']),
         baseTree = await git(cwd, ['rev-parse', `${currentHead}^{tree}`]);
       const message = [
-        'Converge: reviewed inverse candidate',
+        'KLoCGit: reviewed inverse candidate',
         '',
         `Reverts-Commit: ${targetCommit}`,
         `Revert-Base: ${currentHead}`,
@@ -322,7 +322,7 @@ export class LocalGit {
         '',
       ].join('\n');
       const commit = await git(cwd, ['commit-tree', tree, '-p', currentHead], message),
-        retention_ref = `refs/converge/candidates/${commit}`;
+        retention_ref = `refs/klocgit/candidates/${commit}`;
       await git(this.dir(repo), ['fetch', '--quiet', cwd, commit]);
       await git(this.dir(repo), ['update-ref', retention_ref, commit]);
       return {
@@ -338,11 +338,18 @@ export class LocalGit {
     }
   }
   async file(repo, commit, name) {
-    try {
-      return await git(this.dir(repo), ['show', `${commit}:${name}`]);
-    } catch {
-      return null;
-    }
+    const directory = this.dir(repo);
+    const entry = await git(directory, [
+      '--literal-pathspecs',
+      'ls-tree',
+      '--full-tree',
+      '-z',
+      commit,
+      '--',
+      name,
+    ]);
+    if (!entry) return null;
+    return git(directory, ['show', `${commit}:${name}`]);
   }
   async validate(repo, commit, constraints, validityHeads = {}) {
     if (repo.validation_profile === 'checkout-effects-v2') {

@@ -1,6 +1,6 @@
-# ClocGit
+# KLoCGit
 
-ClocGit groups concurrent Git changes into decisions. Review alternatives and their evidence, then apply a selected composition against the exact Git head and decision basis you reviewed. Git remains the source of truth for code.
+KLoCGit groups concurrent Git changes into decisions. Review alternatives and their evidence, then apply a selected composition against the exact Git head and decision basis you reviewed. Git remains the source of truth for code.
 
 The application includes native merge requests, revision-bound reviews, candidate validation, a merge queue and reviewed reverts. It is under development; see [architecture](docs/architecture.md) for the current boundaries.
 
@@ -9,8 +9,8 @@ The application includes native merge requests, revision-bound reviews, candidat
 Install Node.js 24 and Git, then:
 
 ```sh
-git clone https://github.com/vik418/ClocGit.git
-cd ClocGit
+git clone https://github.com/vik418/KLoCGit.git
+cd KLoCGit
 npm ci
 npm run dev
 ```

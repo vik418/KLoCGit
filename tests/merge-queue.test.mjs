@@ -674,7 +674,7 @@ test('only cancellable pending states accept cancellation; replay preserves appe
 });
 
 test('ordinary Git work passes the actual engine queue and uncertain remote acknowledgment recovers without a second CAS', async (t) => {
-  const root = await mkdtemp(path.join(os.tmpdir(), 'converge-queue-git-'));
+  const root = await mkdtemp(path.join(os.tmpdir(), 'klocgit-queue-git-'));
   t.after(() => rm(root, { recursive: true, force: true }));
   const { engine, state, adapter } = await createDemo(root, async () => {}, { pending: true });
   const repo = engine.repo('checkout-api');

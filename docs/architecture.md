@@ -1,6 +1,6 @@
 # Architecture
 
-Git stores code and remains usable independently of ClocGit. ClocGit stores coordination metadata: intent, proposal revisions, relationships, validation evidence, decisions and audit history.
+Git stores code and remains usable independently of KLoCGit. KLoCGit stores coordination metadata: intent, proposal revisions, relationships, validation evidence, decisions and audit history.
 
 ```text
 Git push → immutable revision → relationship analysis → candidate composition
@@ -28,7 +28,7 @@ A proposal is a logical work history. Each new source commit produces a Proposal
 
 Context, relationships, compositions, evidence and decisions reference immutable inputs. IDs hash canonically serialized data. Mutable source pointers, lifecycle status and evidence eligibility are separate from historical records.
 
-Two identical Git trees can share an Implementation reference while retaining separate intents and provenance. Unknown provenance is accepted. Git events are deduplicated and checked against authoritative refs; delivery timestamps do not establish order. Canonical pushes update observations instead of creating proposals. The reserved `refs/converge/candidates/` namespace retains internal candidates and is excluded from producer ingestion.
+Two identical Git trees can share an Implementation reference while retaining separate intents and provenance. Unknown provenance is accepted. Git events are deduplicated and checked against authoritative refs; delivery timestamps do not establish order. Canonical pushes update observations instead of creating proposals. New internal candidates are retained under `refs/klocgit/candidates/`; legacy `refs/converge/candidates/` remains readable for recovery. Both reserved namespaces are excluded from producer ingestion.
 
 ## Context and relationship analysis
 
@@ -69,4 +69,4 @@ The application currently has one configured owner, not organizational login or 
 
 Record immutability and hash-linked audit history are application-managed. Storage does not independently enforce append-only retention or anchor audit hashes externally. Applied and deferred revision outcomes are recorded; general rejected/superseded workflows are not implemented.
 
-Cloudflare adapters and deployment configuration are present. Their live event, lease, restart and sandbox behavior must be checked in the target account; local tests and dry runs do not establish those properties. See the [deployment runbook](cloudflare.md).
+Cloudflare adapters and deployment configuration are present. New executor, Queue and Artifacts resource names use `klocgit`; the application Worker retains its existing `clocgit` name and canonical Durable Object identity. A source rename does not migrate populated account resources. Their live event, lease, restart and sandbox behavior must be checked in the target account; local tests and dry runs do not establish those properties. See the [deployment runbook](cloudflare.md).

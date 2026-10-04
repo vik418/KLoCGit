@@ -84,17 +84,28 @@ async function workspaceFixture(t) {
 async function publishContext(
   { root, engine, adapter },
   resolved,
-  { key = 'context-work', repo = 'checkout-api', message, artifact } = {},
+  {
+    key = 'context-work',
+    repo = 'checkout-api',
+    message,
+    artifact,
+    metadataDirectory = '.klocgit',
+    files = {},
+  } = {},
 ) {
   const provenance = await contextProvenance(resolved);
   const cwd = path.join(root, key);
   await git(root, ['clone', '--quiet', adapter.dir(engine.repo(repo)), cwd]);
   await git(cwd, ['checkout', '--quiet', '-b', key]);
-  await mkdir(path.join(cwd, '.converge'), { recursive: true });
+  await mkdir(path.join(cwd, metadataDirectory), { recursive: true });
   await writeFile(
-    path.join(cwd, '.converge/context.json'),
+    path.join(cwd, metadataDirectory, 'context.json'),
     JSON.stringify(artifact ?? provenance.artifact) + '\n',
   );
+  for (const [filename, content] of Object.entries(files)) {
+    await mkdir(path.dirname(path.join(cwd, filename)), { recursive: true });
+    await writeFile(path.join(cwd, filename), content);
+  }
   await git(cwd, ['add', '.']);
   await git(cwd, [
     'commit',
@@ -441,9 +452,9 @@ test('producer Git artifact and trailers bind the stored immutable answer to the
   const cwd = path.join(root, 'tagged-client');
   await git(root, ['clone', '--quiet', adapter.dir(engine.repo('checkout-api')), cwd]);
   await git(cwd, ['checkout', '--quiet', '-b', 'tagged-task']);
-  await mkdir(path.join(cwd, '.converge'));
+  await mkdir(path.join(cwd, '.klocgit'));
   await writeFile(
-    path.join(cwd, '.converge/context.json'),
+    path.join(cwd, '.klocgit/context.json'),
     JSON.stringify(provenance.artifact) + '\n',
   );
   await git(cwd, ['add', '.']);
@@ -471,6 +482,92 @@ test('producer Git artifact and trailers bind the stored immutable answer to the
       .items.find((item) => item.id === revision.context_answer_ref).source.actor,
     'test-reviewer',
   );
+});
+
+test('legacy producer context and declarations retain their immutable answer references after the rename', async (t) => {
+  const workspace = await workspaceFixture(t);
+  const resolved = await workspace.engine.resolveTask(
+    workspace.state.tasks[0].task.id,
+    { value: true },
+    'legacy-context-reviewer',
+  );
+  const snapshotBefore = JSON.stringify(resolved.snapshot);
+  const result = await publishContext(workspace, resolved, {
+    key: 'legacy-producer',
+    metadataDirectory: '.converge',
+    files: {
+      '.converge/proposal.json': JSON.stringify({
+        title: 'Existing producer declaration',
+        decision_key: 'retry timing',
+        choice: 'fixed',
+      }),
+    },
+  });
+  const revision = workspace.engine.revision(result.revision_id);
+  assert.equal(revision.context_binding_state, 'bound');
+  assert.equal(revision.context_version, resolved.snapshot.id);
+  assert.equal(revision.context_answer_ref, resolved.snapshot.answer_ref);
+  assert.equal(revision.provenance_state, 'declared');
+  assert.equal(revision.decision_key, 'retry timing');
+  assert.equal(revision.declared_choice, 'fixed');
+  assert.equal(
+    workspace.state.proposals.find((proposal) => proposal.id === revision.proposal_id).title,
+    'Existing producer declaration',
+  );
+  assert.equal(JSON.stringify(resolved.snapshot), snapshotBefore);
+});
+
+test('current metadata wins over legacy metadata and malformed current files never fall back', async (t) => {
+  const workspace = await workspaceFixture(t);
+  const resolved = await workspace.engine.resolveTask(
+    workspace.state.tasks[0].task.id,
+    { value: true },
+    'current-context-reviewer',
+  );
+  const provenance = await contextProvenance(resolved);
+  const legacyFiles = {
+    '.converge/context.json': JSON.stringify(provenance.artifact),
+    '.converge/proposal.json': JSON.stringify({
+      title: 'Legacy declaration',
+      decision_key: 'legacy choice',
+      choice: 'legacy',
+    }),
+  };
+  const current = await publishContext(workspace, resolved, {
+    key: 'current-producer',
+    files: {
+      ...legacyFiles,
+      '.converge/context.json': JSON.stringify({ task_id: 'unknown-legacy-task' }),
+      '.klocgit/proposal.json': JSON.stringify({
+        title: 'Current declaration',
+        decision_key: 'current choice',
+        choice: 'current',
+      }),
+    },
+  });
+  const currentRevision = workspace.engine.revision(current.revision_id);
+  assert.equal(currentRevision.context_binding_state, 'bound');
+  assert.equal(currentRevision.context_version, resolved.snapshot.id);
+  assert.equal(currentRevision.decision_key, 'current choice');
+  assert.equal(currentRevision.declared_choice, 'current');
+  for (const [key, raw] of [
+    ['malformed', '{'],
+    ['empty', ''],
+  ]) {
+    const result = await publishContext(workspace, resolved, {
+      key: `${key}-producer`,
+      files: {
+        ...legacyFiles,
+        '.klocgit/context.json': raw,
+        '.klocgit/proposal.json': raw,
+      },
+    });
+    const revision = workspace.engine.revision(result.revision_id);
+    assert.notEqual(revision.context_binding_state, 'bound');
+    assert.equal(revision.provenance_state, 'unknown');
+    assert.equal(revision.decision_key, null);
+    assert.equal(revision.declared_choice, null);
+  }
 });
 
 test('substring suffixes and body-only references cannot impersonate exact Git authorization trailers', async (t) => {
@@ -718,7 +815,7 @@ test('declining retries changes eight proposals into one derived decision and pr
   assert.ok(decision.context_refs.includes(answered.snapshot.id));
   assert.ok(decision.context_answer_refs.includes(answer.id));
   const repo = engine.repo('checkout-api');
-  const artifact = JSON.parse(await adapter.file(repo, repo.head, '.converge/context.json'));
+  const artifact = JSON.parse(await adapter.file(repo, repo.head, '.klocgit/context.json'));
   assert.equal(artifact.context_snapshot_id ?? artifact.context_version, answered.snapshot.id);
   assert.equal(artifact.answer_ref, answer.id);
   const code = await adapter.file(repo, repo.head, 'client/retry.mjs');

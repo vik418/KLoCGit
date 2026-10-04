@@ -13,6 +13,7 @@ import { prepareTaskContext, answerTaskContext, assumeTaskContext } from './cont
 import { MergeRequests } from './merge-requests.mjs';
 import { MergeQueue } from './merge-queue.mjs';
 import { validationPassed } from './evidence.mjs';
+import { readProducerMetadata } from './metadata.mjs';
 const now = () => new Date().toISOString();
 
 /**
@@ -157,12 +158,13 @@ export class Engine {
     const sourceRepo = event.source_repo
       ? { ...repo, id: event.source_repo, canonical_repo: repo.id }
       : repo;
-    // Trusted compositions retain Git objects under this namespace. Their push
+    // Trusted compositions retain Git objects under these namespaces. Their push
     // events are persistence receipts, not new producer work. Canonical tracking
     // still takes precedence if the registered canonical ref uses this prefix.
     if (
       typeof event.ref === 'string' &&
-      event.ref.startsWith('refs/converge/candidates/') &&
+      (event.ref.startsWith('refs/klocgit/candidates/') ||
+        event.ref.startsWith('refs/converge/candidates/')) &&
       !(sourceRepo.id === repo.id && event.ref === repo.canonical_ref)
     )
       return { ignored: true, reason: 'INTERNAL_CANDIDATE_REF' };
@@ -542,7 +544,7 @@ export class Engine {
   }
   async readDeclaration(repo, head) {
     if (!this.git.file) return {};
-    const raw = await this.git.file(repo, head, '.converge/proposal.json');
+    const raw = await readProducerMetadata(this.git, repo, head, 'proposal.json');
     if (!raw || raw.length > 32768) return {};
     try {
       const d = JSON.parse(raw);
@@ -560,7 +562,7 @@ export class Engine {
   }
   async bindContext(repo, head, targetRepo = repo.id) {
     if (!this.git.file) return { state: 'unknown' };
-    const raw = await this.git.file(repo, head, '.converge/context.json');
+    const raw = await readProducerMetadata(this.git, repo, head, 'context.json');
     if (!raw) return { state: 'unknown' };
     try {
       const artifact = JSON.parse(raw);

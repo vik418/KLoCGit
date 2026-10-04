@@ -55,29 +55,41 @@ async function fixture(t) {
 
 test('retained composition push, duplicate and deletion events leave Git and coordination metadata intact', async (t) => {
   const f = await fixture(t),
-    candidate = await f.adapter.compose(f.repo, f.base, []),
-    ref = `refs/converge/candidates/${candidate.commit}`;
-  const before = structuredClone(f.state),
-    event = { repo: f.repo.id, ref, after: candidate.commit };
-  for (const change of [
-    event,
-    event,
-    { ...event, before: candidate.commit, after: '0'.repeat(40) },
-    { ...event, after: f.base },
-  ])
-    assert.deepEqual(await f.engine.ingest(change), {
-      ignored: true,
-      reason: 'INTERNAL_CANDIDATE_REF',
-    });
+    candidate = await f.adapter.compose(f.repo, f.base, []);
+  // Simulate a candidate retained before the rename without rewriting its OID.
+  await git(f.adapter.dir(f.repo), [
+    'update-ref',
+    `refs/converge/candidates/${candidate.commit}`,
+    candidate.commit,
+  ]);
+  const before = structuredClone(f.state);
+  for (const namespace of ['klocgit', 'converge']) {
+    const ref = `refs/${namespace}/candidates/${candidate.commit}`;
+    const event = { repo: f.repo.id, ref, after: candidate.commit };
+    for (const change of [
+      event,
+      event,
+      { ...event, before: candidate.commit, after: '0'.repeat(40) },
+      { ...event, after: f.base },
+    ])
+      assert.deepEqual(await f.engine.ingest(change), {
+        ignored: true,
+        reason: 'INTERNAL_CANDIDATE_REF',
+      });
+    assert.equal(await f.adapter.ref(f.repo, ref), candidate.commit);
+  }
   assert.deepEqual(f.state, before);
   assert.equal(f.saves(), 0);
-  assert.equal(await f.adapter.ref(f.repo, ref), candidate.commit);
   assert.equal(await f.adapter.ref(f.repo, f.repo.canonical_ref), f.base);
 });
 
 test('only the slash-delimited candidate namespace is reserved; ordinary and custom producer refs retain version gates', async (t) => {
   const f = await fixture(t),
     refs = [
+      'refs/heads/klocgit/candidates/work',
+      'refs/klocgit/candidates-archive/work',
+      'refs/klocgit/reviews/work',
+      'refs/klocgit/candidates',
       'refs/heads/converge/candidates/work',
       'refs/converge/candidates-archive/work',
       'refs/converge/reviews/work',
@@ -103,13 +115,16 @@ test('only the slash-delimited candidate namespace is reserved; ordinary and cus
 
 test('registered canonical tracking takes precedence over reserved candidate ingress exclusion', async (t) => {
   const f = await fixture(t),
-    candidate = await f.adapter.compose(f.repo, f.base, []),
-    ref = `refs/converge/candidates/${candidate.commit}`;
-  f.repo.canonical_ref = ref;
-  assert.deepEqual(await f.engine.ingest({ repo: f.repo.id, ref, after: candidate.commit }), {
-    canonical: true,
-    head: candidate.commit,
-  });
+    candidate = await f.adapter.compose(f.repo, f.base, []);
+  for (const namespace of ['klocgit', 'converge']) {
+    const ref = `refs/${namespace}/candidates/${candidate.commit}`;
+    await git(f.adapter.dir(f.repo), ['update-ref', ref, candidate.commit]);
+    f.repo.canonical_ref = ref;
+    assert.deepEqual(await f.engine.ingest({ repo: f.repo.id, ref, after: candidate.commit }), {
+      canonical: true,
+      head: candidate.commit,
+    });
+  }
   assert.equal(f.repo.head, candidate.commit);
   assert.equal(f.state.proposals.length, 0);
   assert.equal(f.state.revisions.length, 0);
@@ -119,7 +134,7 @@ test('registered canonical tracking takes precedence over reserved candidate ing
 test('native candidate pushes acknowledge without analysis feedback while normal branch pushes still ingest', async (t) => {
   const f = await fixture(t),
     candidate = await f.adapter.compose(f.repo, f.base, []),
-    ref = `refs/converge/candidates/${candidate.commit}`,
+    ref = `refs/klocgit/candidates/${candidate.commit}`,
     analysis = [];
   const coordinator = new WorkspaceCoordinator(
     {
@@ -152,24 +167,31 @@ test('native candidate pushes acknowledge without analysis feedback while normal
     },
   });
   const event = { repo: f.repo.id, ref, after: candidate.commit };
+  const legacyEvent = {
+    ...event,
+    ref: `refs/converge/candidates/${candidate.commit}`,
+  };
   await worker.queue(
     {
       messages: [
         message(event),
         message(event),
         message({ ...event, before: candidate.commit, after: '0'.repeat(40) }),
+        message(legacyEvent),
+        message(legacyEvent),
+        message({ ...legacyEvent, before: candidate.commit, after: '0'.repeat(40) }),
       ],
     },
     env,
   );
-  assert.equal(acknowledged, 3);
+  assert.equal(acknowledged, 6);
   assert.equal(retried, 0);
   assert.equal(analysis.length, 0);
   assert.equal(f.state.proposals.length, 0);
   assert.equal(f.state.revisions.length, 0);
   const producer = await f.publish('refs/heads/producer');
   await worker.queue({ messages: [message(producer)] }, env);
-  assert.equal(acknowledged, 4);
+  assert.equal(acknowledged, 7);
   assert.equal(retried, 0);
   assert.equal(f.state.proposals.length, 1);
   assert.equal(f.state.proposals[0].ref, producer.ref);

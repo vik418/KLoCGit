@@ -57,6 +57,15 @@ test('inverse candidate reverts selected code on the current head, preserves lat
     await git(f.adapter.dir(f.repo), ['rev-parse', result.retention_ref]),
     result.commit,
   );
+  assert.equal(result.retention_ref, `refs/klocgit/candidates/${result.commit}`);
+  assert.equal(
+    await git(f.adapter.dir(f.repo), ['show', '-s', '--format=%an|%cn', result.commit]),
+    'KLoCGit|KLoCGit',
+  );
+  const message = await f.adapter.message(f.repo, result.commit);
+  assert.match(message, /^KLoCGit: reviewed inverse candidate/);
+  assert.match(message, new RegExp(`Reverts-Commit: ${selected}`));
+  assert.match(message, new RegExp(`Revert-Base: ${later}`));
   assert.equal(result.baseTree, await git(f.adapter.dir(f.repo), ['rev-parse', `${later}^{tree}`]));
   assert.equal(result.target_commit, selected);
   assert.equal(result.mainline, null);
@@ -90,6 +99,7 @@ test('inverse overlap conflict escalates without canonical movement or retaining
     await git(f.adapter.dir(f.repo), [
       'for-each-ref',
       '--format=%(refname)',
+      'refs/klocgit/candidates',
       'refs/converge/candidates',
     ]),
     '',
@@ -222,6 +232,7 @@ test('true stacked fork histories compose once, preserve every proposal trailer,
   assert.equal(await f.adapter.isAncestor(f.repo, b, result.commit), true);
   assert.equal(await f.adapter.mergeBase(f.repo, b, result.commit), b);
   const message = await f.adapter.message(f.repo, result.commit);
+  assert.match(message, /^KLoCGit: immutable reviewed candidate/);
   assert.match(message, /Proposal-Revision: revision-a/);
   assert.match(message, /Proposal-Revision: revision-b/);
   assert.equal(
@@ -258,6 +269,7 @@ test('remote revert retains an authoritative immutable candidate ref before retu
     await git(f.adapter.dir(f.repo), ['rev-parse', result.retention_ref]),
     result.commit,
   );
+  assert.equal(result.retention_ref, `refs/klocgit/candidates/${result.commit}`);
   assert.equal(await f.adapter.ref(f.repo, f.repo.canonical_ref), current);
   const recovered = new LocalTransport(path.join(f.root, 'executor-two'), manifest);
   await recovered.ensureCommit(f.repo.id, result.commit);
@@ -286,7 +298,7 @@ test('Artifacts delegates immutable ancestry, base and inverse candidates with t
                   tree: candidate,
                   commit: candidate,
                   baseTree: descendant,
-                  retention_ref: `refs/converge/candidates/${candidate}`,
+                  retention_ref: `refs/klocgit/candidates/${candidate}`,
                 };
         return Response.json(result);
       },

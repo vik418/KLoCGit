@@ -110,7 +110,7 @@ const server = http.createServer(handleRequest);
 const port = Number(process.env.PORT ?? 43187);
 const host = process.env.HOST ?? '127.0.0.1';
 server.listen(port, host, () => {
-  console.log('ClocGit local demo: http://localhost:' + server.address().port);
+  console.log('KLoCGit local demo: http://localhost:' + server.address().port);
   console.log('Canonical repositories: ' + path.join(root, 'repositories'));
   console.log(
     'Owner identity: ' +

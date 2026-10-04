@@ -6,9 +6,9 @@ import { spawn } from 'node:child_process';
 if (!process.env.GIT_EXECUTOR_MANIFEST_JSON || !process.env.GIT_BRIDGE_TOKEN)
   throw new Error('EXECUTOR_UNCONFIGURED');
 const manifest = JSON.parse(process.env.GIT_EXECUTOR_MANIFEST_JSON);
-manifest.cacheDirectory = '/var/lib/converge/git';
-await mkdir('/var/lib/converge', { recursive: true, mode: 0o700 });
-const manifestPath = '/var/lib/converge/manifest.json';
+manifest.cacheDirectory = '/var/lib/klocgit/git';
+await mkdir('/var/lib/klocgit', { recursive: true, mode: 0o700 });
+const manifestPath = '/var/lib/klocgit/manifest.json';
 await writeFile(manifestPath, JSON.stringify(manifest), { mode: 0o600 });
 const child = spawn(process.execPath, ['server/bridge.mjs'], {
   stdio: 'inherit',

@@ -249,7 +249,7 @@ export async function prepareRevert(engine, input, actor) {
       intent_id: intent.id,
       repo: repo.id,
       source_repo: repo.id,
-      ref: candidate.retention_ref ?? `refs/converge/candidates/${candidate.commit}`,
+      ref: candidate.retention_ref ?? `refs/klocgit/candidates/${candidate.commit}`,
       title: String(input.title ?? 'Revert reviewed change').slice(0, 200),
       statement: intent.statement,
       producer: actor,

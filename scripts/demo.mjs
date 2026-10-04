@@ -6,6 +6,7 @@ import { bootstrapWorkspace } from './workspace.mjs';
 import { applyApplicationChange } from '../fixtures/application.mjs';
 import { contextProvenance } from '../core/context.mjs';
 import { DomainError } from '../core/hash.mjs';
+import { PRODUCER_METADATA_DIRECTORY } from '../core/metadata.mjs';
 const defaultRoot = fileURLToPath(new URL('../.demo-v2/', import.meta.url));
 export async function produceWork(engine, root, { ingestionOrder, renameBranches = false } = {}) {
   const state = engine.state,
@@ -112,9 +113,9 @@ export async function produceWork(engine, root, { ingestionOrder, renameBranches
           );
         } else await applyApplicationChange(cwd, spec.change);
         if (spec.decision_key) {
-          await mkdir(path.join(cwd, '.converge'), { recursive: true });
+          await mkdir(path.join(cwd, PRODUCER_METADATA_DIRECTORY), { recursive: true });
           await writeFile(
-            path.join(cwd, '.converge/proposal.json'),
+            path.join(cwd, PRODUCER_METADATA_DIRECTORY, 'proposal.json'),
             JSON.stringify(
               {
                 title: spec.title,
@@ -128,9 +129,9 @@ export async function produceWork(engine, root, { ingestionOrder, renameBranches
           );
         }
         if (spec.context) {
-          await mkdir(path.join(cwd, '.converge'), { recursive: true });
+          await mkdir(path.join(cwd, PRODUCER_METADATA_DIRECTORY), { recursive: true });
           await writeFile(
-            path.join(cwd, '.converge/context.json'),
+            path.join(cwd, PRODUCER_METADATA_DIRECTORY, 'context.json'),
             JSON.stringify(provenance.artifact, null, 2) + '\n',
           );
         }

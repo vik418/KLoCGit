@@ -1,6 +1,12 @@
 # Cloudflare deployment
 
-ClocGit deploys as an application Worker (`clocgit`) and a private Git executor Worker (`converge-git-executor`) with a Container. Artifacts stores ordinary Git repositories; a Queue carries push events and analysis jobs; a workspace Durable Object serializes coordination. The checked-in namespace and Queue remain `converge` and `converge-git-events`. Change these identifiers consistently if deploying a separate workspace.
+KLoCGit deploys as an application Worker (`clocgit`) and a private Git executor Worker (`klocgit-git-executor`) with a Container. Artifacts stores ordinary Git repositories in the `klocgit` namespace; the `klocgit-git-events` Queue carries push events and analysis jobs; a workspace Durable Object serializes coordination. The application Worker keeps its existing `clocgit` resource name so its Workers Builds connection and canonical coordination state remain attached to the same Worker.
+
+## Existing deployments and repository rename
+
+These names are defaults for new infrastructure. Changing the repository files does not provision, rename or migrate Cloudflare account resources. Existing `converge` repositories, `converge-git-events` messages and subscriptions, and the `converge-git-executor` service remain where they are. If they contain work, keep their namespace, Queue and service names in the deployment configuration until a migration is planned; do not point existing canonical metadata at empty repositories. Keep the application Worker name `clocgit`, its Durable Object class/migration and `WORKSPACE_ID=northstar` unchanged.
+
+After the GitHub repository rename, confirm Workers Builds is connected to `vik418/KLoCGit`; select the renamed repository if the dashboard connection does not follow automatically. For a new `klocgit` deployment, create the matching repositories, Queue and push subscriptions below, then deploy `klocgit-git-executor` before the application. Legacy `refs/converge/candidates/*` remain available for reads and recovery; new retained candidates use `refs/klocgit/candidates/*`.
 
 ## Prerequisites
 
@@ -25,8 +31,8 @@ Save this non-secret deployment manifest as `/outside/live-manifest.json`:
 ```json
 {
   "account_id": "<ACCOUNT_ID>",
-  "namespace": "converge",
-  "queue": "converge-git-events",
+  "namespace": "klocgit",
+  "queue": "klocgit-git-events",
   "repositories": [{ "name": "checkout-api" }, { "name": "payment-policy" }]
 }
 ```
@@ -44,14 +50,14 @@ Issue a separate executor Git token for each repository:
 
 ```sh
 npx wrangler artifacts repos issue-token checkout-api \
-  --namespace converge --scope write --ttl 2592000 --json \
+  --namespace klocgit --scope write --ttl 2592000 --json \
   > /outside/checkout-executor-token.json
 npx wrangler artifacts repos issue-token payment-policy \
-  --namespace converge --scope write --ttl 2592000 --json \
+  --namespace klocgit --scope write --ttl 2592000 --json \
   > /outside/policy-executor-token.json
 ```
 
-Issue producer tokens separately. Executor repositories need write access when composing candidates: retention pushes `refs/converge/candidates/*` before any canonical update. Read access suffices only for a repository used strictly as a dependency.
+Issue producer tokens separately. Executor repositories need write access when composing candidates: retention pushes `refs/klocgit/candidates/*` before any canonical update. Read access suffices only for a repository used strictly as a dependency.
 
 Copy the contents of `fixtures/checkout-api/` and `fixtures/payment-policy/` into two separate ordinary Git repositories. For each, create and commit `main`, add the returned Artifacts remote, and push `main` using its scoped producer token. Authenticate Git through an environment-supplied `http.extraHeader` or a credential helper; do not embed tokens in remote URLs. Both repositories must have an initial commit before registration.
 

@@ -1,6 +1,6 @@
 # Security
 
-ClocGit is under development. There is no published support schedule; fixes target the current source tree.
+KLoCGit is under development. There is no published support schedule; fixes target the current source tree.
 
 ## Report a vulnerability
 

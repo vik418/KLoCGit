@@ -9,7 +9,7 @@ import { git } from '../server/git.mjs';
 import { record, DomainError } from '../core/hash.mjs';
 
 async function fixture(t, options = {}) {
-  const root = await mkdtemp(path.join(os.tmpdir(), 'converge-test-v2-'));
+  const root = await mkdtemp(path.join(os.tmpdir(), 'klocgit-test-v2-'));
   t.after(() => rm(root, { recursive: true, force: true }));
   return {
     ...(await createDemo(root, async () => {}, {
@@ -209,7 +209,7 @@ test('context question precedes producer work and its one answer survives propos
   assert.ok(decision.context_refs.includes(answered.snapshot.id));
   assert.ok(decision.context_answer_refs.includes(answered.snapshot.answer_ref));
   const repo = engine.repo(bound.repo),
-    artifact = JSON.parse(await engine.git.file(repo, repo.head, '.converge/context.json'));
+    artifact = JSON.parse(await engine.git.file(repo, repo.head, '.klocgit/context.json'));
   assert.equal(artifact.context_snapshot_id ?? artifact.context_version, answered.snapshot.id);
 });
 

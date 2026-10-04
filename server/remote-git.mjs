@@ -106,7 +106,9 @@ export class RemoteGit extends LocalGit {
       '--quiet',
       entry.remote,
       '+refs/heads/*:refs/heads/*',
+      // Existing immutable candidates remain recoverable across the runtime rename.
       '+refs/converge/candidates/*:refs/converge/candidates/*',
+      '+refs/klocgit/candidates/*:refs/klocgit/candidates/*',
     ]);
   }
   async ensureCommit(id, oid) {
@@ -143,7 +145,7 @@ export class RemoteGit extends LocalGit {
   }
   async retainCandidate(repo, result) {
     commit(result.commit);
-    const ref = `refs/converge/candidates/${result.commit}`;
+    const ref = `refs/klocgit/candidates/${result.commit}`;
     await this.remote(repo.id, [
       'push',
       '--porcelain',

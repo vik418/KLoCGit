@@ -132,7 +132,7 @@ async function provisionEvents(m) {
       info = await cf(m, `${ns}/repos`, 'POST', {
         name: repo.name,
         default_branch: 'main',
-        description: 'Decision-platform live acceptance repository',
+        description: 'KLoCGit live acceptance repository',
       });
     }
     // Create returns a token. Deliberately retain only the public remote and name.
@@ -202,14 +202,14 @@ async function git(repo, cwd, args) {
     GIT_CONFIG_KEY_0: 'http.extraHeader',
     GIT_CONFIG_VALUE_0: 'Authorization: Bearer ' + required(repo.tokenEnv),
     GIT_AUTHOR_NAME: 'Live acceptance',
-    GIT_AUTHOR_EMAIL: 'live-acceptance@converge.invalid',
+    GIT_AUTHOR_EMAIL: 'live-acceptance@klocgit.invalid',
     GIT_COMMITTER_NAME: 'Live acceptance',
-    GIT_COMMITTER_EMAIL: 'live-acceptance@converge.invalid',
+    GIT_COMMITTER_EMAIL: 'live-acceptance@klocgit.invalid',
   };
   return (await command('git', args, { cwd, env })).stdout.trim();
 }
 async function clone(repo) {
-  const dir = await mkdtemp(path.join(os.tmpdir(), 'converge-live-'));
+  const dir = await mkdtemp(path.join(os.tmpdir(), 'klocgit-live-'));
   await git(repo, root, ['clone', '--quiet', repo.remote, dir]);
   return dir;
 }
