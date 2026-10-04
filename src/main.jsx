@@ -29,7 +29,7 @@ function App(){
  return <div className="app minimal-app">
   <div className="shell">
     <header className="topbar">
-      <a className="brand" href="/" aria-label="Converge home"><GitFork size={22}/>converge</a>
+      <a className="brand" href="/" aria-label="ClocGit home"><GitFork size={22}/>ClocGit</a>
       <div className="breadcrumb">{data.workspace.name}<span>/</span><b>{data.workspace.description}</b></div>
       {data.workspace.mode==='local-demo'&&<div className="menu-anchor"><button className="button ghost small" onClick={()=>setDemoMenu(!demoMenu)} disabled={busy}>Demo controls <ChevronDown size={14}/></button>{demoMenu&&<div className="dropdown"><button onClick={()=>demo('reset')}><RefreshCw size={15}/>Reset workspace and context</button><button onClick={()=>demo('stale')}><GitCommitHorizontal size={15}/>Simulate an external Git update</button><button onClick={()=>demo('constraint')}><ShieldCheck size={15}/>Change a constraint version</button></div>}</div>}
     </header>

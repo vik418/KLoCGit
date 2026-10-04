@@ -1,16 +1,16 @@
 # Product roadmap — decisions across concurrent Git work
 
-Converge coordinates concurrent changes and turns them into a smaller set of explicit decisions. Its primary object is a reviewed choice over immutable proposal revisions, relationships, constraints and evidence. The result is an actual Git composition applied only while its reviewed basis and canonical head still match.
+ClocGit coordinates concurrent changes and turns them into a smaller set of explicit decisions. Its primary object is a reviewed choice over immutable proposal revisions, relationships, constraints and evidence. The result is an actual Git composition applied only while its reviewed basis and canonical head still match.
 
-The workflow preserves **Intent → Proposal → Decision → Implementation → Evidence**. Git remains authoritative for code. Converge records coordination, provenance, decisions and bounded evidence; any ordinary human, agent, bot, CI system or Git client can produce work.
+The workflow preserves **Intent → Proposal → Decision → Implementation → Evidence**. Git remains authoritative for code. ClocGit records coordination, provenance, decisions and bounded evidence; any ordinary human, agent, bot, CI system or Git client can produce work.
 
 ## Relationship to code-review products
 
 There is overlap with PR review: diffs, discussion, summaries, approvals and check results. The distinguishing workflow is deciding across concurrent work: whether two implementations can share one implementation reference, which alternative to choose, whether individually passing changes interact, which exact composition to apply, and when prior evidence or authorization has become stale.
 
-For example, a reviewer can inspect A and B separately and approve each. Converge also constructs A+B and may observe a failure that neither individual candidate exhibits. It then presents the interacting choices, preserves both histories and requires a decision on that exact composition. A summary or review comment cannot authorize a stale or different Git tree.
+For example, a reviewer can inspect A and B separately and approve each. ClocGit also constructs A+B and may observe a failure that neither individual candidate exhibits. It then presents the interacting choices, preserves both histories and requires a decision on that exact composition. A summary or review comment cannot authorize a stale or different Git tree.
 
-CodeRabbit's PR-review workflow is a useful point of comparison, and a review assistant could supply additional declared findings. This roadmap does not claim a complete audit of CodeRabbit's current features. Converge's product goal is decision compression with an immutable authorization and evidence protocol, rather than an AI code-reviewer implementation. Semantic suggestions, if introduced, remain hints.
+CodeRabbit's PR-review workflow is a useful point of comparison, and a review assistant could supply additional declared findings. This roadmap does not claim a complete audit of CodeRabbit's current features. ClocGit's product goal is decision compression with an immutable authorization and evidence protocol, rather than an AI code-reviewer implementation. Semantic suggestions, if introduced, remain hints.
 
 The local retry-enabled demonstration has eight proposals and two derived review decisions, with one preceding context clarification. Those finite results demonstrate one scenario; they are not a general compression guarantee or proof of semantic correctness.
 

@@ -1,8 +1,8 @@
 # Native Git collaboration workflows
 
-Converge implements review metadata above native Git repositories. The default screen remains decision focused. **Work** provides merge requests, conventional proposal review and the merge queue; each route leads back to an exact, validated decision before canonical Git changes.
+ClocGit implements review metadata above native Git repositories. The default screen remains decision focused. **Work** provides merge requests, conventional proposal review and the merge queue; each route leads back to an exact, validated decision before canonical Git changes.
 
-The selected integration is native Cloudflare Artifacts. GitHub and GitLab connectors were considered as alternative ingress/review surfaces; neither is implemented. Native merge requests are Converge records, not mirrored GitHub PRs or GitLab MRs.
+The selected integration is native Cloudflare Artifacts. GitHub and GitLab connectors were considered as alternative ingress/review surfaces; neither is implemented. Native merge requests are ClocGit records, not mirrored GitHub PRs or GitLab MRs.
 
 The [capability registry](capabilities.md) is the claim boundary for individual workflows and the exact twelve-case local acceptance gate. The secondary product dialog and authenticated `GET /api/capabilities` use that same source. Broader planning is in [the nineteen-domain roadmap](product-roadmap.md).
 

@@ -1,6 +1,6 @@
 # Implementation briefing — native workflows
 
-Converge is a deterministic coordination prototype above ordinary Git. It turns immutable changes and bounded evidence into reviewable choices, then applies a chosen tree only while the reviewed basis and target Git head match. The running application demonstration derives components from relationships and adds a cross-repository context question. Native merge requests, conventional single/batch review, dependency guards, an exact-composition queue and reviewed reverts now use the same foundation.
+ClocGit is a deterministic coordination prototype above ordinary Git. It turns immutable changes and bounded evidence into reviewable choices, then applies a chosen tree only while the reviewed basis and target Git head match. The running application demonstration derives components from relationships and adds a cross-repository context question. Native merge requests, conventional single/batch review, dependency guards, an exact-composition queue and reviewed reverts now use the same foundation.
 
 This briefing distinguishes implemented mechanisms, observed local results and deployment work that has not run. The previous configuration-only demo is not evidence for the new HTTP application or a completed Cloudflare rollout.
 

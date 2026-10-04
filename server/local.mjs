@@ -64,6 +64,6 @@ const server=http.createServer(async(req,res)=>{
     });json(res,200,result);
   }catch(e){json(res,e.status??500,{error:e.code??'INTERNAL_ERROR',message:e.status?e.message:'The operation failed. Git repositories remain available.',details:e.details??{}});}
 });
-const port=Number(process.env.PORT??5173);server.listen(port,'0.0.0.0',()=>console.log(`Converge local demo: http://localhost:${server.address().port}\nCanonical repositories: ${path.join(root,'repositories')}\nOwner identity: ${localActor}; ${ownerToken?'credential required':'local demo session'}`));
+const port=Number(process.env.PORT??5173);server.listen(port,'0.0.0.0',()=>console.log(`ClocGit local demo: http://localhost:${server.address().port}\nCanonical repositories: ${path.join(root,'repositories')}\nOwner identity: ${localActor}; ${ownerToken?'credential required':'local demo session'}`));
 async function shutdown(){server.close();await vite.close();}
 process.on('SIGTERM',shutdown);process.on('SIGINT',shutdown);

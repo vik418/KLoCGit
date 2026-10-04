@@ -1,10 +1,14 @@
-# Converge — decisions above Git
+# ClocGit — decisions above Git
 
-A deterministic prototype of the decision-centric Git platform. Git owns code; Converge owns coordination, immutable versions, decisions and bounded evidence. The default interface presents decisions with alternatives and progressively revealed evidence. Native merge requests, conventional review and an exact-composition merge queue are available under Work.
+A deterministic prototype of the decision-centric Git platform. Git owns code; ClocGit owns coordination, immutable versions, decisions and bounded evidence. The default interface presents decisions with alternatives and progressively revealed evidence. Native merge requests, conventional review and an exact-composition merge queue are available under Work.
+
+Source repository: [vik418/ClocGit](https://github.com/vik418/ClocGit).
 
 ## Run locally
 
 ```sh
+git clone https://github.com/vik418/ClocGit.git
+cd ClocGit
 npm install
 npm run dev
 ```
@@ -72,7 +76,7 @@ cd checkout-api-result
 node app.mjs
 ```
 
-The application prints its loopback port. Stopping Converge leaves ordinary Git clone/fetch/push available. Replay recreates only the disposable `.demo-v2/` fixture.
+The application prints its loopback port. Stopping ClocGit leaves ordinary Git clone/fetch/push available. Replay recreates only the disposable `.demo-v2/` fixture.
 
 ## Deployment and detailed briefing
 

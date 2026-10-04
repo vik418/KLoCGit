@@ -2,6 +2,8 @@
 
 The implementation targets Cloudflare Artifacts, Workers, Queues, a workspace Durable Object and a separate trusted Git executor Container. The live account path remains blocked by absent authentication. See [live deployment and verification](./live-cloudflare.md) and its [machine-readable preflight evidence](./evidence/cloudflare-preflight.json).
 
+ClocGit uses the existing `converge` deployment namespace and candidate/provenance identifiers shown in the runbook. Renaming those identifiers requires a separate migration.
+
 The checked-in application config binds Artifacts, the native-event/analysis Queue, the workspace coordinator, browser assets and `GIT_EXECUTOR`. The executor's separate config defines its authenticated gateway and named Container. Before deployment, configure owner identity, separate ingress/service credentials, scoped repository credentials and the exact validation hash. No values belong in Git or provenance.
 
 Create and seed `payment-policy` and `checkout-api` with ordinary Git, register their trusted validation profiles in that order, and configure repository-level native `cf.artifacts.repo.pushed` subscriptions. Register producer forks and subscribe to their push events too. The live harness provisions native subscriptions through the documented REST API because Wrangler's current subscription CLI does not expose Artifacts namespace/repository filters.
