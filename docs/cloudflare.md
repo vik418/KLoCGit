@@ -150,7 +150,15 @@ At the deployed application URL, send authenticated `POST /api/repositories` req
 }
 ```
 
-Registration checks the executor profile and requires existing canonical Git heads. Open the application and enter the owner credential. A new deployment starts empty; local demo producers do not run automatically. After bootstrap, a Workers Builds project can redeploy `clocgit` with build command `npm run build` and deploy command `npx wrangler deploy`.
+Registration checks the executor profile and requires existing canonical Git heads. Open the application and enter the owner credential. A new deployment starts empty; local demo producers do not run automatically.
+
+After bootstrap, configure Workers Builds under **Settings → Build**:
+
+- **Build command:** `npm run build`
+- **Deploy command:** `npx wrangler deploy`
+- **Branch control:** production branch `main`; disable **Enable Preview Builds**.
+
+The separate Preview command defaults to `npx wrangler preview`, which requires a `previews` block that this repository does not configure. Use GitHub CI for branch checks. Full branch previews need isolated repositories and Durable Object storage: preview service bindings call the bound service's production deployment, and Queue consumers cannot target a preview. Do not copy the production executor or Queue bindings into a preview config. See [preview limitations](https://developers.cloudflare.com/workers/previews/limitations/).
 
 Optionally create the checkout context task with authenticated `POST /api/tasks`, then answer its question in the UI:
 
