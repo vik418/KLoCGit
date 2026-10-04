@@ -1,0 +1,143 @@
+/* Evidence tables, exact validation checks, and bounded claims. */
+.evidence-explainer {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 23px 0;
+  color: #9cb1a4;
+}
+
+.evidence-explainer p {
+  font-size: 0.875rem;
+  line-height: 1.7;
+  color: #839d8d;
+}
+
+.evidence-explainer > .badge {
+  margin-left: auto;
+}
+
+.evidence-table {
+  background: #fff;
+  border: 1px solid var(--line);
+  border-radius: 7px;
+  overflow: hidden;
+}
+
+.table-head,
+.evidence-row summary {
+  display: grid;
+  grid-template-columns: minmax(200px, 1fr) 100px 75px 70px;
+  align-items: center;
+  gap: 12px;
+}
+
+.table-head {
+  background: #fafcfb;
+  padding: 15px 18px;
+  font-size: 0.75rem;
+  color: #a6b5ac;
+  border-bottom: 1px solid var(--line);
+}
+
+.evidence-row {
+  border-bottom: 1px solid #edf3ee;
+}
+
+.evidence-row:last-child {
+  border: 0;
+}
+
+.evidence-row summary {
+  cursor: pointer;
+  padding: 17px 18px;
+  list-style: none;
+}
+
+.evidence-row summary::-webkit-details-marker {
+  display: none;
+}
+
+.evidence-row summary > span:first-child {
+  display: flex;
+  gap: 10px;
+  align-items: center;
+  color: #9bb8a4;
+}
+
+.evidence-row summary > span:first-child > svg {
+  flex-shrink: 0;
+}
+
+.evidence-row b {
+  font-size: 0.875rem;
+  font-weight: 500;
+  color: #7d9988;
+}
+
+.evidence-row small {
+  font-size: 0.75rem;
+  display: block;
+  color: #a2b6a8;
+  margin-top: 5px;
+  line-height: 1.5;
+}
+
+.evidence-row summary .badge {
+  justify-self: start;
+}
+
+.evidence-row summary code {
+  font-size: 0.75rem;
+  color: #a3b8a9;
+}
+
+.evidence-detail {
+  border-top: 1px solid #edf3ee;
+  background: #fbfdfb;
+  padding: 17px 40px;
+}
+
+.check-line {
+  display: flex;
+  gap: 9px;
+  align-items: flex-start;
+  padding: 10px 0;
+  color: #94b49c;
+}
+
+.check-line > svg {
+  flex-shrink: 0;
+}
+
+.check-line b {
+  font-size: 0.875rem;
+  color: #7d9787;
+  font-weight: 500;
+}
+
+.check-line p {
+  font-size: 0.75rem;
+  color: #a4b8aa;
+  margin-top: 5px;
+  line-height: 1.7;
+}
+
+.check-line.failed {
+  color: #bf9b83;
+}
+
+.bounded-claim {
+  font-size: 0.75rem;
+  color: #9fb6a5;
+  line-height: 1.7;
+  border-top: 1px solid #e8f0e9;
+  padding-top: 13px;
+  margin-top: 10px;
+}
+
+.stale-text {
+  font-size: 0.75rem;
+  color: #b4a170;
+  margin-top: 10px;
+}

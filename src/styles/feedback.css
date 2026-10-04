@@ -1,0 +1,68 @@
+/* Notifications, loading state, and owner authentication. */
+.toast {
+  position: fixed;
+  bottom: 24px;
+  left: 50%;
+  transform: translateX(-50%);
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  max-width: 650px;
+  padding: 17px 20px;
+  background: #2c503a;
+  color: #e2f1e7;
+  border: 1px solid #7ca089;
+  border-radius: 7px;
+  box-shadow: 0 10px 35px #173b2420;
+  z-index: 100;
+  font-size: 0.875rem;
+}
+
+.toast.error {
+  background: #77564a;
+  color: #faf0e6;
+  border-color: #bb9380;
+}
+
+.toast svg {
+  flex-shrink: 0;
+}
+
+.toast button {
+  background: transparent;
+  color: inherit;
+  display: flex;
+}
+
+.loading {
+  min-height: 100vh;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  color: #789a80;
+  gap: 17px;
+}
+
+.loading h2 {
+  font:
+    600 1.5rem 'Manrope',
+    sans-serif;
+}
+
+.loading p {
+  font-size: 0.875rem;
+}
+
+.auth-form {
+  display: grid;
+  gap: 14px;
+  width: min(380px, 85vw);
+}
+
+.auth-form input {
+  padding: 14px;
+  border: 1px solid #cfe0d3;
+  border-radius: 5px;
+  font-size: 0.875rem;
+}

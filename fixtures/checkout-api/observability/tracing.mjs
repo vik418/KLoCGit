@@ -1,4 +1,4 @@
-import {randomUUID} from 'node:crypto';
+import { randomUUID } from 'node:crypto';
 export const TRACE_REQUESTS = false;
 
 export function traceRequest(response) {

@@ -1,10 +1,9 @@
 # Checkout application
 
-Run `node app.mjs` to start the HTTP application on a loopback port printed to stdout.
-`POST /checkout` creates a payment through the client retry module. `POST /charge`
-records a charge and an email confirmation, deduplicating by idempotency key.
-`GET /state` exposes the demonstration ledger. No real money or email is involved.
+Run `node app.mjs` to start the sample HTTP application. It prints a loopback port.
 
-The ordinary client makes one attempt. An unavailable response does not undo a
-payment that the service has already processed. The policy lives in the separate
-payment-policy Git repository; producer scripts are not trusted validation.
+- `POST /checkout` sends a payment through the retry client.
+- `POST /charge` records a charge and confirmation, deduplicating by idempotency key.
+- `GET /state` exposes the sample ledger.
+
+Payments and confirmations are simulated. A lost response does not undo a request already processed by the service. The separate payment-policy repository defines the contract used by the platform validator.

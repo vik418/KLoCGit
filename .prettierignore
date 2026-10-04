@@ -1,0 +1,8 @@
+node_modules/
+dist/
+.demo/
+.demo-v2/
+.wrangler/
+playwright-report/
+coverage/
+test-results/
