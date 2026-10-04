@@ -1,0 +1,285 @@
+/* Shared legibility overrides and responsive rules retain their original cascade position. */
+/* Keep supporting views legible without turning metadata into a dashboard. */
+
+.proposal-card h3,
+.graph-decisions h3,
+.evidence-row b,
+.activity-item b,
+.check-line b,
+.alternative b,
+.decision-snapshot b,
+.detail-proposal b,
+.proposal-info b {
+  color: #586f60;
+}
+
+.proposal-card > p,
+.proposal-card > div:first-child,
+.graph-intro p,
+.evidence-explainer p,
+.evidence-row small,
+.check-line p,
+.bounded-claim,
+.activity-item p,
+.decision-summary,
+.alternative p,
+.decision-included > div,
+.rationale-label,
+.decision-snapshot > summary,
+.decision-snapshot > div > span,
+.detail-proposal p,
+.proposal-info span,
+.proposal-info p {
+  color: #788f7e;
+}
+
+.alternative > div > span,
+.activity-item code,
+.decision-snapshot code,
+.decision-snapshot p,
+.decision-snapshot > small,
+.dialog-footer > div,
+.dialog-footer > span,
+.hash-row,
+.hash-row code {
+  color: #8aa18f;
+}
+
+.rationale-label textarea {
+  color: #5d7f67;
+}
+
+.rationale-label textarea::placeholder {
+  color: #9eb3a3;
+}
+
+.assumption b,
+.interaction-callout b {
+  color: #9d854e;
+}
+
+.assumption p,
+.interaction-callout p,
+.assumption small,
+.stale-banner p {
+  color: #aa986f;
+}
+
+.stale-banner b {
+  color: #9c854e;
+}
+
+.composition-evidence-head {
+  color: #729a7e;
+}
+
+.proposal-info code,
+.diff-heading {
+  color: #8cae96;
+}
+
+.error-banner {
+  color: #b48071;
+}
+
+@media (max-width: 760px) {
+  .topbar {
+    height: 64px;
+    padding: 0 18px;
+    gap: 14px;
+  }
+  .brand {
+    font-size: 1.19rem;
+  }
+  .brand svg {
+    width: 19px;
+  }
+  .breadcrumb {
+    font-size: 0.75rem;
+    gap: 6px;
+  }
+  .breadcrumb > span,
+  .breadcrumb > b {
+    display: none;
+  }
+  .topbar > .menu-anchor > .button {
+    font-size: 0.69rem;
+    padding: 8px 0;
+  }
+  .dropdown {
+    width: 275px;
+  }
+  main {
+    padding: 31px 18px 0;
+  }
+  .page-heading h1 {
+    font-size: 1.69rem;
+  }
+  .page-heading > p {
+    font-size: 0.875rem;
+  }
+  .content-tabs {
+    gap: 27px;
+    margin-top: 22px;
+  }
+  .decision-list {
+    padding-top: 20px;
+  }
+  .decision-card {
+    padding: 19px 18px 0;
+  }
+  .decision-card h3 {
+    font-size: 1.19rem;
+    line-height: 1.5;
+  }
+  .decision-card > p {
+    font-size: 0.94rem;
+  }
+  .card-meta {
+    gap: 8px;
+    flex-wrap: wrap;
+  }
+  .card-scope {
+    font-size: 0.69rem;
+  }
+  .card-footer {
+    gap: 12px;
+    align-items: flex-start;
+    flex-direction: column;
+  }
+  .card-footer > .button {
+    font-size: 0.81rem;
+    margin-left: auto;
+  }
+  .card-evidence {
+    font-size: 0.75rem;
+    flex-wrap: wrap;
+  }
+  .resolved-card {
+    padding: 18px;
+    flex-wrap: wrap;
+  }
+  .resolved-card > .button {
+    margin-left: 30px;
+  }
+  .work-grid,
+  .graph-decisions,
+  .metrics-strip {
+    grid-template-columns: 1fr;
+  }
+  .graph-decisions {
+    gap: 12px;
+  }
+  .evidence-explainer {
+    align-items: flex-start;
+  }
+  .evidence-explainer p {
+    font-size: 0.81rem;
+  }
+  .table-head {
+    display: none;
+  }
+  .evidence-row summary {
+    grid-template-columns: 1fr 85px;
+    gap: 10px;
+    padding: 16px;
+  }
+  .evidence-row summary > span:first-child {
+    grid-row: 1/3;
+    gap: 8px;
+  }
+  .evidence-row summary > span:nth-child(3) {
+    grid-column: 2;
+  }
+  .evidence-row summary > code {
+    display: none;
+  }
+  .evidence-row summary b {
+    font-size: 0.81rem;
+  }
+  .evidence-row summary small {
+    font-size: 0.75rem;
+  }
+  .evidence-row summary .badge {
+    font-size: 0.69rem;
+  }
+  .evidence-detail {
+    padding: 16px;
+  }
+  .activity-list {
+    padding-inline: 16px;
+  }
+  .activity-item {
+    gap: 12px;
+  }
+  .activity-item > .badge {
+    display: none;
+  }
+  footer {
+    font-size: 0.69rem;
+    gap: 10px;
+  }
+  .dialog {
+    width: calc(100% - 20px);
+    max-height: 95vh;
+  }
+  .dialog-header {
+    padding: 20px 18px;
+  }
+  .dialog-header h2 {
+    font-size: 1.19rem;
+  }
+  .dialog-tabs {
+    padding-inline: 18px;
+  }
+  .decision-main {
+    padding: 20px 18px;
+  }
+  .alternative {
+    padding: 14px;
+  }
+  .alternative > div > div {
+    flex-wrap: wrap;
+    gap: 7px;
+  }
+  .decision-snapshot {
+    padding: 18px;
+  }
+  .dialog-footer {
+    padding: 15px 18px;
+    gap: 10px;
+  }
+  .dialog-footer > div,
+  .dialog-footer > span {
+    display: none;
+  }
+  .dialog-footer > .button {
+    width: 100%;
+    font-size: 0.875rem;
+  }
+  .stale-banner {
+    flex-wrap: wrap;
+  }
+  .stale-banner > .button {
+    margin-left: 28px;
+  }
+  .proposal-info {
+    padding: 20px;
+    grid-template-columns: 1fr;
+    gap: 16px;
+  }
+  .diff {
+    padding: 20px;
+  }
+  .toast {
+    width: calc(100% - 35px);
+    bottom: 16px;
+    font-size: 0.81rem;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  * {
+    scroll-behavior: auto !important;
+  }
+}

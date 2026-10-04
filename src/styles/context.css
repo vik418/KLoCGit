@@ -1,0 +1,64 @@
+/* Context clarification and conventional review notices. */
+.context-task {
+  margin: 24px 0 28px;
+  padding: 26px;
+  border: 1px solid #dfe3e7;
+  border-radius: 10px;
+  background: #fff;
+}
+
+.context-task h2 {
+  font-size: 21px;
+  margin: 16px 0 10px;
+}
+
+.context-task p {
+  color: #606a77;
+  line-height: 1.6;
+}
+
+.context-task blockquote {
+  margin: 20px 0;
+  padding-left: 16px;
+  border-left: 2px solid #a9b7ce;
+  color: #374151;
+}
+
+.context-source {
+  font-size: 12px;
+}
+
+.context-task fieldset {
+  border: 0;
+  padding: 0;
+  margin: 22px 0;
+}
+
+.context-task legend {
+  font-weight: 600;
+  margin-bottom: 14px;
+  line-height: 1.5;
+}
+
+.context-task label {
+  display: flex;
+  gap: 12px;
+  padding: 10px 0;
+  font-size: 14px;
+}
+
+.review-notice {
+  padding: 20px;
+  border: 1px solid #e2e6eb;
+  border-radius: 8px;
+}
+
+.review-notice .button {
+  margin-right: 8px;
+}
+
+.work-details p {
+  line-height: 1.6;
+  font-size: 14px;
+  color: #606a77;
+}

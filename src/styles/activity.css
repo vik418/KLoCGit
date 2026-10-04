@@ -1,0 +1,59 @@
+/* Append-only audit activity. */
+.activity-list {
+  margin-top: 22px;
+  padding: 0 21px;
+  background: #fff;
+  border: 1px solid var(--line);
+  border-radius: 7px;
+}
+
+.activity-item {
+  display: flex;
+  gap: 15px;
+  padding: 20px 0;
+  border-bottom: 1px solid #edf3ee;
+  align-items: center;
+}
+
+.activity-item:last-child {
+  border: 0;
+}
+
+.activity-icon {
+  width: 35px;
+  height: 35px;
+  display: grid;
+  place-items: center;
+  background: #f7faf7;
+  border: 1px solid #e5eee7;
+  border-radius: 6px;
+  color: #abc5b3;
+  flex-shrink: 0;
+}
+
+.activity-item b {
+  font-size: 0.875rem;
+  color: #8aa493;
+  font-weight: 500;
+}
+
+.activity-item p {
+  font-size: 0.75rem;
+  color: #b3c5b9;
+  margin-top: 5px;
+}
+
+.activity-item p > span {
+  margin: 0 5px;
+}
+
+.activity-item code {
+  font-size: 0.75rem;
+  color: #bfd0c4;
+  display: block;
+  margin-top: 7px;
+}
+
+.activity-item > .badge {
+  margin-left: auto;
+}

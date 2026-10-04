@@ -1,0 +1,182 @@
+/* Supporting capability registry, verification references, and acceptance gate. */
+.footer-actions {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+}
+
+.footer-actions .button {
+  padding: 0;
+  font-size: inherit;
+  color: #748b7b;
+}
+
+.capability-scope {
+  margin: 15px 0;
+  padding: 14px 16px;
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  background: #fbfdfb;
+  color: #607769;
+  font-size: 0.82rem;
+  line-height: 1.7;
+}
+
+.capability-scope p + p {
+  margin-top: 8px;
+}
+
+.capability-filters {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 7px;
+  margin: 21px 0 12px;
+}
+
+.capability-filters button {
+  padding: 8px 11px;
+  border: 1px solid var(--line);
+  border-radius: 5px;
+  background: #fff;
+  color: #788c7e;
+  font-size: 0.78rem;
+  text-transform: capitalize;
+}
+
+.capability-filters button.selected {
+  background: #edf4ee;
+  border-color: #bfd0c3;
+  color: #365440;
+}
+
+.capability-filters span {
+  margin-left: 7px;
+  color: #99ac9e;
+}
+
+.capability-filter-description {
+  margin-bottom: 12px;
+}
+
+.capability-count {
+  font-size: 0.74rem;
+  color: #91a396;
+  margin: 12px 0 25px;
+}
+
+.capability-category {
+  margin: 25px 0;
+}
+
+.capability-category > h3 {
+  font-size: 0.82rem;
+  font-weight: 600;
+  letter-spacing: 0.2px;
+  color: #687f6f;
+  margin-bottom: 15px;
+}
+
+.capability-item,
+.capability-gate {
+  padding: 18px 0;
+  border-top: 1px solid var(--line);
+}
+
+.capability-heading {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: 16px;
+}
+
+.capability-heading h4 {
+  margin: 0;
+  font-size: 0.96rem;
+  line-height: 1.6;
+  font-weight: 500;
+  color: #405d49;
+}
+
+.capability-heading > .badge {
+  margin-top: 2px;
+  text-transform: capitalize;
+}
+
+.capability-description {
+  font-size: 0.82rem;
+  line-height: 1.7;
+  color: #788f80;
+  margin-top: 12px;
+}
+
+.capability-description > b {
+  display: block;
+  font-weight: 500;
+  font-size: 0.74rem;
+  color: #566f5e;
+  margin-bottom: 4px;
+}
+
+.capability-description p + p {
+  margin-top: 6px;
+}
+
+.capability-tests {
+  padding-left: 20px;
+  margin: 12px 0;
+  font-size: 0.78rem;
+  line-height: 1.7;
+  color: #7f9485;
+}
+
+.capability-tests li {
+  margin: 10px 0;
+  overflow-wrap: anywhere;
+}
+
+.capability-tests code {
+  font-size: 0.74rem;
+  overflow-wrap: anywhere;
+  color: #5f7e69;
+}
+
+.capability-tests span {
+  display: block;
+  margin-top: 3px;
+}
+
+.capabilities-body .compact-details > p {
+  margin-top: 12px;
+}
+
+.capabilities-body .compact-details > summary {
+  font-size: 0.76rem;
+  color: #80998a;
+}
+
+@media (max-width: 760px) {
+  footer {
+    flex-wrap: wrap;
+  }
+  .footer-actions {
+    gap: 12px;
+  }
+  .capability-heading {
+    gap: 12px;
+    flex-wrap: wrap;
+  }
+  .capability-heading h4 {
+    font-size: 0.92rem;
+  }
+  .capability-heading > .badge {
+    font-size: 0.7rem;
+  }
+  .capability-filters button {
+    font-size: 0.73rem;
+    padding: 7px 9px;
+  }
+  .capability-scope {
+    padding: 12px;
+    font-size: 0.78rem;
+  }
+}

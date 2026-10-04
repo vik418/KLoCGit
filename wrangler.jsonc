@@ -3,11 +3,21 @@
   "name": "clocgit",
   "main": "worker/index.mjs",
   "compatibility_date": "2026-10-02",
-  "assets": {"directory": "./dist", "binding": "ASSETS", "not_found_handling": "single-page-application", "run_worker_first": ["/api/*"]},
-  "durable_objects": {"bindings": [{"name":"COORDINATOR", "class_name":"WorkspaceCoordinator"}]},
-  "migrations": [{"tag":"v1", "new_sqlite_classes":["WorkspaceCoordinator"]}],
-  "artifacts": [{"binding":"ARTIFACTS", "namespace":"converge"}],
-  "services": [{"binding":"GIT_EXECUTOR","service":"converge-git-executor"}],
-  "queues": {"producers":[{"binding":"ANALYSIS_QUEUE","queue":"converge-git-events"}],"consumers":[{"queue":"converge-git-events", "max_batch_size":1, "max_batch_timeout":5}]},
-  "vars": {"WORKSPACE_ID":"northstar", "ARTIFACTS_NAMESPACE":"converge"}
+  "assets": {
+    "directory": "./dist",
+    "binding": "ASSETS",
+    "not_found_handling": "single-page-application",
+    "run_worker_first": ["/api/*"],
+  },
+  "durable_objects": {
+    "bindings": [{ "name": "COORDINATOR", "class_name": "WorkspaceCoordinator" }],
+  },
+  "migrations": [{ "tag": "v1", "new_sqlite_classes": ["WorkspaceCoordinator"] }],
+  "artifacts": [{ "binding": "ARTIFACTS", "namespace": "converge" }],
+  "services": [{ "binding": "GIT_EXECUTOR", "service": "converge-git-executor" }],
+  "queues": {
+    "producers": [{ "binding": "ANALYSIS_QUEUE", "queue": "converge-git-events" }],
+    "consumers": [{ "queue": "converge-git-events", "max_batch_size": 1, "max_batch_timeout": 5 }],
+  },
+  "vars": { "WORKSPACE_ID": "northstar", "ARTIFACTS_NAMESPACE": "converge" },
 }

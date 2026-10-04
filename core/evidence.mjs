@@ -1,7 +1,19 @@
-// Completion state and finite check result are separate inputs. Unknown or
-// unfinished states cannot authorize a canonical write, even with passed:true.
+const PASSING_COMPLETION_STATES = ['passing', 'passed', 'success', 'succeeded', 'completed'];
+
+function completionStatesPassed(states) {
+  // Absent state fields are allowed; any supplied state must be allowlisted.
+  return states
+    .filter((state) => state !== undefined && state !== null)
+    .every((state) => PASSING_COMPLETION_STATES.includes(state));
+}
+
+function childCheckPassed(check) {
+  return check.passed === true && completionStatesPassed([check.state, check.status]);
+}
+
+/** Completion state and every finite child check must agree with the explicit passing result. */
 export function validationPassed(evidence) {
   if (evidence?.result?.passed !== true) return false;
-  const states = [evidence.state, evidence.status, evidence.result.state, evidence.result.status].filter(value => value !== undefined && value !== null);
-  return states.every(value => ['passing', 'passed', 'success', 'succeeded', 'completed'].includes(value)) && (evidence.result.checks ?? []).every(check => check.passed === true && [check.state, check.status].filter(value => value !== undefined && value !== null).every(value => ['passing', 'passed', 'success', 'succeeded', 'completed'].includes(value)));
+  const states = [evidence.state, evidence.status, evidence.result.state, evidence.result.status];
+  return completionStatesPassed(states) && (evidence.result.checks ?? []).every(childCheckPassed);
 }

@@ -3,13 +3,28 @@
   "version": "0.1.0",
   "private": true,
   "type": "module",
+  "description": "Decision coordination for concurrent Git work",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/vik418/ClocGit.git"
+  },
+  "engines": {
+    "node": "24.x",
+    "npm": ">=10"
+  },
   "scripts": {
     "dev": "node server/local.mjs",
     "build": "vite build",
     "test": "node --test tests/*.test.mjs",
-    "demo": "node scripts/demo.mjs",
+    "demo:reset": "node scripts/demo.mjs",
+    "lint": "eslint . --max-warnings=0",
+    "lint:fix": "eslint . --fix",
+    "format": "prettier . --write",
+    "format:check": "prettier . --check",
     "deploy": "npm run build && wrangler deploy",
-    "check:worker": "wrangler deploy --dry-run"
+    "check:worker": "wrangler deploy --config wrangler.jsonc --dry-run",
+    "check:executor": "wrangler deploy --config wrangler.executor.jsonc --dry-run --containers-rollout=none",
+    "check": "npm run format:check && npm run lint && npm test && npm run build && npm run check:worker && npm run check:executor"
   },
   "dependencies": {
     "lucide-react": "^0.468.0",
@@ -17,6 +32,13 @@
     "react-dom": "^19.1.1"
   },
   "devDependencies": {
+    "@eslint/js": "^10.0.1",
+    "eslint": "^10.12.0",
+    "eslint-plugin-react-hooks": "^7.1.1",
+    "eslint-plugin-react-x": "^5.24.4",
+    "globals": "^16.5.0",
+    "prettier": "^3.9.9",
+    "typescript": "6.0",
     "undici": "^8.11.2",
     "vite": "^7.1.0",
     "wrangler": "^4.76.0"

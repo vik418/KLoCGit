@@ -2,8 +2,8 @@
 ARG EXECUTOR_BASE_IMAGE=node:24-bookworm-slim
 FROM ${EXECUTOR_BASE_IMAGE}
 WORKDIR /app
-# During managed-cloud builds provide the inherited combined CA bundle as proxy_ca.
-# The public session CA is mounted for networked build steps and never copied into a layer.
+# Corporate proxies can supply a CA bundle through the proxy_ca build secret.
+# Mount it only for package installation; do not retain it in the image.
 RUN --mount=type=secret,id=proxy_ca \
     ca_path=/etc/ssl/certs/ca-certificates.crt; \
     if [ -f /run/secrets/proxy_ca ]; then ca_path=/run/secrets/proxy_ca; fi; \

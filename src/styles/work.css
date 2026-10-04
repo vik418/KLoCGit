@@ -1,0 +1,244 @@
+/* Proposal cards, supporting work details, metrics, and repository state. */
+.graph-intro {
+  display: flex;
+  align-items: center;
+  padding: 22px 0;
+}
+
+.graph-intro > svg,
+.graph-intro > .badge {
+  display: none;
+}
+
+.graph-intro h2 {
+  font-size: 0.94rem;
+  font-weight: 500;
+  color: #657b6b;
+}
+
+.graph-intro p {
+  font-size: 0.81rem;
+  color: #8a9d90;
+  margin-top: 6px;
+}
+
+.work-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 14px;
+}
+
+.proposal-card {
+  padding: 18px;
+  background: #fff;
+  border: 1px solid var(--line);
+  border-radius: 7px;
+  text-align: left;
+  min-width: 0;
+}
+
+.proposal-card:hover {
+  border-color: #a9c2b0;
+}
+
+.proposal-card > div:first-child {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 0.75rem;
+  color: #85998b;
+}
+
+.avatar {
+  display: inline-grid;
+  place-items: center;
+  border-radius: 50%;
+  width: 26px;
+  height: 26px;
+  font-size: 0.625rem;
+  font-weight: 500;
+  background: #ecf2ed;
+  color: #839e8d;
+  flex-shrink: 0;
+}
+
+.proposal-card .badge {
+  margin-left: auto;
+  font-size: 0.69rem;
+}
+
+.proposal-card h3 {
+  font-size: 1rem;
+  font-weight: 500;
+  color: #607a68;
+  line-height: 1.5;
+  margin: 15px 0 7px;
+}
+
+.proposal-card > p {
+  font-size: 0.875rem;
+  color: #829789;
+}
+
+.proposal-bottom {
+  display: flex;
+  justify-content: space-between;
+  gap: 8px;
+  border-top: 1px solid #edf2ee;
+  padding-top: 14px;
+  margin-top: 17px;
+}
+
+.proposal-bottom code {
+  font-size: 0.75rem;
+  color: #9fb0a4;
+}
+
+.proposal-bottom > span {
+  display: flex;
+  gap: 4px;
+  font-size: 0.75rem;
+  color: #8da696;
+  line-height: 1.5;
+}
+
+.proposal-bottom svg {
+  flex-shrink: 0;
+}
+
+.graph-decisions {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 15px;
+  padding-top: 22px;
+  margin-top: 22px;
+  border-top: 1px dashed #d2e0d5;
+}
+
+.graph-decisions button {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 18px;
+  background: #f3f8f4;
+  border: 1px solid #e0eae2;
+  border-radius: 7px;
+  text-align: left;
+  color: #839b8a;
+}
+
+.graph-decisions h3 {
+  font-size: 0.875rem;
+  font-weight: 500;
+  line-height: 1.5;
+  margin-top: 6px;
+}
+
+.graph-decisions small {
+  font-size: 0.75rem;
+  color: #91a79a;
+}
+
+.graph-decisions button > svg {
+  flex-shrink: 0;
+}
+
+.graph-decisions button > svg:last-child {
+  margin-left: auto;
+}
+
+.work-details {
+  margin-top: 26px;
+  border-top: 1px solid var(--line);
+  padding: 18px 0;
+}
+
+.work-details > summary {
+  font-size: 0.875rem;
+  cursor: pointer;
+  color: #7f9587;
+}
+
+.metrics-strip {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 16px;
+  margin: 22px 0 24px;
+  font-size: 0.75rem;
+  color: #91a297;
+}
+
+.metrics-strip b {
+  color: #668675;
+  font-weight: 500;
+}
+
+.repo-panel {
+  max-width: 400px;
+  border: 1px solid var(--line);
+  border-radius: 7px;
+  padding: 18px 18px 0;
+}
+
+.rail-heading {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding-bottom: 5px;
+  color: #98b0a0;
+}
+
+.rail-heading h3 {
+  font-size: 0.875rem;
+  font-weight: 500;
+  color: #738e7c;
+}
+
+.repo-state {
+  padding: 15px 0;
+  border-bottom: 1px solid #ecf2ed;
+}
+
+.repo-state > span,
+.repo-state > div {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+}
+
+.repo-state b {
+  font-size: 0.875rem;
+  font-weight: 500;
+  color: #7d9486;
+}
+
+.repo-state svg {
+  color: #a7b9ad;
+}
+
+.repo-state .badge {
+  margin-left: auto;
+  font-family: monospace;
+}
+
+.repo-state > div {
+  margin-top: 9px;
+  flex-wrap: wrap;
+  font-size: 0.75rem;
+  color: #a3b4a8;
+}
+
+.repo-state code {
+  font-size: 0.75rem;
+  color: #91a698;
+}
+
+.repo-foot {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  padding: 13px 0;
+  color: #9caf9f;
+  font-size: 0.69rem;
+  line-height: 1.6;
+}
