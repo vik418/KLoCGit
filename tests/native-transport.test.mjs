@@ -18,15 +18,20 @@ async function fixture(t, transport) {
   const adapter = new LocalGit(root);
   const engine = new Engine(state, adapter);
   const env = { ACTOR_ID: 'owner' };
-  const call = async (pathname, method = 'GET', input = {}) => engine.serial(async () => {
-    const url = new URL(pathname, 'https://klocgit.test');
-    if (transport === 'worker') {
-      const result = await handleCoordinatorRequest(engine, env, { method, url, input });
-      assert.equal(result.ok, true);
-      return result.json();
-    }
-    return handleLocalRequest(engine, { method, url, input, actor: 'owner' }, { root, save: engine.save });
-  });
+  const call = async (pathname, method = 'GET', input = {}) =>
+    engine.serial(async () => {
+      const url = new URL(pathname, 'https://klocgit.test');
+      if (transport === 'worker') {
+        const result = await handleCoordinatorRequest(engine, env, { method, url, input });
+        assert.equal(result.ok, true);
+        return result.json();
+      }
+      return handleLocalRequest(
+        engine,
+        { method, url, input, actor: 'owner' },
+        { root, save: engine.save },
+      );
+    });
   return { root, state, adapter, engine, call, env };
 }
 
@@ -47,13 +52,17 @@ test('mounted local routes accept initial Git work, create an isolated Future an
   const f = await fixture(t, 'local');
   const repository = await initializeRepository(f);
   const registered = await f.call('/api/events', 'POST', {
-    event: { repo: 'app', ref, after: repository.head }, actor: 'forged-owner',
+    event: { repo: 'app', ref, after: repository.head },
+    actor: 'forged-owner',
   });
   assert.equal(registered.handled, true);
   assert.equal(f.engine.repo('app').head, repository.head);
   const created = await f.call('/api/futures', 'POST', {
-    repository_ids: ['app'], statement: 'Explore a real application change',
-    request_id: 'future', actor: 'forged-owner', provenance_state: 'observed',
+    repository_ids: ['app'],
+    statement: 'Explore a real application change',
+    request_id: 'future',
+    actor: 'forged-owner',
+    provenance_state: 'observed',
   });
   assert.equal(created.future.status, 'active');
   assert.equal(created.future.provenance_state, 'unknown');
@@ -76,7 +85,12 @@ test('mounted local routes accept initial Git work, create an isolated Future an
   assert.equal(f.state.proposals.length, 0);
   assert.equal(f.engine.mr.list().length, 0);
   assert.equal(f.state.evidence.length, 0);
-  assert.equal(f.state.audit.filter((entry) => entry.type === 'future.created').every((entry) => entry.actor === 'owner'), true);
+  assert.equal(
+    f.state.audit
+      .filter((entry) => entry.type === 'future.created')
+      .every((entry) => entry.actor === 'owner'),
+    true,
+  );
 });
 
 test('mounted Worker push handler handles native forks before compatibility ingestion and ignores an untracked branch', async (t) => {
@@ -84,17 +98,34 @@ test('mounted Worker push handler handles native forks before compatibility inge
   const repository = await initializeRepository(f);
   delete f.env.ACTOR_ID;
   await f.call('/internal/push', 'POST', { event: { repo: 'app', ref, after: repository.head } });
-  assert.equal(f.state.audit.some((entry) => entry.type === 'canonical.changed' && entry.actor === 'artifacts-ingress'), true);
+  assert.equal(
+    f.state.audit.some(
+      (entry) => entry.type === 'canonical.changed' && entry.actor === 'artifacts-ingress',
+    ),
+    true,
+  );
   await assert.rejects(() => f.call('/api/native-state'), { code: 'UNAUTHENTICATED' });
   f.env.ACTOR_ID = 'owner';
-  const created = await f.call('/api/futures', 'POST', { repository_ids: ['app'], request_id: 'future' });
+  const created = await f.call('/api/futures', 'POST', {
+    repository_ids: ['app'],
+    request_id: 'future',
+  });
   const fork = created.future.repositories[0];
   const descriptor = { id: fork.repo_id };
   const tree = await git(f.adapter.dir(descriptor), ['mktree'], '');
-  const head = await git(f.adapter.dir(descriptor), ['commit-tree', tree, '-p', repository.head, '-m', 'Queue-observed producer state']);
+  const head = await git(f.adapter.dir(descriptor), [
+    'commit-tree',
+    tree,
+    '-p',
+    repository.head,
+    '-m',
+    'Queue-observed producer state',
+  ]);
   await git(f.adapter.dir(descriptor), ['update-ref', ref, head]);
   delete f.env.ACTOR_ID;
-  const observed = await f.call('/internal/push', 'POST', { event: { repo: fork.repo_id, ref, before: repository.head, after: head } });
+  const observed = await f.call('/internal/push', 'POST', {
+    event: { repo: fork.repo_id, ref, before: repository.head, after: head },
+  });
   assert.equal(observed.handled, true);
   const current = f.engine.native.future(created.future.id);
   const revisionId = current.current_revision_id;
@@ -113,9 +144,20 @@ test('Engine view observes an external native canonical push with its exact new 
   const f = await fixture(t, 'local');
   const repository = await initializeRepository(f);
   await f.call('/api/events', 'POST', { event: { repo: 'app', ref, after: repository.head } });
-  const blob = await git(repository.work, ['hash-object', '-w', '--stdin'], 'External canonical change\n');
+  const blob = await git(
+    repository.work,
+    ['hash-object', '-w', '--stdin'],
+    'External canonical change\n',
+  );
   const tree = await git(repository.work, ['mktree'], '100644 blob ' + blob + '\texternal.txt\n');
-  const head = await git(repository.work, ['commit-tree', tree, '-p', repository.head, '-m', 'External Git client']);
+  const head = await git(repository.work, [
+    'commit-tree',
+    tree,
+    '-p',
+    repository.head,
+    '-m',
+    'External Git client',
+  ]);
   await git(repository.work, ['update-ref', ref, head]);
   await git(repository.work, ['push', '--quiet', 'origin', 'main']);
   const snapshot = await f.call('/api/workspace');
@@ -133,12 +175,25 @@ test('ordinary branch pushes in a native canonical repository still enter the co
   const repository = await initializeRepository(f);
   await f.call('/api/events', 'POST', { event: { repo: 'app', ref, after: repository.head } });
   const branch = 'refs/heads/ordinary-work';
-  const blob = await git(repository.work, ['hash-object', '-w', '--stdin'], 'Ordinary branch work\n');
+  const blob = await git(
+    repository.work,
+    ['hash-object', '-w', '--stdin'],
+    'Ordinary branch work\n',
+  );
   const tree = await git(repository.work, ['mktree'], '100644 blob ' + blob + '\twork.txt\n');
-  const head = await git(repository.work, ['commit-tree', tree, '-p', repository.head, '-m', 'Ordinary branch work']);
+  const head = await git(repository.work, [
+    'commit-tree',
+    tree,
+    '-p',
+    repository.head,
+    '-m',
+    'Ordinary branch work',
+  ]);
   await git(repository.work, ['update-ref', branch, head]);
   await git(repository.work, ['push', '--quiet', 'origin', branch]);
-  const ingested = await f.call('/api/events', 'POST', { event: { repo: 'app', ref: branch, after: head } });
+  const ingested = await f.call('/api/events', 'POST', {
+    event: { repo: 'app', ref: branch, after: head },
+  });
   assert.equal(typeof ingested.revision_id, 'string');
   assert.equal(f.state.proposals.length, 1);
   assert.equal(f.state.revisions[0].head_commit, head);

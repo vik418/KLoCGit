@@ -24,7 +24,8 @@ export function MergeRequestDialog({
     return (
       <Dialog onClose={onClose}>
         <div className="native-body">
-          <DialogTitle>Loading merge request</DialogTitle><p>Reading the current request and its history…</p>
+          <DialogTitle>Loading merge request</DialogTitle>
+          <p>Reading the current request and its history…</p>
           <button className="button ghost" onClick={onClose}>
             Close
           </button>
@@ -37,7 +38,9 @@ export function MergeRequestDialog({
       <div className="dialog-header">
         <div>
           <span className="eyebrow">MERGE REQUEST · {mergeRequest.repo}</span>
-          <DialogTitle asChild><h2>{mergeRequest.title}</h2></DialogTitle>
+          <DialogTitle asChild>
+            <h2>{mergeRequest.title}</h2>
+          </DialogTitle>
         </div>
         <button className="icon-btn" onClick={onClose} aria-label="Close merge request">
           <X size={20} />

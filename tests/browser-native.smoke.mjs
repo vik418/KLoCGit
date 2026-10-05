@@ -27,7 +27,10 @@ async function git(directory, ...args) {
 
 function startServer() {
   return new Promise((resolve, reject) => {
-    const timer = setTimeout(() => reject(new Error('Local server did not start: ' + serverOutput)), 60000);
+    const timer = setTimeout(
+      () => reject(new Error('Local server did not start: ' + serverOutput)),
+      60000,
+    );
     server = spawn(process.execPath, ['server/local.mjs'], {
       cwd: project,
       env: {
@@ -48,8 +51,13 @@ function startServer() {
       resolve(match[0].replace('localhost', '127.0.0.1'));
     }
     server.stdout.on('data', output);
-    server.stderr.on('data', (chunk) => { serverOutput += chunk.toString(); });
-    server.once('error', (error) => { clearTimeout(timer); reject(error); });
+    server.stderr.on('data', (chunk) => {
+      serverOutput += chunk.toString();
+    });
+    server.once('error', (error) => {
+      clearTimeout(timer);
+      reject(error);
+    });
     server.once('exit', (code) => {
       clearTimeout(timer);
       reject(new Error('Local server exited (' + code + '): ' + serverOutput));
@@ -61,7 +69,10 @@ async function stopServer() {
   if (!server || server.exitCode !== null || server.signalCode !== null) return;
   await new Promise((resolve) => {
     const timer = setTimeout(() => server.kill('SIGKILL'), 5000);
-    server.once('exit', () => { clearTimeout(timer); resolve(); });
+    server.once('exit', () => {
+      clearTimeout(timer);
+      resolve();
+    });
     server.kill('SIGTERM');
   });
 }
@@ -82,7 +93,10 @@ async function assertFitsViewport(page) {
   const dialogs = await page.getByRole('dialog').all();
   for (const dialog of dialogs) {
     const box = await dialog.boundingBox();
-    assert.ok(box.x >= 0 && box.x + box.width <= dimensions.width + 1, 'Dialog exceeds the viewport');
+    assert.ok(
+      box.x >= 0 && box.x + box.width <= dimensions.width + 1,
+      'Dialog exceeds the viewport',
+    );
   }
 }
 
@@ -110,8 +124,10 @@ try {
   const accessibilityWarnings = [];
   page.on('pageerror', (error) => pageErrors.push(error.message));
   page.on('console', (message) => {
-    if (['warning', 'error'].includes(message.type()) &&
-        /DialogTitle|DialogDescription|aria-describedby|Missing.*Description/i.test(message.text())) {
+    if (
+      ['warning', 'error'].includes(message.type()) &&
+      /DialogTitle|DialogDescription|aria-describedby|Missing.*Description/i.test(message.text())
+    ) {
       accessibilityWarnings.push(message.text());
     }
   });
@@ -120,19 +136,34 @@ try {
   const empty = await api('/native-state');
   assert.equal(empty.repositories.length, 0, 'Fresh startup must not seed demo repositories');
   assert.equal(empty.futures.length, 0);
-  assert.equal(await page.evaluate(() => getComputedStyle(document.documentElement).backgroundColor), 'rgb(11, 13, 16)');
+  assert.equal(
+    await page.evaluate(() => getComputedStyle(document.documentElement).backgroundColor),
+    'rgb(11, 13, 16)',
+  );
   await assertFitsViewport(page);
 
   await page.getByRole('button', { name: 'Systems', exact: true }).click();
-  const addRepository = page.getByRole('button', { name: /^(Add|Create) (a )?repository$/i }).first();
+  const addRepository = page
+    .getByRole('button', { name: /^(Add|Create) (a )?repository$/i })
+    .first();
   await addRepository.click();
   let dialog = page.getByRole('dialog', { name: 'Add a repository', exact: true });
   await dialog.waitFor();
   await page.keyboard.press('Tab');
-  assert.equal(await page.evaluate(() => Boolean(document.activeElement.closest('[data-slot="dialog-content"]'))), true, 'Dialog must trap keyboard focus');
+  assert.equal(
+    await page.evaluate(() =>
+      Boolean(document.activeElement.closest('[data-slot="dialog-content"]')),
+    ),
+    true,
+    'Dialog must trap keyboard focus',
+  );
   await page.keyboard.press('Escape');
   await dialog.waitFor({ state: 'hidden' });
-  assert.equal(await addRepository.evaluate((element) => element === document.activeElement), true, 'Escape must restore focus to the invoking control');
+  assert.equal(
+    await addRepository.evaluate((element) => element === document.activeElement),
+    true,
+    'Escape must restore focus to the invoking control',
+  );
 
   await addRepository.click();
   dialog = page.getByRole('dialog', { name: 'Add a repository', exact: true });
@@ -144,7 +175,10 @@ try {
   const { repository } = await createdResponse.json();
   assert.equal(repository.status, 'empty');
   assert.ok(!repository.head && !repository.tree, 'Empty repositories must not invent Git state');
-  assert.ok(repository.remote.startsWith(workspaceRoot + path.sep), 'Fixture remote must belong to this test workspace');
+  assert.ok(
+    repository.remote.startsWith(workspaceRoot + path.sep),
+    'Fixture remote must belong to this test workspace',
+  );
   await dialog.waitFor({ state: 'hidden' });
 
   // Use ordinary Git against the actual repository created by the browser.
@@ -221,9 +255,21 @@ try {
   assert.equal(observed.revision.tree_hashes[0].tree, changedTree);
   native = await api('/native-state');
   assert.equal(native.futureRevisions.length, 2);
-  assert.equal(native.repositories.find((item) => item.id === 'app').head, baselineCommit, 'Observing isolated work must not promote it');
-  assert.deepEqual(native.futureRevisions[0], firstRevision, 'Historical revisions must remain immutable');
-  assert.equal((await observe()).changed, false, 'Repeated observation of the same Git state is idempotent');
+  assert.equal(
+    native.repositories.find((item) => item.id === 'app').head,
+    baselineCommit,
+    'Observing isolated work must not promote it',
+  );
+  assert.deepEqual(
+    native.futureRevisions[0],
+    firstRevision,
+    'Historical revisions must remain immutable',
+  );
+  assert.equal(
+    (await observe()).changed,
+    false,
+    'Repeated observation of the same Git state is idempotent',
+  );
 
   // A rewind is another observation; it must not overwrite the first A revision.
   await git(futureCheckout, 'reset', '--hard', baselineCommit);
@@ -250,13 +296,20 @@ try {
   await dialog.waitFor({ state: 'hidden' });
   assert.equal(await addRepository.evaluate((element) => element === document.activeElement), true);
   assert.deepEqual(pageErrors, [], 'Browser must not throw runtime errors');
-  assert.deepEqual(accessibilityWarnings, [], 'Radix titles and descriptions must be wired correctly');
+  assert.deepEqual(
+    accessibilityWarnings,
+    [],
+    'Radix titles and descriptions must be wired correctly',
+  );
 
   async function capture(label) {
-    const image = await page.screenshot({ fullPage: true });
+    const image = await page.screenshot({ fullPage: true, animations: 'disabled' });
     if (process.env.BROWSER_ARTIFACT_DIR) {
       await mkdir(process.env.BROWSER_ARTIFACT_DIR, { recursive: true });
-      await writeFile(path.join(process.env.BROWSER_ARTIFACT_DIR, 'native-' + label + '.png'), image);
+      await writeFile(
+        path.join(process.env.BROWSER_ARTIFACT_DIR, 'native-' + label + '.png'),
+        image,
+      );
     }
     if (process.env.BROWSER_SCREENSHOT_LOG === '1') {
       const encoded = image.toString('base64');
@@ -268,7 +321,9 @@ try {
   await page.setViewportSize({ width: 1440, height: 1000 });
   await page.getByRole('button', { name: 'Futures', exact: true }).click();
   await capture('desktop');
-  console.log('Browser workflow passed: authenticated repository creation, ordinary Git push, isolated Future, immutable revision history, rewind, keyboard focus, mobile layout.');
+  console.log(
+    'Browser workflow passed: authenticated repository creation, ordinary Git push, isolated Future, immutable revision history, rewind, keyboard focus, mobile layout.',
+  );
 } catch (error) {
   console.error(serverOutput);
   throw error;

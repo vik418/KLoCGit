@@ -39,37 +39,76 @@ export function NewRepository({ onClose, onCreated, reload, message }) {
       busy={busy}
       error={error}
       disabled={!name.trim() || (mode === 'import' && !url.trim())}
-      submitLabel={mode === 'create' ? 'Create repository' : mode === 'import' ? 'Import repository' : 'Connect repository'}
-      pendingLabel={mode === 'create' ? 'Creating…' : mode === 'import' ? 'Importing…' : 'Connecting…'}
+      submitLabel={
+        mode === 'create'
+          ? 'Create repository'
+          : mode === 'import'
+            ? 'Import repository'
+            : 'Connect repository'
+      }
+      pendingLabel={
+        mode === 'create' ? 'Creating…' : mode === 'import' ? 'Importing…' : 'Connecting…'
+      }
     >
       <div className="flex flex-wrap gap-2" role="group" aria-label="Repository source">
         {modes.map(([value, label]) => (
-          <Button key={value} type="button" variant={mode === value ? 'secondary' : 'ghost'} size="sm" aria-pressed={mode === value} onClick={() => setMode(value)}>
+          <Button
+            key={value}
+            type="button"
+            variant={mode === value ? 'secondary' : 'ghost'}
+            size="sm"
+            aria-pressed={mode === value}
+            onClick={() => setMode(value)}
+          >
             {label}
           </Button>
         ))}
       </div>
       <label className="field">
         Repository name
-        <Input value={name} onChange={(event) => setName(event.target.value)} required maxLength={100} autoComplete="off" />
+        <Input
+          value={name}
+          onChange={(event) => setName(event.target.value)}
+          required
+          maxLength={100}
+          autoComplete="off"
+        />
       </label>
       {mode === 'import' && (
         <>
           <label className="field">
             Public Git URL
-            <Input type="url" value={url} onChange={(event) => setUrl(event.target.value)} required autoComplete="off" />
+            <Input
+              type="url"
+              value={url}
+              onChange={(event) => setUrl(event.target.value)}
+              required
+              autoComplete="off"
+            />
           </label>
           <label className="field">
             Source branch (optional)
-            <Input value={branch} onChange={(event) => setBranch(event.target.value)} autoComplete="off" />
+            <Input
+              value={branch}
+              onChange={(event) => setBranch(event.target.value)}
+              autoComplete="off"
+            />
           </label>
-          <p className="text-xs leading-6 text-muted-foreground">Import accepts approved public HTTPS repositories. Do not include credentials in the URL.</p>
+          <p className="text-xs leading-6 text-muted-foreground">
+            Import accepts approved public HTTPS repositories. Do not include credentials in the
+            URL.
+          </p>
         </>
       )}
       {mode !== 'adopt' && (
         <label className="field">
           Description (optional)
-          <Textarea value={description} onChange={(event) => setDescription(event.target.value)} rows={2} maxLength={1000} />
+          <Textarea
+            value={description}
+            onChange={(event) => setDescription(event.target.value)}
+            rows={2}
+            maxLength={1000}
+          />
         </label>
       )}
       <p className="mt-4 text-sm leading-6 text-muted-foreground">

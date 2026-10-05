@@ -90,7 +90,9 @@ export function DecisionDialog({ id, workspace, onClose, reload, message, onProp
       <div className="dialog-header">
         <div>
           <span className="eyebrow">DECISION / {decision.kind.toUpperCase()}</span>
-          <DialogTitle asChild><h2>{decisionTitle(decision, workspace)}</h2></DialogTitle>
+          <DialogTitle asChild>
+            <h2>{decisionTitle(decision, workspace)}</h2>
+          </DialogTitle>
         </div>
         <button className="icon-btn" onClick={onClose} aria-label="Close decision">
           <X size={21} />

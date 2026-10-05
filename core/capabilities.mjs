@@ -278,7 +278,11 @@ const registry = {
       category: 'Deployment',
       title: 'Artifacts repository and Future lifecycle',
       status: 'EXPERIMENTAL',
-      tests: ['tests/artifacts.test.mjs', 'tests/native-state.test.mjs', 'tests/native-api.test.mjs'],
+      tests: [
+        'tests/artifacts.test.mjs',
+        'tests/native-state.test.mjs',
+        'tests/native-api.test.mjs',
+      ],
       scope:
         'Provider adapters create, import, inspect and fork repositories while returning token-free descriptors.',
       limits:

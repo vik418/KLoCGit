@@ -40,12 +40,17 @@ export function useNativeMutation(reload, message) {
         if (success) message(success);
       } catch (refreshError) {
         // A failed read does not undo an acknowledged mutation.
-        message(`Saved. Refresh the workspace to see the change. ${getErrorMessage(refreshError)}`, 'error');
+        message(
+          `Saved. Refresh the workspace to see the change. ${getErrorMessage(refreshError)}`,
+          'error',
+        );
       }
       return result;
     } catch (operationError) {
       // Reconciliation only inspects existing effects; an explicit rejection can be retried.
-      const rejectedRecovery = /^\/repository-requests\/[^/]+\/recover$/.test(path) && typeof operationError.error === 'string';
+      const rejectedRecovery =
+        /^\/repository-requests\/[^/]+\/recover$/.test(path) &&
+        typeof operationError.error === 'string';
       if (retryableRejections.has(operationError.error) || rejectedRecovery) request.current = null;
       setError(getErrorMessage(operationError));
       await reload().catch(() => {});

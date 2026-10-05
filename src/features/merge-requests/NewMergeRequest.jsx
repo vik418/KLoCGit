@@ -38,7 +38,9 @@ export function NewMergeRequest({ workspace, onClose, onCreated, reload, message
       <div className="dialog-header">
         <div>
           <span className="eyebrow">NATIVE MERGE REQUEST</span>
-          <DialogTitle asChild><h2>Open a merge request</h2></DialogTitle>
+          <DialogTitle asChild>
+            <h2>Open a merge request</h2>
+          </DialogTitle>
         </div>
         <button className="icon-btn" onClick={onClose} aria-label="Close new merge request">
           <X size={20} />

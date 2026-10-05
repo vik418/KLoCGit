@@ -10,10 +10,7 @@ import path from 'node:path';
 import { LocalGit, git } from '../server/git.mjs';
 import { ArtifactsGit } from '../worker/artifacts.mjs';
 import { DomainError } from '../core/hash.mjs';
-import {
-  repositoryImportSource,
-  repositoryRef,
-} from '../core/repository-input.mjs';
+import { repositoryImportSource, repositoryRef } from '../core/repository-input.mjs';
 import {
   publicImportAddress,
   publicImportCommand,
@@ -31,9 +28,12 @@ function artifactsFixture() {
       calls.push({ operation: 'create', id, opts });
       if (repositories.has(id)) throw { code: 'ALREADY_EXISTS' };
       const value = {
-        name: id, description: opts.description, defaultBranch: opts.setDefaultBranch ?? 'main',
+        name: id,
+        description: opts.description,
+        defaultBranch: opts.setDefaultBranch ?? 'main',
         remote: 'https://test.artifacts.cloudflare.net/git/test/' + id + '.git',
-        commit: null, tree: null,
+        commit: null,
+        tree: null,
       };
       repositories.set(id, value);
       if (binding.loseCreateReply) throw new Error('secret token from provider diagnostics');
@@ -54,11 +54,18 @@ function artifactsFixture() {
       if (!value) throw { code: 'NOT_FOUND' };
       if (value.pending) throw { code: value.pending };
       return {
-        async info() { return { ...value, token: 'metadata-secret' }; },
-        async log(input) { return input.ref === 'refs/heads/' + value.defaultBranch && value.commit ? [{ hash: value.commit }] : []; },
+        async info() {
+          return { ...value, token: 'metadata-secret' };
+        },
+        async log(input) {
+          return input.ref === 'refs/heads/' + value.defaultBranch && value.commit
+            ? [{ hash: value.commit }]
+            : [];
+        },
         async readCommit(hash) {
           return hash === value.commit && !value.missingCommit
-            ? { hash, treeHash: value.tree, message: 'Observed ordinary Git commit' } : null;
+            ? { hash, treeHash: value.tree, message: 'Observed ordinary Git commit' }
+            : null;
         },
         async fork(target, opts) {
           calls.push({ operation: 'fork', source: id, target, opts });
@@ -73,7 +80,9 @@ function artifactsFixture() {
           repositories.set(target, result);
           return { ...result, token: 'fork-secret' };
         },
-        [Symbol.dispose]() { calls.push({ operation: 'dispose', id }); },
+        [Symbol.dispose]() {
+          calls.push({ operation: 'dispose', id });
+        },
       };
     },
   };
@@ -99,28 +108,55 @@ test('public import rejects private endpoints, URL credentials and forge web/API
     'https://gitlab.com/team/app/-/repository',
   ])
     assert.throws(() => repositoryImportSource({ url }));
-  assert.throws(() => repositoryImportSource({
-    url: 'https://github.com/team/app', token: 'never journal this',
-  }));
-  assert.throws(() => repositoryImportSource({
-    url: 'https://github.com/team/app', depth: 1001,
-  }));
-  assert.throws(() => repositoryImportSource({
-    url: 'https://private.example/team/app',
-  }, ['private.example']));
-  assert.deepEqual(repositoryImportSource({
-    url: 'https://gitlab.com/team/subgroup/app.git', branch: 'feature/retry', depth: 30,
-  }), {
-    url: 'https://gitlab.com/team/subgroup/app.git', branch: 'feature/retry', depth: 30,
-  });
-  for (const value of ['refs/heads/a/', 'refs/heads/a..b', 'refs/heads/a.lock', 'refs/heads/.a', 'refs/heads/a//b'])
+  assert.throws(() =>
+    repositoryImportSource({
+      url: 'https://github.com/team/app',
+      token: 'never journal this',
+    }),
+  );
+  assert.throws(() =>
+    repositoryImportSource({
+      url: 'https://github.com/team/app',
+      depth: 1001,
+    }),
+  );
+  assert.throws(() =>
+    repositoryImportSource(
+      {
+        url: 'https://private.example/team/app',
+      },
+      ['private.example'],
+    ),
+  );
+  assert.deepEqual(
+    repositoryImportSource({
+      url: 'https://gitlab.com/team/subgroup/app.git',
+      branch: 'feature/retry',
+      depth: 30,
+    }),
+    {
+      url: 'https://gitlab.com/team/subgroup/app.git',
+      branch: 'feature/retry',
+      depth: 30,
+    },
+  );
+  for (const value of [
+    'refs/heads/a/',
+    'refs/heads/a..b',
+    'refs/heads/a.lock',
+    'refs/heads/.a',
+    'refs/heads/a//b',
+  ])
     assert.throws(() => repositoryRef(value));
 });
 
 test('Artifacts create observes an empty repository without manufacturing a commit or exposing tokens', async () => {
   const f = artifactsFixture();
   const result = await f.adapter.repositoryCreate({
-    id: 'app', ref, description: 'Ordinary software', operation_id: 'op-create',
+    id: 'app',
+    ref,
+    description: 'Ordinary software',
+    operation_id: 'op-create',
   });
   assert.equal(result.status, 'empty');
   assert.equal(result.commit, null);
@@ -137,37 +173,59 @@ test('Artifacts create observes an empty repository without manufacturing a comm
 
 test('Artifacts absence and failed reads remain distinct from an empty repository', async () => {
   const f = artifactsFixture();
-  await assert.rejects(f.adapter.repositoryInfo({ id: 'absent', ref }), { code: 'REPO_NOT_FOUND', status: 404 });
+  await assert.rejects(f.adapter.repositoryInfo({ id: 'absent', ref }), {
+    code: 'REPO_NOT_FOUND',
+    status: 404,
+  });
   await f.adapter.repositoryCreate({ id: 'app', ref, operation_id: 'op-create' });
   Object.assign(f.repositories.get('app'), {
-    commit: oid('a'), tree: oid('b'), missingCommit: true,
+    commit: oid('a'),
+    tree: oid('b'),
+    missingCommit: true,
   });
   await assert.rejects(f.adapter.repositoryInfo({ id: 'app', ref }), { code: 'MISSING_COMMIT' });
-  f.binding.get = async () => { throw new Error('provider private credentials'); };
-  await assert.rejects(f.adapter.repositoryInfo({ id: 'app', ref }), (error) =>
-    error.code === 'ARTIFACTS_UNAVAILABLE' && !error.message.includes('credentials'));
+  f.binding.get = async () => {
+    throw new Error('provider private credentials');
+  };
+  await assert.rejects(
+    f.adapter.repositoryInfo({ id: 'app', ref }),
+    (error) => error.code === 'ARTIFACTS_UNAVAILABLE' && !error.message.includes('credentials'),
+  );
 });
 
 test('Artifacts lost creation acknowledgement leaves one marked repository for read-only reconciliation', async () => {
   const f = artifactsFixture();
   f.binding.loseCreateReply = true;
-  await assert.rejects(f.adapter.repositoryCreate({
-    id: 'app', ref, operation_id: 'op-lost',
-  }), { code: 'ARTIFACTS_UNAVAILABLE' });
+  await assert.rejects(
+    f.adapter.repositoryCreate({
+      id: 'app',
+      ref,
+      operation_id: 'op-lost',
+    }),
+    { code: 'ARTIFACTS_UNAVAILABLE' },
+  );
   const inspected = await f.adapter.repositoryInfo({ id: 'app', ref });
   assert.equal(inspected.operation_id, 'op-lost');
   assert.equal(f.calls.filter((call) => call.operation === 'create').length, 1);
   f.binding.loseCreateReply = false;
-  await assert.rejects(f.adapter.repositoryCreate({
-    id: 'app', ref, operation_id: 'different-op',
-  }), { code: 'REPO_EXISTS' });
+  await assert.rejects(
+    f.adapter.repositoryCreate({
+      id: 'app',
+      ref,
+      operation_id: 'different-op',
+    }),
+    { code: 'REPO_EXISTS' },
+  );
   assert.equal((await f.adapter.repositoryInfo({ id: 'app', ref })).operation_id, 'op-lost');
 });
 
 test('Artifacts import uses the documented public-source shape and preserves asynchronous readiness', async () => {
   const f = artifactsFixture();
   const result = await f.adapter.repositoryImport({
-    id: 'app', ref, description: 'Imported application', operation_id: 'op-import',
+    id: 'app',
+    ref,
+    description: 'Imported application',
+    operation_id: 'op-import',
     source: { url: 'https://github.com/team/app', branch: 'main', depth: 25 },
   });
   assert.equal(result.status, 'importing');
@@ -177,7 +235,9 @@ test('Artifacts import uses the documented public-source shape and preserves asy
   assert.ok(!JSON.stringify(result).includes('secret'));
   const imported = f.calls.find((call) => call.operation === 'import').input;
   assert.deepEqual(imported.source, {
-    url: 'https://github.com/team/app', branch: 'main', depth: 25,
+    url: 'https://github.com/team/app',
+    branch: 'main',
+    depth: 25,
   });
   assert.equal(imported.target.name, 'app');
   assert.ok(imported.target.opts.description.endsWith('[klocgit-operation:op-import]'));
@@ -185,10 +245,15 @@ test('Artifacts import uses the documented public-source shape and preserves asy
   const ready = await f.adapter.repositoryInfo({ id: 'app', ref });
   assert.equal(ready.status, 'ready');
   assert.equal(ready.operation_id, 'op-import');
-  await assert.rejects(f.adapter.repositoryImport({
-    id: 'wrong-branch', ref, operation_id: 'op-wrong',
-    source: { url: 'https://github.com/team/app', branch: 'other' },
-  }), { code: 'IMPORT_REF_MISMATCH' });
+  await assert.rejects(
+    f.adapter.repositoryImport({
+      id: 'wrong-branch',
+      ref,
+      operation_id: 'op-wrong',
+      source: { url: 'https://github.com/team/app', branch: 'other' },
+    }),
+    { code: 'IMPORT_REF_MISMATCH' },
+  );
 });
 
 test('Artifacts fork detects a source move instead of claiming the cached baseline', async () => {
@@ -197,16 +262,26 @@ test('Artifacts fork detects a source move instead of claiming the cached baseli
   Object.assign(f.repositories.get('app'), { commit: oid('a'), tree: oid('b') });
   const source = { repo_id: 'app', ref, commit: oid('a'), tree: oid('b') };
   const result = await f.adapter.repositoryFork({
-    id: 'future', source, operation_id: 'op-fork',
+    id: 'future',
+    source,
+    operation_id: 'op-fork',
   });
   assert.equal(result.commit, source.commit);
   assert.equal(result.tree, source.tree);
   assert.equal(result.operation_id, 'op-fork');
   assert.ok(!JSON.stringify(result).includes('secret'));
-  f.binding.beforeFork = (value) => { value.commit = oid('c'); value.tree = oid('d'); };
-  await assert.rejects(f.adapter.repositoryFork({
-    id: 'raced-future', source, operation_id: 'op-raced',
-  }), { code: 'FORK_BASELINE_CHANGED' });
+  f.binding.beforeFork = (value) => {
+    value.commit = oid('c');
+    value.tree = oid('d');
+  };
+  await assert.rejects(
+    f.adapter.repositoryFork({
+      id: 'raced-future',
+      source,
+      operation_id: 'op-raced',
+    }),
+    { code: 'FORK_BASELINE_CHANGED' },
+  );
   // Failed semantic registration does not erase ordinary Git work.
   assert.ok(f.repositories.has('raced-future'));
   assert.equal((await f.adapter.repositoryInfo({ id: 'raced-future', ref })).commit, oid('c'));
@@ -215,10 +290,14 @@ test('Artifacts fork detects a source move instead of claiming the cached baseli
 test('Artifacts empty sources cannot be forked as a ready future', async () => {
   const f = artifactsFixture();
   await f.adapter.repositoryCreate({ id: 'app', ref, operation_id: 'op-create' });
-  await assert.rejects(f.adapter.repositoryFork({
-    id: 'future', source: { repo_id: 'app', ref, commit: oid('a'), tree: oid('b') },
-    operation_id: 'op-fork',
-  }), { code: 'REPO_NOT_READY' });
+  await assert.rejects(
+    f.adapter.repositoryFork({
+      id: 'future',
+      source: { repo_id: 'app', ref, commit: oid('a'), tree: oid('b') },
+      operation_id: 'op-fork',
+    }),
+    { code: 'REPO_NOT_READY' },
+  );
   assert.equal(f.calls.filter((call) => call.operation === 'fork').length, 0);
 });
 
@@ -268,13 +347,22 @@ test('local fork fetches the immutable baseline even when the source ref advance
     if (!moved && args[0] === 'fetch') {
       moved = true;
       const directory = f.adapter.dir({ id: 'app' });
-      const next = await git(directory, ['commit-tree', observed.tree, '-p', observed.commit, '-m', 'External source advance']);
+      const next = await git(directory, [
+        'commit-tree',
+        observed.tree,
+        '-p',
+        observed.commit,
+        '-m',
+        'External source advance',
+      ]);
       await git(directory, ['update-ref', ref, next, observed.commit]);
     }
     return original(cwd, args);
   };
   const future = await f.adapter.repositoryFork({
-    id: 'future', source, operation_id: 'op-future',
+    id: 'future',
+    source,
+    operation_id: 'op-future',
   });
   assert.equal(moved, true);
   assert.equal(future.commit, observed.commit);
@@ -290,17 +378,26 @@ test('local storage absence, incomplete initialization and symlink targets are n
   const f = await localFixture(t);
   await assert.rejects(f.adapter.repositoryInfo({ id: 'absent', ref }), { code: 'REPO_NOT_FOUND' });
   await mkdir(f.adapter.dir({ id: 'incomplete' }), { recursive: true });
-  await assert.rejects(f.adapter.repositoryInfo({ id: 'incomplete', ref }), { code: 'REPO_UNAVAILABLE' });
+  await assert.rejects(f.adapter.repositoryInfo({ id: 'incomplete', ref }), {
+    code: 'REPO_UNAVAILABLE',
+  });
   await symlink(f.adapter.dir({ id: 'incomplete' }), f.adapter.dir({ id: 'symlink' }));
-  await assert.rejects(f.adapter.repositoryInfo({ id: 'symlink', ref }), { code: 'REPO_UNAVAILABLE' });
+  await assert.rejects(f.adapter.repositoryInfo({ id: 'symlink', ref }), {
+    code: 'REPO_UNAVAILABLE',
+  });
 });
 
 test('local duplicate create never overwrites an existing operation or Git head', async (t) => {
   const f = await localFixture(t);
   const { observed } = await initialPush(f);
-  await assert.rejects(f.adapter.repositoryCreate({
-    id: 'app', ref, operation_id: 'op-other',
-  }), { code: 'REPO_EXISTS' });
+  await assert.rejects(
+    f.adapter.repositoryCreate({
+      id: 'app',
+      ref,
+      operation_id: 'op-other',
+    }),
+    { code: 'REPO_EXISTS' },
+  );
   const current = await f.adapter.repositoryInfo({ id: 'app', ref });
   assert.equal(current.commit, observed.commit);
   assert.equal(current.operation_id, 'op-app');
@@ -308,15 +405,30 @@ test('local duplicate create never overwrites an existing operation or Git head'
 
 test('DNS public-address checks reject mixed private answers and pin the accepted answer', async () => {
   for (const address of [
-    '127.0.0.1', '10.0.0.1', '169.254.169.254', '172.16.1.1', '192.168.1.1',
-    '100.64.0.1', '0.0.0.0', '::1', '::ffff:127.0.0.1', 'fc00::1', 'fe80::1',
-    '2001:db8::1', '2002:7f00:1::1', '255.255.255.255',
-  ]) assert.equal(publicImportAddress(address), false, address);
+    '127.0.0.1',
+    '10.0.0.1',
+    '169.254.169.254',
+    '172.16.1.1',
+    '192.168.1.1',
+    '100.64.0.1',
+    '0.0.0.0',
+    '::1',
+    '::ffff:127.0.0.1',
+    'fc00::1',
+    'fe80::1',
+    '2001:db8::1',
+    '2002:7f00:1::1',
+    '255.255.255.255',
+  ])
+    assert.equal(publicImportAddress(address), false, address);
   const source = repositoryImportSource({ url: 'https://github.com/team/app' });
-  await assert.rejects(resolveImportSource(source, async () => [
-    { address: '140.82.112.3', family: 4 },
-    { address: 'fd00::1', family: 6 },
-  ]), { code: 'IMPORT_SOURCE_NOT_PUBLIC' });
+  await assert.rejects(
+    resolveImportSource(source, async () => [
+      { address: '140.82.112.3', family: 4 },
+      { address: 'fd00::1', family: 6 },
+    ]),
+    { code: 'IMPORT_SOURCE_NOT_PUBLIC' },
+  );
   const accepted = await resolveImportSource(source, async () => [
     { address: '140.82.112.3', family: 4 },
   ]);
@@ -330,7 +442,14 @@ test('DNS public-address checks reject mixed private answers and pin the accepte
   assert.ok(command.args.includes('--fsize=134217728'));
   assert.ok(command.args.includes('--cpu=30'));
   assert.ok(command.args.includes('--as=805306368'));
-  for (const key of ['GIT_CONFIG_COUNT', 'GIT_ASKPASS', 'HTTPS_PROXY', 'HOME', 'GIT_BRIDGE_TOKEN', 'GITHUB_TOKEN'])
+  for (const key of [
+    'GIT_CONFIG_COUNT',
+    'GIT_ASKPASS',
+    'HTTPS_PROXY',
+    'HOME',
+    'GIT_BRIDGE_TOKEN',
+    'GITHUB_TOKEN',
+  ])
     assert.equal(command.env[key], undefined, key);
 });
 
@@ -347,7 +466,9 @@ test('local import materializes real Git objects without trusting a producer-sup
     },
   };
   const imported = await f.adapter.repositoryImport({
-    id: 'imported', ref, operation_id: 'op-imported',
+    id: 'imported',
+    ref,
+    operation_id: 'op-imported',
     source: { url: 'https://github.com/team/app', branch: 'main', depth: 10 },
   });
   assert.equal(imported.commit, observed.commit);
@@ -355,7 +476,9 @@ test('local import materializes real Git objects without trusting a producer-sup
   assert.equal(imported.operation_id, 'op-imported');
   assert.equal(transfer.address, '140.82.112.3');
   assert.deepEqual(transfer.source, {
-    url: 'https://github.com/team/app', branch: 'main', depth: 10,
+    url: 'https://github.com/team/app',
+    branch: 'main',
+    depth: 10,
   });
   const clone = path.join(f.root, 'imported-client');
   await git(f.root, ['clone', '--quiet', imported.remote, clone]);
@@ -365,26 +488,41 @@ test('local import materializes real Git objects without trusting a producer-sup
 test('local import rejects mixed private DNS before creating repository storage', async (t) => {
   const f = await localFixture(t, {
     resolveImportHost: async () => [
-      { address: '140.82.112.3', family: 4 }, { address: '10.0.0.1', family: 4 },
+      { address: '140.82.112.3', family: 4 },
+      { address: '10.0.0.1', family: 4 },
     ],
-    fetchPublicRepository: async () => { throw new Error('must not execute'); },
+    fetchPublicRepository: async () => {
+      throw new Error('must not execute');
+    },
   });
-  await assert.rejects(f.adapter.repositoryImport({
-    id: 'unsafe', ref, operation_id: 'op-unsafe',
-    source: { url: 'https://github.com/team/app' },
-  }), { code: 'IMPORT_SOURCE_NOT_PUBLIC' });
+  await assert.rejects(
+    f.adapter.repositoryImport({
+      id: 'unsafe',
+      ref,
+      operation_id: 'op-unsafe',
+      source: { url: 'https://github.com/team/app' },
+    }),
+    { code: 'IMPORT_SOURCE_NOT_PUBLIC' },
+  );
   await assert.rejects(f.adapter.repositoryInfo({ id: 'unsafe', ref }), { code: 'REPO_NOT_FOUND' });
 });
 
 test('failed local import preserves inspectable ownership rather than retrying or fabricating ready state', async (t) => {
   const f = await localFixture(t, {
     resolveImportHost: async () => [{ address: '140.82.112.3', family: 4 }],
-    fetchPublicRepository: async () => { throw new DomainError('IMPORT_FETCH_FAILED', 'Transport stopped', 422); },
+    fetchPublicRepository: async () => {
+      throw new DomainError('IMPORT_FETCH_FAILED', 'Transport stopped', 422);
+    },
   });
-  await assert.rejects(f.adapter.repositoryImport({
-    id: 'pending', ref, operation_id: 'op-pending',
-    source: { url: 'https://github.com/team/app' },
-  }), { code: 'IMPORT_FETCH_FAILED' });
+  await assert.rejects(
+    f.adapter.repositoryImport({
+      id: 'pending',
+      ref,
+      operation_id: 'op-pending',
+      source: { url: 'https://github.com/team/app' },
+    }),
+    { code: 'IMPORT_FETCH_FAILED' },
+  );
   const inspected = await f.adapter.repositoryInfo({ id: 'pending', ref });
   assert.equal(inspected.operation_id, 'op-pending');
   assert.equal(inspected.status, 'empty');
@@ -397,11 +535,27 @@ test('actual Git public-import transport refuses redirects and inherited credent
   const keyPath = path.join(f.root, 'test-key.pem');
   const certificatePath = path.join(f.root, 'test-certificate.pem');
   const execute = promisify(execFile);
-  await execute('/usr/bin/openssl', [
-    'req', '-x509', '-newkey', 'rsa:2048', '-nodes', '-days', '1',
-    '-keyout', keyPath, '-out', certificatePath, '-subj', '/CN=github.com',
-    '-addext', 'subjectAltName=DNS:github.com',
-  ], { timeout: 10000, maxBuffer: 65536, env: { PATH: '/usr/bin:/bin' } });
+  await execute(
+    '/usr/bin/openssl',
+    [
+      'req',
+      '-x509',
+      '-newkey',
+      'rsa:2048',
+      '-nodes',
+      '-days',
+      '1',
+      '-keyout',
+      keyPath,
+      '-out',
+      certificatePath,
+      '-subj',
+      '/CN=github.com',
+      '-addext',
+      'subjectAltName=DNS:github.com',
+    ],
+    { timeout: 10000, maxBuffer: 65536, env: { PATH: '/usr/bin:/bin' } },
+  );
   let privateRequests = 0;
   const privateServer = http.createServer((request, response) => {
     privateRequests++;
@@ -411,22 +565,29 @@ test('actual Git public-import transport refuses redirects and inherited credent
   t.after(() => new Promise((resolve) => privateServer.close(resolve)));
   const authorization = [];
   let publicRequests = 0;
-  const forge = https.createServer({
-    key: await readFile(keyPath), cert: await readFile(certificatePath),
-  }, (request, response) => {
-    publicRequests++;
-    authorization.push(request.headers.authorization);
-    response.writeHead(302, {
-      Location: 'http://127.0.0.1:' + privateServer.address().port + '/private',
-    });
-    response.end();
-  });
+  const forge = https.createServer(
+    {
+      key: await readFile(keyPath),
+      cert: await readFile(certificatePath),
+    },
+    (request, response) => {
+      publicRequests++;
+      authorization.push(request.headers.authorization);
+      response.writeHead(302, {
+        Location: 'http://127.0.0.1:' + privateServer.address().port + '/private',
+      });
+      response.end();
+    },
+  );
   await new Promise((resolve) => forge.listen(0, '127.0.0.1', resolve));
   t.after(() => new Promise((resolve) => forge.close(resolve)));
   const port = forge.address().port;
-  const transport = publicImportCommand(repositoryImportSource({
-    url: 'https://github.com/team/app',
-  }), '140.82.112.3');
+  const transport = publicImportCommand(
+    repositoryImportSource({
+      url: 'https://github.com/team/app',
+    }),
+    '140.82.112.3',
+  );
   // Substitute only the network destination and CA for this local TLS fixture.
   // Redirect policy, protocol gates, limits and credential-free env are real.
   const args = transport.args.map((argument) => {
@@ -454,11 +615,14 @@ test('actual Git public-import transport refuses redirects and inherited credent
       else process.env[variable] = value;
     }
   });
-  await assert.rejects(execute(transport.command, args, {
-    cwd: f.adapter.dir({ id: 'target' }),
-    env: { ...transport.env, GIT_SSL_CAINFO: certificatePath },
-    timeout: 10000, maxBuffer: 65536,
-  }));
+  await assert.rejects(
+    execute(transport.command, args, {
+      cwd: f.adapter.dir({ id: 'target' }),
+      env: { ...transport.env, GIT_SSL_CAINFO: certificatePath },
+      timeout: 10000,
+      maxBuffer: 65536,
+    }),
+  );
   assert.equal(publicRequests, 1);
   assert.deepEqual(authorization, [undefined]);
   assert.equal(privateRequests, 0);

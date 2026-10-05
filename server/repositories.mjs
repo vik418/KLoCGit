@@ -26,7 +26,11 @@ async function inspectDirectory(adapter, id) {
   try {
     const info = await lstat(target);
     if (!info.isDirectory() || info.isSymbolicLink())
-      throw new DomainError('REPO_UNAVAILABLE', 'Repository storage must be an ordinary directory', 503);
+      throw new DomainError(
+        'REPO_UNAVAILABLE',
+        'Repository storage must be an ordinary directory',
+        503,
+      );
   } catch (error) {
     if (error.code === 'ENOENT')
       throw new DomainError('REPO_NOT_FOUND', 'Local repository does not exist', 404);
@@ -36,7 +40,11 @@ async function inspectDirectory(adapter, id) {
     if ((await adapter.runRepositoryGit(target, ['rev-parse', '--is-bare-repository'])) !== 'true')
       throw new Error();
   } catch {
-    throw new DomainError('REPO_UNAVAILABLE', 'Repository initialization requires reconciliation', 503);
+    throw new DomainError(
+      'REPO_UNAVAILABLE',
+      'Repository initialization requires reconciliation',
+      503,
+    );
   }
   return target;
 }
@@ -59,7 +67,10 @@ async function initializeRepository(adapter, input) {
   // recovery cannot adopt another same-name repository as this operation's work.
   await writeFile(path.join(target, markerName), operationId + '\n', { flag: 'wx', mode: 0o600 });
   await adapter.runRepositoryGit(target, [
-    'init', '--bare', '--quiet', '--initial-branch=' + ref.slice(11),
+    'init',
+    '--bare',
+    '--quiet',
+    '--initial-branch=' + ref.slice(11),
   ]);
   return { id, ref, target };
 }
@@ -72,7 +83,11 @@ export async function localRepositoryInfo(adapter, input) {
   try {
     const marker = await lstat(path.join(target, markerName));
     if (!marker.isFile() || marker.isSymbolicLink() || marker.size > 161)
-      throw new DomainError('REPO_UNAVAILABLE', 'Repository ownership requires reconciliation', 503);
+      throw new DomainError(
+        'REPO_UNAVAILABLE',
+        'Repository ownership requires reconciliation',
+        503,
+      );
     operationId = repositoryOperationId(
       (await readFile(path.join(target, markerName), 'utf8')).trim(),
     );
@@ -120,21 +135,26 @@ export function publicImportAddress(address) {
   if (isIP(address) === 4) {
     const [a, b, c] = address.split('.').map(Number);
     return !(
-      a === 0 || a === 10 || a === 127 || a >= 224 ||
+      a === 0 ||
+      a === 10 ||
+      a === 127 ||
+      a >= 224 ||
       (a === 100 && b >= 64 && b <= 127) ||
       (a === 169 && b === 254) ||
       (a === 172 && b >= 16 && b <= 31) ||
-      (a === 192 && (
-        b === 168 || (b === 0 && (c === 0 || c === 2)) || (b === 88 && c === 99)
-      )) ||
+      (a === 192 && (b === 168 || (b === 0 && (c === 0 || c === 2)) || (b === 88 && c === 99))) ||
       (a === 198 && (b === 18 || b === 19 || (b === 51 && c === 100))) ||
       (a === 203 && b === 0 && c === 113)
     );
   }
   if (isIP(address) === 6) {
     const first = parseInt(address.split(':')[0], 16);
-    return first >= 0x2000 && first <= 0x3fff &&
-      !/^2001:(?:0*:|0*db8:)/i.test(address) && !/^2002:/i.test(address);
+    return (
+      first >= 0x2000 &&
+      first <= 0x3fff &&
+      !/^2001:(?:0*:|0*db8:)/i.test(address) &&
+      !/^2002:/i.test(address)
+    );
   }
   return false;
 }
@@ -151,21 +171,34 @@ export async function resolveImportSource(source, resolver = lookup) {
       }),
     ]);
   } catch {
-    throw new DomainError('IMPORT_DNS_UNAVAILABLE', 'Public import host could not be resolved', 503);
+    throw new DomainError(
+      'IMPORT_DNS_UNAVAILABLE',
+      'Public import host could not be resolved',
+      503,
+    );
   } finally {
     clearTimeout(timer);
   }
-  if (!Array.isArray(answers) || !answers.length ||
-      answers.some((answer) => !publicImportAddress(answer.address)))
+  if (
+    !Array.isArray(answers) ||
+    !answers.length ||
+    answers.some((answer) => !publicImportAddress(answer.address))
+  )
     throw new DomainError(
-      'IMPORT_SOURCE_NOT_PUBLIC', 'Import DNS must resolve only to public addresses', 422,
+      'IMPORT_SOURCE_NOT_PUBLIC',
+      'Import DNS must resolve only to public addresses',
+      422,
     );
   return answers[0].address;
 }
 
 export function publicImportCommand(source, address) {
   if (!publicImportAddress(address))
-    throw new DomainError('IMPORT_SOURCE_NOT_PUBLIC', 'Import transport requires a public IP address', 422);
+    throw new DomainError(
+      'IMPORT_SOURCE_NOT_PUBLIC',
+      'Import transport requires a public IP address',
+      422,
+    );
   const host = new URL(source.url).hostname;
   const pinned = isIP(address) === 6 ? '[' + address + ']' : address;
   return {
@@ -175,21 +208,37 @@ export function publicImportCommand(source, address) {
       '--cpu=30',
       '--as=805306368',
       '--nofile=128',
-      '--', '/usr/bin/git',
-      '-c', 'core.hooksPath=/dev/null',
-      '-c', 'init.templateDir=',
-      '-c', 'core.attributesFile=/dev/null',
-      '-c', 'protocol.allow=never',
-      '-c', 'protocol.https.allow=always',
-      '-c', 'credential.helper=',
-      '-c', 'http.followRedirects=false',
-      '-c', 'http.curloptResolve=' + host + ':443:' + pinned,
-      '-c', 'http.lowSpeedLimit=1024',
-      '-c', 'http.lowSpeedTime=15',
-      '-c', 'fetch.fsckObjects=true',
-      'fetch', '--quiet', '--no-tags', '--no-recurse-submodules',
+      '--',
+      '/usr/bin/git',
+      '-c',
+      'core.hooksPath=/dev/null',
+      '-c',
+      'init.templateDir=',
+      '-c',
+      'core.attributesFile=/dev/null',
+      '-c',
+      'protocol.allow=never',
+      '-c',
+      'protocol.https.allow=always',
+      '-c',
+      'credential.helper=',
+      '-c',
+      'http.followRedirects=false',
+      '-c',
+      'http.curloptResolve=' + host + ':443:' + pinned,
+      '-c',
+      'http.lowSpeedLimit=1024',
+      '-c',
+      'http.lowSpeedTime=15',
+      '-c',
+      'fetch.fsckObjects=true',
+      'fetch',
+      '--quiet',
+      '--no-tags',
+      '--no-recurse-submodules',
       '--depth=' + source.depth,
-      source.url, source.branch ?? 'HEAD',
+      source.url,
+      source.branch ?? 'HEAD',
     ],
     env: {
       PATH: '/usr/bin:/bin',
@@ -218,27 +267,38 @@ export async function fetchPublicRepository(target, source, address) {
   let child;
   const stop = () => {
     if (child?.pid) {
-      try { process.kill(-child.pid, 'SIGKILL'); } catch {}
+      try {
+        process.kill(-child.pid, 'SIGKILL');
+      } catch {}
     }
   };
   try {
     await new Promise((resolve, reject) => {
       // Git starts HTTPS helpers. A separate process group lets the elapsed-time
       // budget terminate the whole transport, not only its parent Git process.
-      child = execFile(transport.command, transport.args, {
-        cwd: target,
-        env: transport.env,
-        detached: true,
-        maxBuffer: 1024 * 1024,
-      }, (error) => {
-        if (error) { stop(); reject(error); }
-        else resolve();
-      });
+      child = execFile(
+        transport.command,
+        transport.args,
+        {
+          cwd: target,
+          env: transport.env,
+          detached: true,
+          maxBuffer: 1024 * 1024,
+        },
+        (error) => {
+          if (error) {
+            stop();
+            reject(error);
+          } else resolve();
+        },
+      );
       timer = setTimeout(stop, 60000);
     });
   } catch {
     throw new DomainError(
-      'IMPORT_FETCH_FAILED', 'Public import failed within the configured transport limits', 422,
+      'IMPORT_FETCH_FAILED',
+      'Public import failed within the configured transport limits',
+      422,
     );
   } finally {
     clearTimeout(timer);
@@ -253,16 +313,26 @@ async function checkRepositorySize(target) {
     const parent = pending.pop();
     for (const entry of await readdir(parent, { withFileTypes: true })) {
       if (++files > 100000)
-        throw new DomainError('IMPORT_SIZE_LIMIT', 'Imported repository contains too many entries', 422);
+        throw new DomainError(
+          'IMPORT_SIZE_LIMIT',
+          'Imported repository contains too many entries',
+          422,
+        );
       const name = path.join(parent, entry.name);
       if (entry.isSymbolicLink())
-        throw new DomainError('IMPORT_STORAGE_UNSAFE', 'Imported object storage contains a symlink', 422);
+        throw new DomainError(
+          'IMPORT_STORAGE_UNSAFE',
+          'Imported object storage contains a symlink',
+          422,
+        );
       if (entry.isDirectory()) pending.push(name);
       else {
         bytes += (await lstat(name)).size;
         if (bytes > importByteLimit)
           throw new DomainError(
-            'IMPORT_SIZE_LIMIT', 'Imported repository exceeds the accepted byte limit', 422,
+            'IMPORT_SIZE_LIMIT',
+            'Imported repository exceeds the accepted byte limit',
+            422,
           );
       }
     }
@@ -273,7 +343,11 @@ export async function localRepositoryImport(adapter, input) {
   const source = repositoryImportSource(input.source, adapter.repositoryOptions.importHosts);
   const ref = repositoryRef(input.ref);
   if (source.branch && source.branch !== ref.slice(11))
-    throw new DomainError('IMPORT_REF_MISMATCH', 'Import branch must match the requested repository ref', 422);
+    throw new DomainError(
+      'IMPORT_REF_MISMATCH',
+      'Import branch must match the requested repository ref',
+      422,
+    );
   source.branch = ref.slice(11);
   const address = await resolveImportSource(source, adapter.repositoryOptions.resolveImportHost);
   const { id, target } = await initializeRepository(adapter, { ...input, ref });
@@ -302,7 +376,12 @@ export async function localRepositoryFork(adapter, input) {
   // Fetch the immutable commit, not a moving source ref, even if an ordinary Git
   // writer advances the source after inspection but before object transfer.
   await adapter.runRepositoryGit(target, [
-    'fetch', '--quiet', '--no-tags', '--no-recurse-submodules', sourceDirectory, source.commit,
+    'fetch',
+    '--quiet',
+    '--no-tags',
+    '--no-recurse-submodules',
+    sourceDirectory,
+    source.commit,
   ]);
   await adapter.runRepositoryGit(target, ['update-ref', ref, source.commit, '0'.repeat(40)]);
   return verifyForkState(await localRepositoryInfo(adapter, { id, ref }), source);

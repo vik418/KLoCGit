@@ -46,8 +46,10 @@ export async function handleCoordinatorRequest(engine, env, { method, url, input
 
   // Preserve the existing repository adapter payload while native clients use id/mode.
   const legacyRepository =
-    path === '/api/repositories' && method === 'POST' &&
-    Object.hasOwn(input, 'name') && !Object.hasOwn(input, 'id');
+    path === '/api/repositories' &&
+    method === 'POST' &&
+    Object.hasOwn(input, 'name') &&
+    !Object.hasOwn(input, 'id');
   if (ownsNativePath(path) && !legacyRepository)
     return jsonResponse(await handleNativeRequest(engine, { method, url, input, actor }));
 
@@ -90,8 +92,7 @@ export async function handleCoordinatorRequest(engine, env, { method, url, input
     });
   }
   if (path === '/internal/push') return ingestPush(engine, input, 'artifacts-ingress');
-  if (path === '/api/events' && method === 'POST')
-    return ingestPush(engine, input, 'git-ingress');
+  if (path === '/api/events' && method === 'POST') return ingestPush(engine, input, 'git-ingress');
   if (path === '/api/repositories' && method === 'POST')
     return jsonResponse(await registerRepository(engine, env, input, actor), 201);
   if (path === '/api/repositories/fork' && method === 'POST')

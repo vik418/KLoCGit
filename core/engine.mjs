@@ -409,7 +409,11 @@ export class Engine {
         if (this.state.nativeRepositories?.some((registered) => registered.id === repo.id)) {
           const facts = await this.git.facts(repo, head, head);
           if (facts.head !== head)
-            throw new DomainError('INVALID_GIT_FACTS', 'Git did not establish the observed canonical tree', 503);
+            throw new DomainError(
+              'INVALID_GIT_FACTS',
+              'Git did not establish the observed canonical tree',
+              503,
+            );
           repo.tree = facts.tree;
         }
         const previous = repo.head;

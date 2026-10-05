@@ -76,7 +76,9 @@ export function CapabilitiesDialog({ onClose }) {
       <div className="dialog-header">
         <div>
           <span className="eyebrow">IMPLEMENTATION SCOPE</span>
-          <DialogTitle asChild><h2>Capabilities</h2></DialogTitle>
+          <DialogTitle asChild>
+            <h2>Capabilities</h2>
+          </DialogTitle>
         </div>
         <button className="icon-btn" onClick={onClose} aria-label="Close capabilities">
           <X size={20} />

@@ -22,7 +22,8 @@ export function ProposalDialog({ id, workspace, onClose, onDecision, reload, mes
     return (
       <Dialog onClose={onClose}>
         <div className="native-body">
-          <DialogTitle>Revision unavailable</DialogTitle><p>This historical revision is unavailable.</p>
+          <DialogTitle>Revision unavailable</DialogTitle>
+          <p>This historical revision is unavailable.</p>
           <button className="button ghost" onClick={onClose}>
             Close
           </button>
@@ -44,7 +45,9 @@ export function ProposalDialog({ id, workspace, onClose, onDecision, reload, mes
       <div className="dialog-header">
         <div>
           <span className="eyebrow">IMMUTABLE PROPOSAL REVISION</span>
-          <DialogTitle asChild><h2>{p.title}</h2></DialogTitle>
+          <DialogTitle asChild>
+            <h2>{p.title}</h2>
+          </DialogTitle>
         </div>
         <button className="icon-btn" onClick={onClose} aria-label="Close proposal">
           <X size={20} />

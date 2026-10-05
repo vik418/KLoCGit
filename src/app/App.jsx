@@ -49,8 +49,7 @@ function pageDescription(activeTab) {
 
 export function App() {
   const { notification, notify, dismissNotification } = useNotifications();
-  const { workspace, requiresAuthentication, authenticate, reload } =
-    useWorkspace(notify);
+  const { workspace, requiresAuthentication, authenticate, reload } = useWorkspace(notify);
   const [activeTab, setActiveTab] = useState('attention');
   const [selectedDecisionId, setSelectedDecisionId] = useState(null);
   const [selectedProposalId, setSelectedProposalId] = useState(null);
@@ -138,7 +137,12 @@ export function App() {
             />
           )}
           {activeTab === 'futures' && (
-            <FuturesView nativeState={workspace.nativeState} onNewFuture={openNewFuture} reload={reload} message={notify} />
+            <FuturesView
+              nativeState={workspace.nativeState}
+              onNewFuture={openNewFuture}
+              reload={reload}
+              message={notify}
+            />
           )}
           {activeTab === 'work' && (
             <WorkView
@@ -154,14 +158,31 @@ export function App() {
           {activeTab === 'evidence' && <EvidenceList workspace={workspace} />}
           {activeTab === 'activity' && <ActivityList workspace={workspace} />}
           <footer>
-            <span>Git remains authoritative · {workspace.workspace.mode === 'local' ? 'Local Git' : 'Cloudflare Artifacts'}</span>
+            <span>
+              Git remains authoritative ·{' '}
+              {workspace.workspace.mode === 'local' ? 'Local Git' : 'Cloudflare Artifacts'}
+            </span>
             <nav className="footer-actions" aria-label="Supporting views">
               {secondaryViews.map(([key, label]) => (
-                <Button key={key} type="button" variant="ghost" size="sm" aria-current={activeTab === key ? 'page' : undefined} onClick={() => setActiveTab(key)}>
+                <Button
+                  key={key}
+                  type="button"
+                  variant="ghost"
+                  size="sm"
+                  aria-current={activeTab === key ? 'page' : undefined}
+                  onClick={() => setActiveTab(key)}
+                >
                   {label}
                 </Button>
               ))}
-              <Button type="button" variant="ghost" size="sm" onClick={() => setShowCapabilities(true)}>Capabilities</Button>
+              <Button
+                type="button"
+                variant="ghost"
+                size="sm"
+                onClick={() => setShowCapabilities(true)}
+              >
+                Capabilities
+              </Button>
             </nav>
           </footer>
         </main>
@@ -211,16 +232,42 @@ export function App() {
         />
       )}
       {nativeDialog?.type === 'repository' && (
-        <NewRepository onClose={() => setNativeDialog(null)} onCreated={() => nativeCreated('systems')} reload={reload} message={notify} />
+        <NewRepository
+          onClose={() => setNativeDialog(null)}
+          onCreated={() => nativeCreated('systems')}
+          reload={reload}
+          message={notify}
+        />
       )}
       {nativeDialog?.type === 'system' && (
-        <NewSystem nativeState={workspace.nativeState} onClose={() => setNativeDialog(null)} onCreated={() => nativeCreated('systems')} reload={reload} message={notify} />
+        <NewSystem
+          nativeState={workspace.nativeState}
+          onClose={() => setNativeDialog(null)}
+          onCreated={() => nativeCreated('systems')}
+          reload={reload}
+          message={notify}
+        />
       )}
       {nativeDialog?.type === 'objective' && (
-        <NewObjective nativeState={workspace.nativeState} initialSystemId={nativeDialog.systemId} onClose={() => setNativeDialog(null)} onCreated={() => nativeCreated('systems')} reload={reload} message={notify} />
+        <NewObjective
+          nativeState={workspace.nativeState}
+          initialSystemId={nativeDialog.systemId}
+          onClose={() => setNativeDialog(null)}
+          onCreated={() => nativeCreated('systems')}
+          reload={reload}
+          message={notify}
+        />
       )}
       {nativeDialog?.type === 'future' && (
-        <NewFuture nativeState={workspace.nativeState} initialRepositoryId={nativeDialog.repositoryId} initialSystemId={nativeDialog.systemId} onClose={() => setNativeDialog(null)} onCreated={() => nativeCreated('futures')} reload={reload} message={notify} />
+        <NewFuture
+          nativeState={workspace.nativeState}
+          initialRepositoryId={nativeDialog.repositoryId}
+          initialSystemId={nativeDialog.systemId}
+          onClose={() => setNativeDialog(null)}
+          onCreated={() => nativeCreated('futures')}
+          reload={reload}
+          message={notify}
+        />
       )}
       {showCapabilities && <CapabilitiesDialog onClose={() => setShowCapabilities(false)} />}
       <Notification notification={notification} onDismiss={dismissNotification} />

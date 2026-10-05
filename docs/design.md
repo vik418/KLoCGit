@@ -62,23 +62,24 @@ flowchart TD
     git -->|CAS one reviewed canonical ref| artifacts
     artifacts -->|reconcile uncertain outcomes| prepared
 ```
+
 The API Worker and Durable Object are the backend. The private executor Worker and Node.js Container perform native Git operations and configured isolated checks. The local Node.js server uses the same domain engine with bare repositories and persisted workspace metadata.
 
 One serialization boundary protects coordination writes. Git's expected-old-head check still protects against external clients. A Durable Object does not make independent repository updates atomic.
 
 ## Native state contracts
 
-| Object | Meaning and current boundary |
-| --- | --- |
-| System | Logical software and registered repository references. Empty repositories are recorded without inventing commits. |
-| Objective | Optional requested outcome, scope and declared or unknown source. Creating a Future can record the request inline. |
-| Future | Mutable workspace identity containing isolated repository copies, exact baselines, producer metadata and a current revision pointer. |
-| FutureRevision | Immutable repository-head, tree and baseline vectors, affected scope, producer, context reference and provenance state. |
-| Selection | Planned selection of existing Git material. No native selection endpoint is delivered. |
-| CandidateState | Planned exact state constructed from selections. Existing kernel compositions use ProposalRevisions. |
-| Evidence | Existing immutable check results pin exact trees, configuration, constraints and dependency versions. Native Git observations are not validation. |
-| Decision | Existing kernel alternatives and reviewed basis. General native decision discovery is not delivered. |
-| PromotionOperation | Existing prepared write journal. Native multi-repository promotion is not delivered. |
+| Object             | Meaning and current boundary                                                                                                                      |
+| ------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------- |
+| System             | Logical software and registered repository references. Empty repositories are recorded without inventing commits.                                 |
+| Objective          | Optional requested outcome, scope and declared or unknown source. Creating a Future can record the request inline.                                |
+| Future             | Mutable workspace identity containing isolated repository copies, exact baselines, producer metadata and a current revision pointer.              |
+| FutureRevision     | Immutable repository-head, tree and baseline vectors, affected scope, producer, context reference and provenance state.                           |
+| Selection          | Planned selection of existing Git material. No native selection endpoint is delivered.                                                            |
+| CandidateState     | Planned exact state constructed from selections. Existing kernel compositions use ProposalRevisions.                                              |
+| Evidence           | Existing immutable check results pin exact trees, configuration, constraints and dependency versions. Native Git observations are not validation. |
+| Decision           | Existing kernel alternatives and reviewed basis. General native decision discovery is not delivered.                                              |
+| PromotionOperation | Existing prepared write journal. Native multi-repository promotion is not delivered.                                                              |
 
 Vectors identify repository roles and exact commit/tree inputs; their stable ordering is part of identity. Observation timestamps do not replace version identity. A changed head, rebase, force-push or rewind creates a new FutureRevision. Prior revisions retain their original baselines and provenance.
 
@@ -98,15 +99,15 @@ Git remotes contain no tokens. Returned descriptors do not grant repository acce
 
 Routes below have the `/api` prefix.
 
-| Routes | Responsibility |
-| --- | --- |
-| `GET /native-state` | Native catalogue and operation state. |
-| `GET/POST /systems`, `GET/POST /objectives` | Optional logical grouping and requested outcomes. |
-| `GET/POST /repositories`, `POST /repositories/:id/refresh` | Create, import or adopt; observe the current authoritative ref. |
-| `GET/POST /futures`, `POST /objectives/:id/futures` | List or create isolated work directly or under an Objective. |
-| `GET /futures/:id`, `GET /futures/:id/revisions` | Current identity and immutable history. |
-| `POST /futures/:id/{observe,abandon}` | Version-checked observation or lifecycle transition. |
-| `GET /repository-requests/:id`, `POST /repository-requests/:id/recover` | Inspect and reconcile a recorded provider operation. |
+| Routes                                                                  | Responsibility                                                  |
+| ----------------------------------------------------------------------- | --------------------------------------------------------------- |
+| `GET /native-state`                                                     | Native catalogue and operation state.                           |
+| `GET/POST /systems`, `GET/POST /objectives`                             | Optional logical grouping and requested outcomes.               |
+| `GET/POST /repositories`, `POST /repositories/:id/refresh`              | Create, import or adopt; observe the current authoritative ref. |
+| `GET/POST /futures`, `POST /objectives/:id/futures`                     | List or create isolated work directly or under an Objective.    |
+| `GET /futures/:id`, `GET /futures/:id/revisions`                        | Current identity and immutable history.                         |
+| `POST /futures/:id/{observe,abandon}`                                   | Version-checked observation or lifecycle transition.            |
+| `GET /repository-requests/:id`, `POST /repository-requests/:id/recover` | Inspect and reconcile a recorded provider operation.            |
 
 Creation accepts a `request_id`; repository mode is `create`, `import` or `adopt`. Future observation and abandonment also pin `expected_version`. A direct Future request can select ready `repository_ids` and include an optional plain-language statement. These routes do not synthesize validation or authorize native promotion. `api/openapi.json` documents this v0 HTTP subset; routes whitelist accepted fields and obtain actors from authentication, not request bodies.
 
@@ -168,12 +169,12 @@ Keep prompts, private context, tokens and secrets out of provenance, URLs and lo
 
 `core/capabilities.mjs` is the authenticated read-only scope registry.
 
-| Status | Requirement |
-| --- | --- |
-| VERIFIED | Defined state, authorization, audit and failure behavior with automated coverage in the stated runtime; live evidence when infrastructure-dependent. |
-| PARTIAL | An implemented subset with explicit missing behavior. |
-| EXPERIMENTAL | Integration code whose required operational verification is incomplete. |
-| UNSUPPORTED | No delivered operational workflow. |
+| Status       | Requirement                                                                                                                                          |
+| ------------ | ---------------------------------------------------------------------------------------------------------------------------------------------------- |
+| VERIFIED     | Defined state, authorization, audit and failure behavior with automated coverage in the stated runtime; live evidence when infrastructure-dependent. |
+| PARTIAL      | An implemented subset with explicit missing behavior.                                                                                                |
+| EXPERIMENTAL | Integration code whose required operational verification is incomplete.                                                                              |
+| UNSUPPORTED  | No delivered operational workflow.                                                                                                                   |
 
 Coverage links locate tests; they are not records of a successful run. Cloudflare support cannot be verified by mocks or bundle dry runs. Current local kernel claims do not establish general semantic correctness or representative decision compression.
 
@@ -195,6 +196,6 @@ No proposed new database, custom policy language or distributed transaction is a
 
 Keep domain policy in `core/`, Git/runtime work in adapters, HTTP validation at route boundaries and presentation in `src/`. Prefer cohesive functions, clear names, standard formats and existing dependencies. Comments explain constraints and reasons. Do not simplify away validation or failure handling.
 
-JavaScript public contracts use JSDoc for inputs, outputs and meaningful errors. Python, if introduced, uses type hints and Google-style `Args`, `Returns` and `Raises` docstrings. The design follows the maintainability principles in Dan Vega and Nathaniel Schutta's *Fundamentals of Software Engineering: From Coder to Engineer* and the [Ponytail simplification ladder](https://github.com/DietrichGebert/ponytail#how-it-works).
+JavaScript public contracts use JSDoc for inputs, outputs and meaningful errors. Python, if introduced, uses type hints and Google-style `Args`, `Returns` and `Raises` docstrings. The design follows the maintainability principles in Dan Vega and Nathaniel Schutta's _Fundamentals of Software Engineering: From Coder to Engineer_ and the [Ponytail simplification ladder](https://github.com/DietrichGebert/ponytail#how-it-works).
 
 Add regression tests for changed behavior, especially stale inputs, authorization, races and recovery. Use real temporary Git repositories for ref semantics. Commit source and necessary fixtures; keep local state, build output, credentials and reports out of Git.

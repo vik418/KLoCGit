@@ -1,14 +1,25 @@
 import { DomainError } from '../core/hash.mjs';
 
-const roots = ['/api/native-state', '/api/systems', '/api/objectives', '/api/futures', '/api/repository-requests'];
+const roots = [
+  '/api/native-state',
+  '/api/systems',
+  '/api/objectives',
+  '/api/futures',
+  '/api/repository-requests',
+];
 
 export function ownsNativePath(path) {
-  return path === '/api/repositories' || /^\/api\/repositories\/[^/]+\/refresh$/.test(path) ||
-    roots.some((root) => path === root || path.startsWith(root + '/'));
+  return (
+    path === '/api/repositories' ||
+    /^\/api\/repositories\/[^/]+\/refresh$/.test(path) ||
+    roots.some((root) => path === root || path.startsWith(root + '/'))
+  );
 }
 
 function pick(input, keys) {
-  return Object.fromEntries(keys.filter((key) => Object.hasOwn(input, key)).map((key) => [key, input[key]]));
+  return Object.fromEntries(
+    keys.filter((key) => Object.hasOwn(input, key)).map((key) => [key, input[key]]),
+  );
 }
 
 function requireActor(actor) {
@@ -17,7 +28,11 @@ function requireActor(actor) {
 }
 
 function methodError() {
-  throw new DomainError('METHOD_NOT_ALLOWED', 'This native operation does not support that method', 405);
+  throw new DomainError(
+    'METHOD_NOT_ALLOWED',
+    'This native operation does not support that method',
+    405,
+  );
 }
 
 /**
@@ -41,9 +56,11 @@ export async function handleNativeRequest(engine, { method, url, input = {}, act
   }
   if (path === '/api/repositories') {
     if (method === 'GET') return { repositories: native.view(actor).repositories };
-    if (method === 'POST') return native.registerRepository(
-      pick(input, ['id', 'ref', 'mode', 'description', 'source', 'request_id']), actor,
-    );
+    if (method === 'POST')
+      return native.registerRepository(
+        pick(input, ['id', 'ref', 'mode', 'description', 'source', 'request_id']),
+        actor,
+      );
     methodError();
   }
   const repository = path.match(/^\/api\/repositories\/([^/]+)\/refresh$/);
@@ -53,9 +70,11 @@ export async function handleNativeRequest(engine, { method, url, input = {}, act
   }
   if (path === '/api/systems') {
     if (method === 'GET') return { systems: native.view(actor).systems };
-    if (method === 'POST') return native.createSystem(
-      pick(input, ['name', 'description', 'repository_ids', 'request_id']), actor,
-    );
+    if (method === 'POST')
+      return native.createSystem(
+        pick(input, ['name', 'description', 'repository_ids', 'request_id']),
+        actor,
+      );
     methodError();
   }
   const system = path.match(/^\/api\/systems\/([^/]+)$/);
@@ -67,37 +86,67 @@ export async function handleNativeRequest(engine, { method, url, input = {}, act
   }
   if (path === '/api/objectives') {
     if (method === 'GET') return { objectives: native.view(actor).objectives };
-    if (method === 'POST') return native.createObjective(
-      pick(input, ['system_id', 'statement', 'scope', 'request_id']), actor,
-    );
+    if (method === 'POST')
+      return native.createObjective(
+        pick(input, ['system_id', 'statement', 'scope', 'request_id']),
+        actor,
+      );
     methodError();
   }
   const objective = path.match(/^\/api\/objectives\/([^/]+)(?:\/(futures))?$/);
   if (objective) {
-    if (!objective[2] && method === 'GET') return { objective: structuredClone(native.objective(objective[1])) };
-    if (objective[2] && method === 'POST') return native.createFuture({
-      ...pick(input, ['name', 'producer', 'repository_ids', 'request_id']), objective_id: objective[1],
-    }, actor);
+    if (!objective[2] && method === 'GET')
+      return { objective: structuredClone(native.objective(objective[1])) };
+    if (objective[2] && method === 'POST')
+      return native.createFuture(
+        {
+          ...pick(input, ['name', 'producer', 'repository_ids', 'request_id']),
+          objective_id: objective[1],
+        },
+        actor,
+      );
     methodError();
   }
   if (path === '/api/futures') {
     if (method === 'GET') return { futures: native.view(actor).futures };
-    if (method === 'POST') return native.createFuture(
-      pick(input, ['system_id', 'objective_id', 'repository_ids', 'statement', 'name', 'producer', 'request_id']), actor,
-    );
+    if (method === 'POST')
+      return native.createFuture(
+        pick(input, [
+          'system_id',
+          'objective_id',
+          'repository_ids',
+          'statement',
+          'name',
+          'producer',
+          'request_id',
+        ]),
+        actor,
+      );
     methodError();
   }
   const future = path.match(/^\/api\/futures\/([^/]+)(?:\/(revisions|observe|abandon))?$/);
   if (future) {
     if (method === 'GET' && (!future[2] || future[2] === 'revisions')) {
       const value = native.future(future[1]);
-      const revisions = native.state.futureRevisions.filter((revision) => revision.future_id === value.id);
-      return future[2] ? { revisions: structuredClone(revisions) } : structuredClone({ future: value, revisions });
+      const revisions = native.state.futureRevisions.filter(
+        (revision) => revision.future_id === value.id,
+      );
+      return future[2]
+        ? { revisions: structuredClone(revisions) }
+        : structuredClone({ future: value, revisions });
     }
     if (method === 'POST' && future[2] === 'observe')
-      return native.observeFuture(future[1], pick(input, ['expected_version', 'request_id']), actor);
+      return native.observeFuture(
+        future[1],
+        pick(input, ['expected_version', 'request_id']),
+        actor,
+      );
     if (method === 'POST' && future[2] === 'abandon')
-      return native.abandonFuture(future[1], pick(input, ['expected_version', 'request_id']), actor);
+      return native.abandonFuture(
+        future[1],
+        pick(input, ['expected_version', 'request_id']),
+        actor,
+      );
     methodError();
   }
   const request = path.match(/^\/api\/repository-requests\/([^/]+)(?:\/(recover))?$/);
@@ -106,7 +155,9 @@ export async function handleNativeRequest(engine, { method, url, input = {}, act
       return native.recoverRequest(request[1], pick(input, ['request_id']), actor);
     if (method === 'GET' && !request[2]) {
       const value = native.object('nativeRequests', request[1], 'REQUEST_NOT_FOUND');
-      const details = Object.fromEntries(Object.entries(value).filter(([key]) => !['input', 'result'].includes(key)));
+      const details = Object.fromEntries(
+        Object.entries(value).filter(([key]) => !['input', 'result'].includes(key)),
+      );
       return { request: structuredClone(details) };
     }
     methodError();

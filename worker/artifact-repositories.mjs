@@ -23,7 +23,11 @@ function providerError(error) {
     return new DomainError('REPO_EXISTS', 'Artifacts repository already exists', 409);
   // Provider diagnostics may contain a URL or token. Only known safe categories
   // leave this adapter; a failed mutation still needs authoritative inspection.
-  return new DomainError('ARTIFACTS_UNAVAILABLE', 'Artifacts operation requires reconciliation', 503);
+  return new DomainError(
+    'ARTIFACTS_UNAVAILABLE',
+    'Artifacts operation requires reconciliation',
+    503,
+  );
 }
 
 function safeRemote(remote) {
@@ -33,10 +37,18 @@ function safeRemote(remote) {
   } catch {}
   if (
     url?.protocol !== 'https:' ||
-    url.username || url.password || url.search || url.hash || url.port ||
+    url.username ||
+    url.password ||
+    url.search ||
+    url.hash ||
+    url.port ||
     !url.hostname.endsWith('.artifacts.cloudflare.net')
   )
-    throw new DomainError('INVALID_ARTIFACTS_REMOTE', 'Artifacts returned an invalid Git remote', 503);
+    throw new DomainError(
+      'INVALID_ARTIFACTS_REMOTE',
+      'Artifacts returned an invalid Git remote',
+      503,
+    );
   return url.href;
 }
 
@@ -57,7 +69,9 @@ export async function artifactRepositoryInfo(env, input) {
     capability = await env.ARTIFACTS.get(id);
     const info = await capability.info();
     const entries = await capability.log({ ref, limit: 1 });
-    const value = entries[0] ? await capability.readCommit(repositoryObjectId(entries[0].hash)) : null;
+    const value = entries[0]
+      ? await capability.readCommit(repositoryObjectId(entries[0].hash))
+      : null;
     if (entries.length && !value)
       throw new DomainError('MISSING_COMMIT', 'The observed Artifacts commit is unavailable', 503);
     return {
@@ -107,12 +121,19 @@ export async function artifactRepositoryImport(env, input) {
   const description = repositoryOperationDescription(input.description, input.operation_id);
   const source = repositoryImportSource(input.source, env.KLOCGIT_IMPORT_HOSTS);
   if (source.branch && source.branch !== ref.slice(11))
-    throw new DomainError('IMPORT_REF_MISMATCH', 'Import branch must match the requested repository ref', 422);
+    throw new DomainError(
+      'IMPORT_REF_MISMATCH',
+      'Import branch must match the requested repository ref',
+      422,
+    );
   source.branch = ref.slice(11);
   try {
     // This is the documented public-import binding. Its internal DNS, redirect
     // and resource controls are provider responsibilities, not verified here.
-    const result = await env.ARTIFACTS.import({ source, target: { name: id, opts: { description } } });
+    const result = await env.ARTIFACTS.import({
+      source,
+      target: { name: id, opts: { description } },
+    });
     const observed = await artifactRepositoryInfo(env, { id, ref });
     return { ...observed, remote: observed.remote ?? safeRemote(result.remote) };
   } catch (error) {
@@ -133,13 +154,20 @@ export async function artifactRepositoryFork(env, input) {
     throw new DomainError('REPO_NOT_READY', 'Forking requires an observed initial commit', 409);
   verifyForkState(baseline, source);
   if (baseline.default_ref !== ref)
-    throw new DomainError('FORK_REF_UNSUPPORTED', 'Artifacts forks require the default branch baseline', 422);
+    throw new DomainError(
+      'FORK_REF_UNSUPPORTED',
+      'Artifacts forks require the default branch baseline',
+      422,
+    );
   let capability;
   try {
     capability = await env.ARTIFACTS.get(sourceId);
     const result = await capability.fork(id, { description, defaultBranchOnly: true });
     const observed = await artifactRepositoryInfo(env, { id, ref });
-    return verifyForkState({ ...observed, remote: observed.remote ?? safeRemote(result.remote) }, source);
+    return verifyForkState(
+      { ...observed, remote: observed.remote ?? safeRemote(result.remote) },
+      source,
+    );
   } catch (error) {
     throw providerError(error);
   } finally {

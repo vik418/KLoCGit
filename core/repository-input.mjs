@@ -16,7 +16,9 @@ export function repositoryRef(value = 'refs/heads/main') {
     value.includes('..') ||
     value.includes('//') ||
     value.endsWith('/') ||
-    value.split('/').some((part) => part.startsWith('.') || part.endsWith('.') || part.endsWith('.lock'))
+    value
+      .split('/')
+      .some((part) => part.startsWith('.') || part.endsWith('.') || part.endsWith('.lock'))
   )
     throw new DomainError('INVALID_REF', 'Use a valid branch ref');
   return value;
@@ -47,7 +49,9 @@ export function repositoryOperationDescription(description, operationId) {
 
 export function repositoryDescriptionOperation(value) {
   if (typeof value !== 'string') return null;
-  return /(?:^|\n)\[klocgit-operation:([A-Za-z0-9][A-Za-z0-9_-]{0,159})\]$/.exec(value)?.[1] ?? null;
+  return (
+    /(?:^|\n)\[klocgit-operation:([A-Za-z0-9][A-Za-z0-9_-]{0,159})\]$/.exec(value)?.[1] ?? null
+  );
 }
 
 export function repositoryObjectId(value) {
@@ -70,10 +74,14 @@ export function repositoryImportSource(source, hosts = publicImportHosts) {
   let url;
   try {
     if (
-      !source || typeof source !== 'object' || Array.isArray(source) ||
+      !source ||
+      typeof source !== 'object' ||
+      Array.isArray(source) ||
       Object.keys(source).some((key) => !['url', 'branch', 'depth'].includes(key)) ||
-      typeof source.url !== 'string' || source.url.length > 2048
-    ) throw new Error();
+      typeof source.url !== 'string' ||
+      source.url.length > 2048
+    )
+      throw new Error();
     url = new URL(source.url);
   } catch {
     throw new DomainError('INVALID_IMPORT_SOURCE', 'Use a public HTTPS Git remote');
@@ -82,13 +90,20 @@ export function repositoryImportSource(source, hosts = publicImportHosts) {
   const parts = url.pathname.split('/').slice(1);
   if (
     url.protocol !== 'https:' ||
-    url.username || url.password || url.search || url.hash || url.port ||
-    !Array.isArray(allowed) || !allowed.includes(url.hostname) ||
+    url.username ||
+    url.password ||
+    url.search ||
+    url.hash ||
+    url.port ||
+    !Array.isArray(allowed) ||
+    !allowed.includes(url.hostname) ||
     !publicImportHosts.includes(url.hostname) ||
     source.url !== url.href ||
     parts.length < 2 ||
     (url.hostname === 'github.com' && parts.length !== 2) ||
-    parts.some((part) => !/^[A-Za-z0-9][A-Za-z0-9._-]{0,99}$/.test(part) || part === '.' || part === '..') ||
+    parts.some(
+      (part) => !/^[A-Za-z0-9][A-Za-z0-9._-]{0,99}$/.test(part) || part === '.' || part === '..',
+    ) ||
     parts.at(-1) === '.git'
   )
     throw new DomainError(

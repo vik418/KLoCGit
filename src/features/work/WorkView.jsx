@@ -236,7 +236,9 @@ export function WorkView({ workspace, onMR, onCreate, onProposal, onDecision, re
           <div className="dialog-header">
             <div>
               <span className="eyebrow">BATCH REVIEW</span>
-              <DialogTitle asChild><h2>Review {selectedRequestIds.length} selected requests</h2></DialogTitle>
+              <DialogTitle asChild>
+                <h2>Review {selectedRequestIds.length} selected requests</h2>
+              </DialogTitle>
             </div>
             <button
               className="icon-btn"

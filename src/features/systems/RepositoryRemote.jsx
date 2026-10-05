@@ -21,15 +21,36 @@ export function RepositoryRemote({ remote }) {
 
   return (
     <div className="mt-3 min-w-0">
-      <label htmlFor={id} className="mb-2 block text-xs text-muted-foreground">Git remote</label>
+      <label htmlFor={id} className="mb-2 block text-xs text-muted-foreground">
+        Git remote
+      </label>
       <div className="flex min-w-0 items-center gap-2">
-        <Input id={id} readOnly value={remote} className="min-w-0 font-mono text-xs" onFocus={(event) => event.target.select()} />
-        <Button type="button" size="icon-sm" variant="ghost" onClick={copy} aria-label={copied ? 'Remote copied' : 'Copy Git remote'}>
+        <Input
+          id={id}
+          readOnly
+          value={remote}
+          className="min-w-0 font-mono text-xs"
+          onFocus={(event) => event.target.select()}
+        />
+        <Button
+          type="button"
+          size="icon-sm"
+          variant="ghost"
+          onClick={copy}
+          aria-label={copied ? 'Remote copied' : 'Copy Git remote'}
+        >
           {copied ? <Check aria-hidden="true" /> : <Copy aria-hidden="true" />}
         </Button>
       </div>
-      {error && <p role="status" className="mt-2 text-xs text-muted-foreground">{error}</p>}
-      <p className="mt-2 text-xs leading-6 text-muted-foreground">Use this remote with git clone, fetch and push. Artifacts Git access needs a separate, scoped repository credential.</p>
+      {error && (
+        <p role="status" className="mt-2 text-xs text-muted-foreground">
+          {error}
+        </p>
+      )}
+      <p className="mt-2 text-xs leading-6 text-muted-foreground">
+        Use this remote with git clone, fetch and push. Artifacts Git access needs a separate,
+        scoped repository credential.
+      </p>
     </div>
   );
 }

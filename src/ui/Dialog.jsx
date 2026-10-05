@@ -27,7 +27,12 @@ function Dialog({ children, onClose, className, labelledBy, describedBy, hasDesc
   const [returnFocus] = useState(() => document.activeElement);
 
   return (
-    <DialogPrimitive.Root open onOpenChange={(open) => { if (!open) onClose(); }}>
+    <DialogPrimitive.Root
+      open
+      onOpenChange={(open) => {
+        if (!open) onClose();
+      }}
+    >
       <DialogPrimitive.Portal>
         <DialogPrimitive.Overlay
           data-slot="dialog-overlay"
@@ -36,7 +41,11 @@ function Dialog({ children, onClose, className, labelledBy, describedBy, hasDesc
         <DialogPrimitive.Content
           data-slot="dialog-content"
           {...(labelledBy ? { 'aria-labelledby': labelledBy } : {})}
-          {...(describedBy ? { 'aria-describedby': describedBy } : hasDescription ? {} : { 'aria-describedby': undefined })}
+          {...(describedBy
+            ? { 'aria-describedby': describedBy }
+            : hasDescription
+              ? {}
+              : { 'aria-describedby': undefined })}
           className={cn(
             'dialog dark fixed left-1/2 top-1/2 z-50 max-h-[calc(100dvh-2rem)] w-[calc(100%-2rem)] max-w-3xl -translate-x-1/2 -translate-y-1/2 overflow-y-auto rounded-lg border bg-card text-card-foreground shadow-lg outline-none duration-200 data-[state=open]:animate-in data-[state=open]:fade-in-0 data-[state=open]:zoom-in-95',
             className,
