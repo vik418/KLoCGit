@@ -13,8 +13,7 @@ export function DecisionList({ workspace, onDecision, onProposal, reload, messag
   );
   const contextTasks = (workspace.tasks ?? []).filter(
     (task) =>
-      !workspace.proposals.length &&
-      (!task.authorization || workspace.workspace.mode === 'local-demo'),
+      !workspace.proposals.length && (!task.authorization || workspace.workspace.mode === 'local'),
   );
   const conventionalRevisions = workspace.discovery?.conventional_review_ids ?? [];
 
@@ -37,7 +36,7 @@ export function DecisionList({ workspace, onDecision, onProposal, reload, messag
         <ContextTask
           key={task.task.id}
           task={task}
-          local={workspace.workspace.mode === 'local-demo'}
+          local={workspace.workspace.mode === 'local'}
           reload={reload}
           message={message}
         />

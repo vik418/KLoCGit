@@ -1,5 +1,6 @@
 import { useState } from 'react';
-import { GitFork } from 'lucide-react';
+import { CircleHelp, GitFork, History, Layers3, ShieldCheck } from 'lucide-react';
+import { Button } from '../ui/Button.jsx';
 import { apiRequest } from '../lib/api.js';
 import { useNotifications } from '../hooks/useNotifications.js';
 import { useWorkspace } from '../hooks/useWorkspace.js';
@@ -17,10 +18,10 @@ import { OwnerConnection } from './OwnerConnection.jsx';
 import { WorkspaceHeader } from './WorkspaceHeader.jsx';
 
 const tabs = [
-  ['decisions', 'Decisions'],
-  ['work', 'Work'],
-  ['evidence', 'Evidence'],
-  ['activity', 'Activity'],
+  ['decisions', 'Decisions', CircleHelp],
+  ['work', 'Work', Layers3],
+  ['evidence', 'Evidence', ShieldCheck],
+  ['activity', 'Activity', History],
 ];
 
 function pageDescription(activeTab, summary) {
@@ -83,7 +84,7 @@ export function App() {
     );
 
   return (
-    <div className="app minimal-app">
+    <div className="app dark">
       <div className="shell">
         <WorkspaceHeader workspace={workspace} isBusy={isBusy} onDemoAction={runDemoAction} />
         <main>
@@ -91,15 +92,38 @@ export function App() {
             <h1>{tabs.find(([key]) => key === activeTab)[1]}</h1>
             <p>{pageDescription(activeTab, workspace.summary)}</p>
           </div>
+          {activeTab === 'decisions' && (
+            <div className="workspace-summary" aria-label="Workspace summary">
+              <div>
+                <span>Work produced</span>
+                <strong>{workspace.summary.proposals}</strong>
+                <small>Proposal histories</small>
+              </div>
+              <div className="summary-attention">
+                <span>Needs your attention</span>
+                <strong>{workspace.summary.decisionsRequired}</strong>
+                <small>Decisions requiring review</small>
+              </div>
+              <div>
+                <span>Repositories</span>
+                <strong>{workspace.repositories.length}</strong>
+                <small>In this workspace</small>
+              </div>
+            </div>
+          )}
           <nav className="content-tabs" aria-label="Workspace views">
-            {tabs.map(([key, label]) => (
-              <button
+            {tabs.map(([key, label, Icon]) => (
+              <Button
                 key={key}
+                type="button"
+                variant="ghost"
                 className={activeTab === key ? 'selected' : ''}
+                aria-current={activeTab === key ? 'page' : undefined}
                 onClick={() => setActiveTab(key)}
               >
+                <Icon size={16} aria-hidden="true" />
                 {label}
-              </button>
+              </Button>
             ))}
           </nav>
           {activeTab === 'decisions' && (
@@ -128,11 +152,16 @@ export function App() {
             <span>{workspace.repositories.length} repositories · Git remains authoritative</span>
             <div className="footer-actions">
               <span>
-                {workspace.workspace.mode === 'local-demo' ? 'Local demo' : 'Cloudflare Artifacts'}
+                {workspace.workspace.mode === 'local' ? 'Local demo' : 'Cloudflare Artifacts'}
               </span>
-              <button className="button ghost small" onClick={() => setShowCapabilities(true)}>
+              <Button
+                type="button"
+                variant="ghost"
+                size="sm"
+                onClick={() => setShowCapabilities(true)}
+              >
                 Capabilities
-              </button>
+              </Button>
             </div>
           </footer>
         </main>
