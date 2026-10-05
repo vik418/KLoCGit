@@ -35,7 +35,7 @@ jobs:
           node --input-type=module <<'JS'
           import { mkdirSync, writeFileSync } from 'node:fs';
           import { dirname } from 'node:path';
-          const files = {".github/workflows/ci.yml":"f987a63df0290a6cbd001f994a20c1f97763578c","components.json":"e327248face9cb322e3f914050ceb703a1155b87","jsconfig.json":"f1a3469764d775e672b20048d146ebe04a573f9a","package-lock.json":"61db507c7c314d884f7ebb491a5ff150c25eb2ac","package.json":"dcd7eaa1273bbaa94862606443145878d8a397cd","public/favicon.svg":"7e4d9ab288bdcce4a8e5f53bc19c4c36d814afee","src/app/App.jsx":"bfcc0e39a648c31c906ed34b91907b7cb3c6b5e9","src/app/OwnerConnection.jsx":"58fe2f2e8d776b64e354a123ede3846047b13a34","src/app/WorkspaceHeader.jsx":"182549dd2c07515b2777ca95cba65db9667a92c1","src/features/decisions/DecisionCard.jsx":"642085a70252d60284897ea2e273ff8e7fd1d866","src/lib/utils.js":"9d7d3ea7c9072e8cdd4afd051f08c7f3f2ca357a","src/style.css":"3c9412eeac1e0db7d3e4814e532fbf120deb49a8","src/styles/base.css":"7a1330837a8bf89774e0e5e8e0252b291c93b52c","src/styles/interface.css":"193b4adc68e88a527575742e6e5a7ac64e31e7a2","src/ui/Button.jsx":"cbcde6efdb5c55b06bcffab23dcb8c4d4dae87fc","src/ui/Card.jsx":"924d6601675780f306da505446cbe60512d13372","src/ui/Input.jsx":"cb81a0e43703cabac737fbfeb1da0e51b8444c1e","vite.config.js":"1997bfcbcea783240b96cfbe9f5b3886bd483fd3"};
+          const files = {".github/workflows/ci.yml":"f987a63df0290a6cbd001f994a20c1f97763578c","components.json":"e327248face9cb322e3f914050ceb703a1155b87","jsconfig.json":"f1a3469764d775e672b20048d146ebe04a573f9a","package-lock.json":"61db507c7c314d884f7ebb491a5ff150c25eb2ac","package.json":"dcd7eaa1273bbaa94862606443145878d8a397cd","public/favicon.svg":"7e4d9ab288bdcce4a8e5f53bc19c4c36d814afee","src/app/App.jsx":"9f83cc5a44e0e86e48e0d132000e5431fc4ff6ac","src/app/OwnerConnection.jsx":"5f3bd209d8ac693e23efe4c30f1e2e0430bfdb2d","src/app/WorkspaceHeader.jsx":"89c168263721da7827bd636a7f6245afdb1907ed","src/features/decisions/DecisionCard.jsx":"d1b8ea5f6e747d3aa8bac07246cb2c500b3fdf41","src/lib/utils.js":"0ae73e11f9fa829d42e9c9f334ccc5c810a1e0cf","src/style.css":"02a6b963234678d9d40d4dd1b4f6ec25ab31b0e5","src/styles/base.css":"b211a841bb7fe644137a9129faddf2b4365a1cf7","src/styles/interface.css":"e1d746f2ce3928e9a9d5ce3dab77970750a59be9","src/ui/Button.jsx":"4dd537c5bc4e220d5120f0a383800933da580318","src/ui/Card.jsx":"7842c012e97b688b8492a46ba3303c413f1b8b87","src/ui/Input.jsx":"a1459ee5fad373130a34a9a5f3ba9261281e1940","vite.config.js":"1997bfcbcea783240b96cfbe9f5b3886bd483fd3","src/features/decisions/DecisionList.jsx":"f2757079f1af4b7fdc41054c5d506f98215a89bb"};
           for (const [path, sha] of Object.entries(files)) {
             const response = await fetch('https://api.github.com/repos/vik418/klocgit/git/blobs/' + sha, {
               headers: { Authorization: 'Bearer ' + process.env.GH_TOKEN, Accept: 'application/vnd.github+json' },
@@ -49,10 +49,10 @@ jobs:
       - run: npm ci
       - name: Format proposed interface
         run: |
-          npx prettier .github/workflows/ci.yml components.json jsconfig.json package-lock.json package.json public/favicon.svg src/app/App.jsx src/app/OwnerConnection.jsx src/app/WorkspaceHeader.jsx src/features/decisions/DecisionCard.jsx src/lib/utils.js src/style.css src/styles/base.css src/styles/interface.css src/ui/Button.jsx src/ui/Card.jsx src/ui/Input.jsx vite.config.js --write --ignore-unknown
+          npx prettier .github/workflows/ci.yml components.json jsconfig.json package-lock.json package.json public/favicon.svg src/app/App.jsx src/app/OwnerConnection.jsx src/app/WorkspaceHeader.jsx src/features/decisions/DecisionCard.jsx src/lib/utils.js src/style.css src/styles/base.css src/styles/interface.css src/ui/Button.jsx src/ui/Card.jsx src/ui/Input.jsx vite.config.js src/features/decisions/DecisionList.jsx --write --ignore-unknown
           node --input-type=module <<'JS'
           import { readFileSync } from 'node:fs';
-          const paths = [".github/workflows/ci.yml","components.json","jsconfig.json","package-lock.json","package.json","public/favicon.svg","src/app/App.jsx","src/app/OwnerConnection.jsx","src/app/WorkspaceHeader.jsx","src/features/decisions/DecisionCard.jsx","src/lib/utils.js","src/style.css","src/styles/base.css","src/styles/interface.css","src/ui/Button.jsx","src/ui/Card.jsx","src/ui/Input.jsx","vite.config.js"];
+          const paths = [".github/workflows/ci.yml","components.json","jsconfig.json","package-lock.json","package.json","public/favicon.svg","src/app/App.jsx","src/app/OwnerConnection.jsx","src/app/WorkspaceHeader.jsx","src/features/decisions/DecisionCard.jsx","src/lib/utils.js","src/style.css","src/styles/base.css","src/styles/interface.css","src/ui/Button.jsx","src/ui/Card.jsx","src/ui/Input.jsx","vite.config.js","src/features/decisions/DecisionList.jsx"];
           for (const path of paths) {
             const data = Buffer.from(readFileSync(path)).toString('base64');
             for (let offset = 0; offset < data.length; offset += 4096) {
@@ -65,7 +65,7 @@ jobs:
         run: |
           npm install --no-save --package-lock=false playwright
           npx playwright install --with-deps chromium
-          LOCAL_ACTOR_ID=ui-check LOCAL_OWNER_TOKEN=ui-check node server/local.mjs > /tmp/klocgit-ui-server.log 2>&1 &
+          KLOCGIT_ROOT="$RUNNER_TEMP/klocgit-ui" LOCAL_ACTOR_ID=ui-check LOCAL_OWNER_TOKEN=ui-check node server/local.mjs > /tmp/klocgit-ui-server.log 2>&1 &
           server_pid=$!
           trap 'kill "$server_pid" || true' EXIT
           node --input-type=module <<'JS'
@@ -114,7 +114,7 @@ jobs:
           await page.getByRole('button', { name: /^Review decision:/ }).first().click();
           await page.getByRole('dialog').waitFor();
           await page.keyboard.press('Escape');
-          assert.equal(await page.getByRole('dialog').count(), 0);
+          await page.getByRole('dialog').waitFor({ state: 'detached' });
           await page.setViewportSize({ width: 390, height: 844 });
           assert.equal(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth + 1), true);
           await capture('mobile');
