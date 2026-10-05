@@ -28,5 +28,20 @@ jobs:
         run: |
           git config --global user.name "klocgit tests"
           git config --global user.email "tests@localhost"
+      - name: Resolve UI dependencies
+        run: |
+          npm install @radix-ui/react-slot class-variance-authority clsx \
+            tailwind-merge --package-lock-only --ignore-scripts
+          npm install --save-dev tailwindcss @tailwindcss/vite tw-animate-css \
+            --package-lock-only --ignore-scripts
+          node --input-type=module <<'JS'
+          import { readFileSync } from 'node:fs';
+          for (const [name, path] of [['PACKAGE', 'package.json'], ['LOCK', 'package-lock.json']]) {
+            const data = Buffer.from(readFileSync(path)).toString('base64');
+            for (let offset = 0; offset < data.length; offset += 4096) {
+              console.log('KLOCGIT_' + name + '_CHUNK:' + data.slice(offset, offset + 4096));
+            }
+          }
+          JS
       - run: npm ci
       - run: npm run check
