@@ -20,8 +20,18 @@ export function NewFuture({
         initialSystem.repository_ids.includes(repository.id),
       )
     : nativeState.repositories;
-  const [repositoryIds, setRepositoryIds] = useState(
-    initialRepositoryId ? [initialRepositoryId] : (initialSystem?.repository_ids ?? []),
+  const [repositoryIds, setRepositoryIds] = useState(() =>
+    initialRepositoryId
+      ? [initialRepositoryId]
+      : (initialSystem?.repository_ids ?? []).filter((id) =>
+          eligibleRepositories.some(
+            (repository) =>
+              repository.id === id &&
+              repository.status === 'ready' &&
+              repository.head &&
+              repository.tree,
+          ),
+        ),
   );
   const [statement, setStatement] = useState('');
   const [name, setName] = useState('');

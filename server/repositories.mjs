@@ -11,6 +11,7 @@ import {
   repositoryObjectId,
   repositoryOperationId,
   repositoryRef,
+  RepositoryPreflightError,
   verifyForkState,
 } from '../core/repository-input.mjs';
 
@@ -349,7 +350,13 @@ export async function localRepositoryImport(adapter, input) {
       422,
     );
   source.branch = ref.slice(11);
-  const address = await resolveImportSource(source, adapter.repositoryOptions.resolveImportHost);
+  let address;
+  try {
+    address = await resolveImportSource(source, adapter.repositoryOptions.resolveImportHost);
+  } catch (error) {
+    // DNS validation precedes directory creation and starts no Git transport.
+    throw new RepositoryPreflightError(error);
+  }
   const { id, target } = await initializeRepository(adapter, { ...input, ref });
   const fetcher = adapter.repositoryOptions.fetchPublicRepository ?? fetchPublicRepository;
   await fetcher(target, source, address);

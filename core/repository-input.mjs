@@ -2,6 +2,13 @@ import { DomainError } from './hash.mjs';
 
 const publicImportHosts = ['github.com', 'gitlab.com'];
 
+/** Trusted adapters use this only before any repository mutation is issued. */
+export class RepositoryPreflightError extends DomainError {
+  constructor(error) {
+    super(error.code, error.message, error.status, error.details);
+  }
+}
+
 export function repositoryId(value) {
   if (typeof value !== 'string' || !/^[A-Za-z0-9][A-Za-z0-9._-]{0,99}$/.test(value))
     throw new DomainError('INVALID_REPO', 'Use a bounded repository name');
@@ -31,6 +38,8 @@ export function repositoryDescription(value = '') {
     /[\u0000-\u0008\u000b\u000c\u000e-\u001f]/.test(value)
   )
     throw new DomainError('INVALID_DESCRIPTION', 'Repository descriptions are bounded text');
+  if (value.includes('[klocgit-operation:'))
+    throw new DomainError('INVALID_DESCRIPTION', 'Repository operation markers are reserved');
   return value;
 }
 
@@ -42,8 +51,6 @@ export function repositoryOperationId(value) {
 
 export function repositoryOperationDescription(description, operationId) {
   const text = repositoryDescription(description);
-  if (text.includes('[klocgit-operation:'))
-    throw new DomainError('INVALID_DESCRIPTION', 'Repository operation markers are reserved');
   return (text + '\n[klocgit-operation:' + repositoryOperationId(operationId) + ']').trim();
 }
 

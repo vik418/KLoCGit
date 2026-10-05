@@ -3,7 +3,8 @@ import assert from 'node:assert/strict';
 import { mkdtemp, mkdir, rm } from 'node:fs/promises';
 import os from 'node:os';
 import path from 'node:path';
-import { NativeState, initializeNativeState } from '../core/native-state.mjs';
+import { initializeNativeState } from '../core/native-state.mjs';
+import { Engine, emptyState } from '../core/engine.mjs';
 import { DomainError } from '../core/hash.mjs';
 import { LocalGit, git } from '../server/git.mjs';
 
@@ -27,7 +28,7 @@ function fixture() {
   const calls = [];
   const saved = [];
   const state = {
-    version: 0,
+    ...emptyState(),
     repositories: [
       {
         id: 'app',
@@ -110,22 +111,10 @@ function fixture() {
       return { head, base, tree: trees.get(head), scope: head === base ? [] : ['app.mjs'] };
     },
   };
-  const engine = {
-    state,
-    git: adapter,
-    repo(id) {
-      const repo = state.repositories.find((item) => item.id === id);
-      if (!repo) throw new DomainError('REPO_NOT_FOUND', 'Not found', 404);
-      return repo;
-    },
-    async audit(type, actor, data) {
-      state.audit.push({ type, actor, data: structuredClone(data) });
-    },
-    async save(value) {
-      saved.push(structuredClone(value));
-    },
-  };
-  const native = new NativeState(engine);
+  const engine = new Engine(state, adapter, async (value) => {
+    saved.push(structuredClone(value));
+  });
+  const native = engine.native;
   return { native, engine, state, adapter, resources, calls, saved };
 }
 
@@ -291,6 +280,124 @@ test('moving canonical baseline is rejected before any fork effect', async () =>
   assert.equal(f.state.futures.length, 0);
 });
 
+test('import ref mismatch and reserved descriptions fail before repository journaling', async () => {
+  const f = fixture();
+  await assert.rejects(
+    () =>
+      f.native.registerRepository(
+        {
+          id: 'mismatch',
+          mode: 'import',
+          ref,
+          source: { url: 'https://github.com/example/project.git', branch: 'other' },
+          request_id: 'mismatched-ref',
+        },
+        'owner',
+      ),
+    { code: 'IMPORT_REF_MISMATCH' },
+  );
+  await assert.rejects(
+    () =>
+      f.native.registerRepository(
+        {
+          id: 'reserved',
+          description: '[klocgit-operation:unrelated]',
+          request_id: 'reserved-description',
+        },
+        'owner',
+      ),
+    { code: 'INVALID_DESCRIPTION' },
+  );
+  assert.equal(f.state.nativeRequests.length, 0);
+  assert.equal(f.calls.length, 0);
+});
+
+test('local private DNS rejection settles as a failed request before creating storage', async (t) => {
+  const root = await mkdtemp(path.join(os.tmpdir(), 'klocgit-native-dns-'));
+  t.after(() => rm(root, { recursive: true, force: true }));
+  const f = fixture();
+  f.engine.git = new LocalGit(root, {
+    resolveImportHost: async () => [{ address: '10.0.0.1', family: 4 }],
+    fetchPublicRepository: async () => {
+      throw new Error('must not execute');
+    },
+  });
+  await assert.rejects(
+    () =>
+      f.native.registerRepository(
+        {
+          id: 'private-dns',
+          mode: 'import',
+          source: { url: 'https://github.com/example/project.git' },
+          request_id: 'private-dns-import',
+        },
+        'owner',
+      ),
+    { code: 'IMPORT_SOURCE_NOT_PUBLIC' },
+  );
+  const request = f.state.nativeRequests[0];
+  assert.equal(request.status, 'failed');
+  assert.equal(request.effects[0].dispatch_state, 'not_started');
+  assert.equal(request.effects[0].status, 'rejected');
+  assert.equal(f.native.view('owner').attention.count, 0);
+  await assert.rejects(f.engine.git.repositoryInfo({ id: 'private-dns', ref }), {
+    code: 'REPO_NOT_FOUND',
+  });
+});
+
+test('recovery can settle a persisted effect that was never dispatched after a crash', async () => {
+  const f = fixture();
+  await f.native.registerRepository({ id: 'unissued', request_id: 'unissued-create' }, 'owner');
+  const beforeDispatch = f.saved.find(
+    (snapshot) => snapshot.nativeRequests[0]?.effects[0]?.dispatch_state === 'not_started',
+  );
+  f.state.nativeRequests = structuredClone(beforeDispatch.nativeRequests);
+  f.state.nativeRepositories = [];
+  f.resources.delete('unissued');
+  f.calls.length = 0;
+  const request = f.state.nativeRequests[0];
+  const result = await f.native.recoverRequest(
+    request.id,
+    { request_id: 'settle-unissued' },
+    'owner',
+  );
+  assert.equal(result.outcome, 'no_repository_effect');
+  assert.equal(request.status, 'failed');
+  assert.equal(request.error.code, 'NO_REPOSITORY_EFFECT');
+  assert.equal(f.calls.length, 0);
+  assert.equal(f.native.view('owner').attention.count, 0);
+});
+
+test('remote absence never authorizes replay or settles an issued or legacy uncertain effect', async () => {
+  const f = fixture();
+  f.adapter.repositoryCreate = async (input) => {
+    f.calls.push({ method: 'create', ...input });
+    throw new Error('Transport response lost while repository creation may still run');
+  };
+  const input = { id: 'inflight', request_id: 'inflight-create' };
+  await assert.rejects(() => f.native.registerRepository(input, 'owner'), {
+    code: 'RECOVERY_REQUIRED',
+  });
+  const request = f.state.nativeRequests[0];
+  assert.equal(request.effects[0].dispatch_state, 'issued');
+  await assert.rejects(
+    () => f.native.recoverRequest(request.id, { request_id: 'inspect-inflight' }, 'owner'),
+    { code: 'REPO_NOT_FOUND' },
+  );
+  assert.equal(request.status, 'recovery_required');
+  // Historical prepared effects did not distinguish dispatch from preparation.
+  delete request.effects[0].dispatch_state;
+  await assert.rejects(
+    () => f.native.recoverRequest(request.id, { request_id: 'inspect-legacy' }, 'owner'),
+    { code: 'REPO_NOT_FOUND' },
+  );
+  await assert.rejects(() => f.native.registerRepository(input, 'owner'), {
+    code: 'RECOVERY_REQUIRED',
+  });
+  assert.equal(request.status, 'recovery_required');
+  assert.equal(f.calls.length, 1);
+});
+
 test('lost create acknowledgement never blindly retries and recovery verifies provider-owned operation identity', async () => {
   const f = fixture();
   f.adapter.lostAcknowledgement = true;
@@ -435,19 +542,9 @@ test('real Git can initialize a native repository, fork it, push work and rewind
   const root = await mkdtemp(path.join(os.tmpdir(), 'klocgit-native-'));
   t.after(() => rm(root, { recursive: true, force: true }));
   const adapter = new LocalGit(root);
-  const state = { version: 0, repositories: [], audit: [] };
-  const engine = {
-    state,
-    git: adapter,
-    async save() {},
-    async audit(type, actor, data) {
-      state.audit.push({ type, actor, data });
-    },
-    repo(id) {
-      return state.repositories.find((repo) => repo.id === id);
-    },
-  };
-  const native = new NativeState(engine);
+  const state = emptyState();
+  const engine = new Engine(state, adapter);
+  const native = engine.native;
   const empty = await native.registerRepository(
     { id: 'ordinary', request_id: 'ordinary' },
     'owner',
@@ -531,7 +628,7 @@ test('long canonical names receive unique isolated repositories within the same 
 
 test('canonical/deletion replay is a no-op and same-head ref restoration preserves historical revisions', async () => {
   const f = fixture();
-  f.native.registerObserved(await f.adapter.repositoryInfo({ id: 'app', ref }), 'app', ref);
+  await f.native.registerObserved(await f.adapter.repositoryInfo({ id: 'app', ref }), 'app', ref);
   const created = await f.native.createFuture(
     { repository_ids: ['app'], request_id: 'future' },
     'owner',
@@ -720,7 +817,7 @@ test('native ownership never steals ordinary canonical-repository branches from 
 
 test('authoritative canonical reconciliation restores a stale native availability projection without rewriting the last head', async () => {
   const f = fixture();
-  f.native.registerObserved(await f.adapter.repositoryInfo({ id: 'app', ref }), 'app', ref);
+  await f.native.registerObserved(await f.adapter.repositoryInfo({ id: 'app', ref }), 'app', ref);
   f.resources.get('app').commit = null;
   await f.native.observeRepositoryPush(
     { repo: 'app', ref, before: A, after: '0'.repeat(40) },
@@ -757,4 +854,82 @@ test('untracked native ref signals cannot persist arbitrary objects as Git versi
   );
   assert.equal(f.state.nativeEvents.length, before);
   assert.equal(f.state.futureRevisions.length, 1);
+});
+
+test('recovery settles repository and Future requests interrupted before their callback', async () => {
+  for (const operation of ['repository', 'future']) {
+    const f = fixture();
+    if (operation === 'repository')
+      await f.native.registerRepository(
+        { id: 'before-callback', request_id: 'before-callback-create' },
+        'owner',
+      );
+    else
+      await f.native.createFuture(
+        { repository_ids: ['app'], request_id: 'before-callback-future' },
+        'owner',
+      );
+    const prepared = f.saved.find((snapshot) => snapshot.nativeRequests[0]?.status === 'prepared');
+    Object.assign(f.state, structuredClone(prepared));
+    for (const id of f.resources.keys()) if (id !== 'app') f.resources.delete(id);
+    f.calls.length = 0;
+    const request = f.state.nativeRequests[0];
+    assert.deepEqual(request.effects, []);
+    const result = await f.native.recoverRequest(
+      request.id,
+      { request_id: 'recover-before-callback' },
+      'owner',
+    );
+    assert.equal(result.outcome, 'no_repository_effect');
+    assert.equal(request.status, 'failed');
+    assert.equal(request.error.code, 'NO_REPOSITORY_EFFECT');
+    assert.equal(f.calls.length, 0);
+    assert.equal(f.native.view('owner').attention.count, 0);
+  }
+});
+
+test('recovery marks a partially prepared Future failed without issuing its first fork', async () => {
+  const f = fixture();
+  await f.native.createFuture(
+    { repository_ids: ['app'], request_id: 'before-first-fork' },
+    'owner',
+  );
+  const prepared = f.saved.find(
+    (snapshot) =>
+      snapshot.nativeRequests[0]?.future_id && snapshot.nativeRequests[0].effects.length === 0,
+  );
+  Object.assign(f.state, structuredClone(prepared));
+  for (const id of f.resources.keys()) if (id !== 'app') f.resources.delete(id);
+  f.calls.length = 0;
+  const request = f.state.nativeRequests[0];
+  const future = f.native.future(request.future_id);
+  assert.equal(future.status, 'preparing');
+  const result = await f.native.recoverRequest(
+    request.id,
+    { request_id: 'recover-before-first-fork' },
+    'owner',
+  );
+  assert.equal(result.outcome, 'no_repository_effect');
+  assert.equal(request.status, 'failed');
+  assert.equal(future.status, 'failed');
+  assert.equal(f.calls.length, 0);
+  assert.equal(f.resources.get('app').commit, A);
+  assert.equal(f.native.view('owner').attention.count, 0);
+});
+
+test('empty effects do not settle an unsupported native metadata operation', async () => {
+  const f = fixture();
+  const request = {
+    id: 'request-unsupported',
+    operation: 'system.create',
+    status: 'prepared',
+    effects: [],
+  };
+  f.state.nativeRequests.push(request);
+  await assert.rejects(
+    () => f.native.recoverRequest(request.id, { request_id: 'recover-unsupported' }, 'owner'),
+    { code: 'RECOVERY_REQUIRED' },
+  );
+  assert.equal(request.status, 'prepared');
+  assert.equal(f.calls.length, 0);
 });

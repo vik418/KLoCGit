@@ -4,6 +4,7 @@ import {
   repositoryRef,
   repositoryDescription,
   repositoryImportSource,
+  RepositoryPreflightError,
 } from './repository-input.mjs';
 
 const now = () => new Date().toISOString();
@@ -207,7 +208,7 @@ export class NativeState {
       return structuredClone(result);
     } catch (error) {
       // Even an acknowledged repository effect can outlive a failed metadata save.
-      const uncertain = request.effects.length > 0;
+      const uncertain = request.effects.some((effect) => effect.dispatch_state !== 'not_started');
       request.status = uncertain ? 'recovery_required' : 'failed';
       request.error = {
         code: uncertain ? 'RECOVERY_REQUIRED' : (error.code ?? 'NATIVE_OPERATION_FAILED'),
@@ -236,17 +237,37 @@ export class NativeState {
 
   async effect(request, method, input) {
     const invoke = this.provider(method);
-    const effect = { method, input: structuredClone(input), status: 'prepared' };
+    repositoryDescription(input.description);
+    const effect = {
+      method,
+      input: structuredClone(input),
+      status: 'prepared',
+      dispatch_state: 'not_started',
+    };
     request.effects.push(effect);
     await this.save();
-    const info = await invoke({ ...input, operation_id: request.id });
+    // Persist dispatch before the call. Remote absence cannot rule out an
+    // in-flight operation after this point, including a lost response.
+    effect.dispatch_state = 'issued';
+    await this.save();
+    let info;
+    try {
+      info = await invoke({ ...input, operation_id: request.id });
+    } catch (error) {
+      if (error instanceof RepositoryPreflightError) {
+        effect.dispatch_state = 'not_started';
+        effect.status = 'rejected';
+        await this.save();
+      }
+      throw error;
+    }
     effect.result = structuredClone(info);
     effect.status = 'observed';
     await this.save();
     return info;
   }
 
-  registerObserved(info, id, ref, description = '') {
+  async registerObserved(info, id, ref, description = '') {
     const observed = providerInfo(info, id, ref);
     let repository = this.state.nativeRepositories.find((repo) => repo.id === id);
     if (!repository) {
@@ -260,12 +281,13 @@ export class NativeState {
     // Empty repos are durable native records, never null-headed canonical entries.
     if (observed.status === 'ready') {
       const canonical = this.state.repositories.find((repo) => repo.id === id);
-      if (canonical)
+      if (canonical) {
+        // Reconcile from the previous head before a native projection hides the transition.
+        await this.engine.observeCanonical(canonical, observed.head, observed.tree);
         Object.assign(canonical, observed, {
           baseline: canonical.baseline ?? observed.head,
-          unavailable: false,
         });
-      else
+      } else
         this.state.repositories.push({
           ...observed,
           description,
@@ -323,6 +345,12 @@ export class NativeState {
       ...(mode === 'import' ? { source: repositoryImportSource(input.source) } : {}),
       request_id: input.request_id,
     };
+    if (value.source?.branch && value.source.branch !== value.ref.slice(11))
+      throw new DomainError(
+        'IMPORT_REF_MISMATCH',
+        'Import branch must match the requested repository ref',
+        422,
+      );
     return this.request('repository.register', value, actor, async (request) => {
       if (this.repositories().some((repo) => repo.id === value.id))
         throw new DomainError('REPO_EXISTS', 'Repository is already registered', 409);
@@ -347,7 +375,7 @@ export class NativeState {
           },
         );
       }
-      const repository = this.registerObserved(info, value.id, value.ref, value.description);
+      const repository = await this.registerObserved(info, value.id, value.ref, value.description);
       await this.event('repository.registered', actor, {
         repo: repository.id,
         mode,
@@ -367,7 +395,7 @@ export class NativeState {
         const repository = this.repositories().find((repo) => repo.id === id);
         if (!repository) throw new DomainError('REPO_NOT_FOUND', 'Repository not found', 404);
         const info = await this.provider('repositoryInfo')({ id, ref: repository.canonical_ref });
-        const observed = this.registerObserved(
+        const observed = await this.registerObserved(
           info,
           id,
           repository.canonical_ref,
@@ -799,23 +827,29 @@ export class NativeState {
             'This operation does not need reconciliation',
             409,
           );
-        if (!original.effects.length) {
-          if (
-            !['repository.refresh', 'future.observe', 'repository.recover'].includes(
-              original.operation,
-            )
-          )
-            throw new DomainError(
-              'RECOVERY_REQUIRED',
-              'No authoritative repository effect identifies this operation',
-              409,
-            );
+        const readOnly = ['repository.refresh', 'future.observe', 'repository.recover'].includes(
+          original.operation,
+        );
+        const repositoryMutation = ['repository.register', 'future.create'].includes(
+          original.operation,
+        );
+        if (
+          (!original.effects.length && readOnly) ||
+          (repositoryMutation &&
+            original.effects.every((effect) => effect.dispatch_state === 'not_started'))
+        ) {
+          // All repository writes pass through effect(), including fork creation.
+          // An empty journal proves no Git mutation, even if metadata is partial.
           original.status = 'failed';
           original.error = {
-            code: 'READ_NOT_COMPLETED',
-            message: 'The observation was interrupted; retry using current state',
+            code: readOnly ? 'READ_NOT_COMPLETED' : 'NO_REPOSITORY_EFFECT',
+            message: readOnly
+              ? 'The observation was interrupted; retry using current state'
+              : 'No repository mutation was issued; submit a new request',
             status: 409,
           };
+          if (original.future_id && this.future(original.future_id).status !== 'abandoned')
+            this.future(original.future_id).status = 'failed';
           await this.event('native.request.reconciled', actor, {
             request_id: original.id,
             outcome: 'no_repository_effect',
@@ -825,6 +859,12 @@ export class NativeState {
             outcome: 'no_repository_effect',
           };
         }
+        if (!original.effects.length)
+          throw new DomainError(
+            'RECOVERY_REQUIRED',
+            'No authoritative repository effect identifies this operation',
+            409,
+          );
         for (const effect of original.effects) {
           const ref = effect.input.ref ?? effect.input.source.ref;
           const info = await this.provider('repositoryInfo')({ id: effect.input.id, ref });
@@ -848,7 +888,12 @@ export class NativeState {
               'An empty repository does not establish that import succeeded',
               409,
             );
-          const repository = this.registerObserved(info, value.id, value.ref, value.description);
+          const repository = await this.registerObserved(
+            info,
+            value.id,
+            value.ref,
+            value.description,
+          );
           result = { repository, request: { id: original.id, status: 'applied' } };
         } else if (original.operation === 'future.create') {
           const future = this.future(original.future_id);
@@ -1000,6 +1045,15 @@ export class NativeState {
       };
     }
     const info = await this.provider('repositoryInfo')({ id, ref });
+    providerInfo(info, id, ref);
+    // The ref can move between ingress freshness and repository metadata reads.
+    if (info.status !== 'ready' || info.commit !== observed)
+      return {
+        handled: true,
+        ignored: true,
+        reason: 'OUT_OF_ORDER_EVENT',
+        head: info.status === 'ready' ? info.commit : null,
+      };
     if (
       repository.status === 'ready' &&
       repository.head === info.commit &&
@@ -1011,7 +1065,7 @@ export class NativeState {
         duplicate: true,
         repository: structuredClone(repository),
       };
-    const result = this.registerObserved(info, id, ref, repository.description);
+    const result = await this.registerObserved(info, id, ref, repository.description);
     await this.event('canonical.changed', actor, {
       repo: id,
       head: result.head,

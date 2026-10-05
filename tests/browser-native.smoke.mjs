@@ -117,9 +117,14 @@ function waitForMutation(page, suffix) {
 
 try {
   const url = await startServer();
-  const api = async (suffix) => {
+  const api = async (suffix, input) => {
     const response = await fetch(url + '/api' + suffix, {
-      headers: { authorization: 'Bearer ' + credential },
+      method: input === undefined ? 'GET' : 'POST',
+      headers: {
+        authorization: 'Bearer ' + credential,
+        'content-type': 'application/json',
+      },
+      ...(input === undefined ? {} : { body: JSON.stringify(input) }),
     });
     const body = await response.json();
     assert.equal(response.status, 200, JSON.stringify(body));
@@ -292,6 +297,33 @@ try {
   await page.getByText('Git state and revision history', { exact: true }).click();
   await page.getByText(rewind.revision.id, { exact: true }).waitFor();
   await assertFitsViewport(page);
+
+  // A System can contain repositories whose current Git state is not ready.
+  await api('/repositories', { id: 'empty-member', request_id: 'empty-member' });
+  await api('/systems', {
+    name: 'Mixed readiness',
+    repository_ids: ['app', 'empty-member'],
+    request_id: 'mixed-system',
+  });
+  await authenticate(page, url);
+  await page.getByRole('button', { name: 'Systems', exact: true }).click();
+  const systemCard = page.locator('[data-slot="card"]').filter({
+    has: page.getByRole('heading', { name: 'Mixed readiness', exact: true }),
+  });
+  const systemWork = systemCard.getByRole('button', { name: 'Open isolated work', exact: true });
+  await systemWork.click();
+  dialog = page.getByRole('dialog', { name: 'Open isolated work', exact: true });
+  assert.equal(await dialog.getByRole('checkbox', { name: 'app', exact: true }).isChecked(), true);
+  const unready = dialog.getByRole('checkbox', { name: /empty-member/ });
+  assert.equal(await unready.isChecked(), false);
+  assert.equal(await unready.isDisabled(), true);
+  assert.equal(
+    await dialog.getByRole('button', { name: 'Create future', exact: true }).isEnabled(),
+    true,
+  );
+  await page.keyboard.press('Escape');
+  await dialog.waitFor({ state: 'hidden' });
+  await waitForFocus(page, systemWork);
 
   // Exercise responsive layout and Radix dismissal on the same real state.
   await page.setViewportSize({ width: 390, height: 844 });

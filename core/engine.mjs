@@ -387,6 +387,18 @@ export class Engine {
     if (e.config_hash !== this.git.configHash) reasons.push('validation configuration changed');
     return { status: reasons.length ? 'stale' : 'current', reasons };
   }
+  /** Apply one observed immutable head/tree pair without rereading a mutable ref. */
+  async observeCanonical(repo, head, tree) {
+    const previous = repo.head;
+    const changed = previous !== head || !!repo.unavailable;
+    if (changed) {
+      // Retaining the old head makes an interrupted reconciliation retryable.
+      await this.mr.reconcileCanonical(repo, previous, head);
+      await this.audit('canonical.observed', 'git', { repo: repo.id, previous, head });
+    }
+    Object.assign(repo, { head, unavailable: false, ...(tree === undefined ? {} : { tree }) });
+    return changed;
+  }
   async syncHeads() {
     let changed = false;
     for (const repo of this.state.repositories) {
@@ -402,9 +414,8 @@ export class Engine {
         }
         continue;
       }
-      const restored = !!repo.unavailable;
-      repo.unavailable = false;
-      if (head !== repo.head || restored) {
+      if (head !== repo.head || repo.unavailable) {
+        let tree;
         // Native projections must never pair a fresh head with the previous tree.
         if (this.state.nativeRepositories?.some((registered) => registered.id === repo.id)) {
           const facts = await this.git.facts(repo, head, head);
@@ -414,13 +425,9 @@ export class Engine {
               'Git did not establish the observed canonical tree',
               503,
             );
-          repo.tree = facts.tree;
+          tree = facts.tree;
         }
-        const previous = repo.head;
-        repo.head = head;
-        changed = true;
-        await this.audit('canonical.observed', 'git', { repo: repo.id, previous, head });
-        await this.mr.reconcileCanonical(repo, previous, head);
+        if (await this.observeCanonical(repo, head, tree)) changed = true;
       }
     }
     if (changed) await this.save(this.state);

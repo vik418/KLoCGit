@@ -12,6 +12,9 @@ const retryableRejections = new Set([
   'FUTURE_NOT_READY',
   'FUTURE_STALE',
   'CANONICAL_CHANGED',
+  'NO_REPOSITORY_EFFECT',
+  'IMPORT_DNS_UNAVAILABLE',
+  'IMPORT_SOURCE_NOT_PUBLIC',
 ]);
 
 export function useNativeMutation(reload, message) {
