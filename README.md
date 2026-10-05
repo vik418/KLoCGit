@@ -2,7 +2,7 @@
 
 klocgit v0 keeps possible changes in isolated Git repositories called Futures. Humans, agents and ordinary Git clients can work independently. The goal is to show which choices need your attention and preserve why you chose them.
 
-This delivery adds repository creation, public import and Future observation. The existing review kernel provides checked compositions and guarded Git updates. Native partial composition and promotion are still to be built.
+Create repositories, open Futures, combine whole revisions or selected commits, and validate the exact result. A reviewed candidate can advance Git through guarded updates. Automatic decision discovery, file/hunk selection and multi-repository promotion remain unfinished.
 
 ## Run locally
 
@@ -30,3 +30,5 @@ npm run check
 The [design document](docs/design.md) contains the system diagram, contracts, setup, safety rules and remaining work. The authenticated capability registry distinguishes verified local behavior from partial, experimental and unsupported workflows.
 
 Cloudflare runs the API Worker, Durable Object, Artifacts repositories, Queue and private Git executor. The UI is React; the backend is JavaScript. Cloudflare integration remains experimental until the complete live path is verified.
+
+To combine work, open **Futures → Compose candidate**. Select whole Futures or ordered commit hashes. Review the resulting tree, run trusted validation and record why you chose it. Applying a candidate updates Git only when the reviewed state is still current. This version promotes one changed repository at a time.

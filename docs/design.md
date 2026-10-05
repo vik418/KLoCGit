@@ -2,11 +2,11 @@
 
 klocgit v0 manages possible software states. Git owns commits, trees and refs. klocgit owns coordination metadata, immutable observations, decisions and evidence.
 
-The native model is **System → Objective → Future → FutureRevision → Selection → CandidateState → Evidence → Decision → PromotionOperation**. This delivery implements the repository and Future lifecycle. The existing review kernel remains available as a compatibility adapter; native selection, composition and promotion are not delivered yet.
+The native model is **System → Objective → Future → FutureRevision → Selection → CandidateState → Evidence → Decision → PromotionOperation**. This delivery implements repository/Future lifecycle, whole-Future and commit selections, composed-state validation and single-repository promotion. The existing review kernel remains available as a compatibility adapter. General decision discovery is not delivered.
 
 ## Architecture
 
-Solid arrows show implemented responsibilities. The dotted connection is the planned bridge from native Future revisions to the existing composition and promotion kernel. Cloudflare adapters exist, but the complete live deployment path remains unverified.
+Solid arrows show implemented responsibilities. Native Future revisions feed the selection/composition service; native and compatibility promotion share the canonical write journal. Cloudflare adapters exist, but the complete live deployment path remains unverified.
 
 ```mermaid
 flowchart TD
@@ -48,7 +48,7 @@ flowchart TD
     localGit -->|authoritative observations| revisions
     revisions --> native
     native -->|state and history| browser
-    revisions -.->|native candidate binding: planned| kernel
+    revisions -->|pinned selections and candidates| kernel
     coordinator -->|existing adapter workflows| kernel
     kernel --> gateway
     gateway --> git
@@ -75,11 +75,11 @@ One serialization boundary protects coordination writes. Git's expected-old-head
 | Objective          | Optional requested outcome, scope and declared or unknown source. Creating a Future can record the request inline.                                |
 | Future             | Mutable workspace identity containing isolated repository copies, exact baselines, producer metadata and a current revision pointer.              |
 | FutureRevision     | Immutable repository-head, tree and baseline vectors, affected scope, producer, context reference and provenance state.                           |
-| Selection          | Planned selection of existing Git material. No native selection endpoint is delivered.                                                            |
-| CandidateState     | Planned exact state constructed from selections. Existing kernel compositions use ProposalRevisions.                                              |
+| Selection          | Immutable whole-Future or ordered non-merge commit selection pinned to a FutureRevision.                                                            |
+| CandidateState     | Immutable repository commits/trees constructed from pinned selections against captured canonical heads.                                              |
 | Evidence           | Existing immutable check results pin exact trees, configuration, constraints and dependency versions. Native Git observations are not validation. |
-| Decision           | Existing kernel alternatives and reviewed basis. General native decision discovery is not delivered.                                              |
-| PromotionOperation | Existing prepared write journal. Native multi-repository promotion is not delivered.                                                              |
+| Decision           | Immutable native acceptance and reviewed basis; compatibility alternatives remain. General discovery is not delivered.                                              |
+| PromotionOperation | Shared prepared write journal for native and compatibility decisions. Multi-repository promotion is blocked.                                                              |
 
 Vectors identify repository roles and exact commit/tree inputs; their stable ordering is part of identity. Observation timestamps do not replace version identity. A changed head, rebase, force-push or rewind creates a new FutureRevision. Prior revisions retain their original baselines and provenance.
 
@@ -109,7 +109,7 @@ Routes below have the `/api` prefix.
 | `POST /futures/:id/{observe,abandon}`                                   | Version-checked observation or lifecycle transition.            |
 | `GET /repository-requests/:id`, `POST /repository-requests/:id/recover` | Inspect and reconcile a recorded provider operation.            |
 
-Creation accepts a `request_id`; repository mode is `create`, `import` or `adopt`. Future observation and abandonment also pin `expected_version`. A direct Future request can select ready `repository_ids` and include an optional plain-language statement. These routes do not synthesize validation or authorize native promotion. `api/openapi.json` documents this v0 HTTP subset; routes whitelist accepted fields and obtain actors from authentication, not request bodies.
+Creation accepts a `request_id`; repository mode is `create`, `import` or `adopt`. Future observation and abandonment also pin `expected_version`. A direct Future request can select ready `repository_ids` and include an optional plain-language statement. Selection and candidate routes create exact versions. Separate validation and reviewed promotion routes never trust producer-supplied evidence. `api/openapi.json` documents this v0 HTTP subset; routes whitelist accepted fields and obtain actors from authentication, not request bodies.
 
 The old `POST /repositories/fork` route returns `NATIVE_FUTURE_REQUIRED`; use `POST /futures` to retain baselines, revision history and recovery state. Legacy repository payloads using `name` and `create` must include `request_id` and enter the same prepared operation journal.
 
@@ -186,7 +186,7 @@ Coverage links locate tests; they are not records of a successful run. Cloudflar
 
 Deliver in dependency order: native state lifecycle; selections and exact candidate composition; general evidence; decision discovery; context before work; executable comparison; cross-repository rollout; protocol and scale. Security applies to every stage.
 
-Remaining work includes partial selection and dependency closure, native evaluation/promotion, general context retrieval, unseen-work decision discovery, interaction triplets, runtime previews, external evaluators, provider adapters, organizations, SSO/RBAC, quotas, retention, disaster recovery, stable schemas/events and SDKs. These are product requirements, not delivered features.
+Remaining work includes file/hunk selection and dependency closure, general evaluation and multi-repository promotion, general context retrieval, unseen-work decision discovery, interaction triplets, runtime previews, external evaluators, provider adapters, organizations, SSO/RBAC, quotas, retention, disaster recovery, stable schemas/events and SDKs. These are product requirements, not delivered features.
 
 Gates require ordinary Git interoperability; zero stale, wrong or unauthorized promotions; explicit uncertain recovery; measurable grouping precision/recall; lower human review effort without missed decisions; and inspectable provenance. Include real histories and conventional workflow comparisons rather than optimizing only sample fixtures.
 
@@ -205,3 +205,13 @@ Keep domain policy in `core/`, Git/runtime work in adapters, HTTP validation at 
 JavaScript public contracts use JSDoc for inputs, outputs and meaningful errors. Python, if introduced, uses type hints and Google-style `Args`, `Returns` and `Raises` docstrings. The design follows the maintainability principles in Dan Vega and Nathaniel Schutta's _Fundamentals of Software Engineering: From Coder to Engineer_ and the [Ponytail simplification ladder](https://github.com/DietrichGebert/ponytail#how-it-works).
 
 Add regression tests for changed behavior, especially stale inputs, authorization, races and recovery. Use real temporary Git repositories for ref semantics. Commit source and necessary fixtures; keep local state, build output, credentials and reports out of Git.
+
+## Native composition
+
+Whole-Future selections pin all repository heads in a Future revision. Commit selections pin one repository and an ordered list of non-merge commits within that revision. Git applies their patches to an index; it does not import unselected parents as candidate ancestry. Textual conflicts fail explicitly. Semantic dependency closure is not established.
+
+A CandidateState records selected revisions, canonical base heads and retained resulting commits/trees. Trusted checks bind each exact repository tree, validation configuration, active constraint versions and dependency heads. Failed latest runs cannot reuse earlier passing evidence.
+
+The review basis covers the candidate, selections, evidence, constraints, configuration, current Future pointers and canonical heads. Promotion verifies both that basis and expected heads, checks source refs directly, then persists an immutable decision and prepared operation before Git CAS. Native and compatibility writes share one journal. Lost replies block further writes; recovery observes the exact target and never repeats CAS.
+
+This version promotes exactly one changed repository. Multi-repository candidates can be composed and validated, but promotion is blocked. Cross-repository atomicity and protection against a dependency changing during the final single-ref write are not claimed. Cloudflare execution still requires operator-owned validation profiles and admission of every source repository to the scoped executor manifest.

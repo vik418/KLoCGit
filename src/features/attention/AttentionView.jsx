@@ -8,6 +8,7 @@ export function AttentionView({
   onNewRepository,
   onSystems,
   onFutures,
+  onCandidate,
   onDecision,
   onProposal,
   reload,
@@ -17,11 +18,38 @@ export function AttentionView({
   const recovery = native.requests.filter((request) =>
     ['prepared', 'recovery_required'].includes(request.status),
   );
+  const candidates = (native.candidates ?? []).filter((candidate) =>
+    !(native.promotions ?? []).some((operation) => operation.candidate_id === candidate.id && operation.status === 'applied'),
+  );
+  const promotions = (native.promotions ?? []).filter((operation) => ['prepared', 'recovery-required'].includes(operation.status));
   const hasReviewWork = workspace.proposals.length > 0 || workspace.tasks.length > 0;
   const hasFutures = native.futures.some((future) => future.status !== 'abandoned');
 
   return (
     <div className="space-y-6 py-7">
+      {promotions.length > 0 && (
+        <Card className="gap-4">
+          <CardHeader><CardTitle>Confirm canonical Git state</CardTitle>
+            <CardDescription>A promotion has an uncertain outcome. Recovery reads Git and never repeats the write.</CardDescription>
+          </CardHeader>
+          <CardContent><Button type="button" variant="outline" onClick={async () => {
+            try {
+              const { apiRequest } = await import('../../lib/api.js');
+              await apiRequest('/recover', { method: 'POST', body: {} });
+              await reload();
+              message('Canonical reconciliation completed. Inspect any remaining recovery state.');
+            } catch (error) { message(error.message, 'error'); }
+          }}>Reconcile promotion</Button></CardContent>
+        </Card>
+      )}
+      {candidates.map((candidate) => (
+        <Card key={candidate.id} className="gap-4">
+          <CardHeader><CardTitle>Apply this combined state?</CardTitle>
+            <CardDescription>{candidate.selection_ids.length} selections across {candidate.repositories.length} repositories. Review composed-state evidence before choosing.</CardDescription>
+          </CardHeader>
+          <CardContent><Button type="button" size="sm" onClick={() => onCandidate(candidate.id)}>Review candidate</Button></CardContent>
+        </Card>
+      ))}
       {recovery.length > 0 && (
         <Card className="gap-4">
           <CardHeader>
@@ -51,7 +79,7 @@ export function AttentionView({
           message={message}
         />
       )}
-      {!hasReviewWork && (
+      {!hasReviewWork && !candidates.length && !promotions.length && (
         <Card className="gap-4">
           <CardHeader>
             <CardTitle>

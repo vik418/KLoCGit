@@ -23,7 +23,7 @@ function GitSnapshot({ entries, label }) {
   );
 }
 
-export function FuturesView({ nativeState, onNewFuture, reload, message }) {
+export function FuturesView({ nativeState, onNewFuture, onCompose, reload, message }) {
   const { busy, pendingPath, error, mutate } = useNativeMutation(reload, message);
   const ready = nativeState.repositories.some(
     (repository) => repository.status === 'ready' && repository.head && repository.tree,
@@ -35,10 +35,16 @@ export function FuturesView({ nativeState, onNewFuture, reload, message }) {
         <p className="text-sm leading-6 text-muted-foreground">
           Independent Git work recorded as immutable revisions.
         </p>
+        <div className="flex flex-wrap gap-2">
+          <Button type="button" size="sm" variant="outline" onClick={onCompose}
+            disabled={!nativeState.futures.some((future) => future.status === 'active' && future.current_revision_id)}>
+            Compose candidate
+          </Button>
         <Button type="button" size="sm" onClick={() => onNewFuture()} disabled={!ready}>
           <Plus aria-hidden="true" />
           Open isolated work
         </Button>
+        </div>
       </div>
       {error && (
         <p className="error-banner" role="alert">

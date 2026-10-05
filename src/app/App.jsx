@@ -11,6 +11,8 @@ import { FuturesView } from '../features/futures/FuturesView.jsx';
 import { NewRepository } from '../features/systems/NewRepository.jsx';
 import { NewSystem } from '../features/systems/NewSystem.jsx';
 import { NewObjective } from '../features/systems/NewObjective.jsx';
+import { NewCandidate } from '../features/futures/NewCandidate.jsx';
+import { CandidateDialog } from '../features/futures/CandidateDialog.jsx';
 import { NewFuture } from '../features/futures/NewFuture.jsx';
 import { WorkView } from '../features/work/WorkView.jsx';
 import { MergeRequestDialog } from '../features/merge-requests/MergeRequestDialog.jsx';
@@ -56,6 +58,7 @@ export function App() {
   const [selectedMergeRequestId, setSelectedMergeRequestId] = useState(null);
   const [showNewMergeRequest, setShowNewMergeRequest] = useState(false);
   const [showCapabilities, setShowCapabilities] = useState(false);
+  const [candidateId, setCandidateId] = useState(null);
   const [nativeDialog, setNativeDialog] = useState(null);
 
   function openDecision(decisionId) {
@@ -119,6 +122,7 @@ export function App() {
               onNewRepository={() => setNativeDialog({ type: 'repository' })}
               onSystems={() => setActiveTab('systems')}
               onFutures={() => setActiveTab('futures')}
+              onCandidate={setCandidateId}
               onDecision={setSelectedDecisionId}
               onProposal={setSelectedProposalId}
               reload={reload}
@@ -140,6 +144,7 @@ export function App() {
             <FuturesView
               nativeState={workspace.nativeState}
               onNewFuture={openNewFuture}
+              onCompose={() => setNativeDialog({ type: 'candidate' })}
               reload={reload}
               message={notify}
             />
@@ -187,6 +192,15 @@ export function App() {
           </footer>
         </main>
       </div>
+      {nativeDialog?.type === 'candidate' && (
+        <NewCandidate nativeState={workspace.nativeState} onClose={() => setNativeDialog(null)}
+          reload={reload} message={notify} onCreated={(id) => {
+            setNativeDialog(null); setCandidateId(id); setActiveTab('attention');
+          }} />
+      )}
+      {candidateId && (
+        <CandidateDialog id={candidateId} onClose={() => setCandidateId(null)} reload={reload} message={notify} />
+      )}
       {selectedDecisionId &&
         workspace.decisionComponents.some((decision) => decision.id === selectedDecisionId) && (
           <DecisionDialog

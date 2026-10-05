@@ -285,6 +285,37 @@ try {
     'Repeated observation of the same Git state is idempotent',
   );
 
+  // Compose a selected commit through the native UI; producer code cannot grant itself validation.
+  await page.getByRole('button', { name: 'Compose candidate', exact: true }).click();
+  dialog = page.getByRole('dialog', { name: 'Compose a candidate', exact: true });
+  await dialog.getByRole('checkbox', { name: future.name, exact: true }).check();
+  await dialog.getByLabel('Selection for ' + future.name, { exact: true }).selectOption('commits');
+  await dialog.getByLabel('Repository for ' + future.name, { exact: true }).selectOption('app');
+  await dialog.getByLabel('Commit hashes for ' + future.name, { exact: true }).fill(changedCommit);
+  const composed = waitForMutation(page, '/candidates');
+  await dialog.getByRole('button', { name: 'Create candidate', exact: true }).click();
+  const composedResponse = await composed;
+  assert.equal(composedResponse.status(), 200, await composedResponse.text());
+  const { candidate } = await composedResponse.json();
+  dialog = page.getByRole('dialog', { name: 'Apply this candidate?', exact: true });
+  await dialog.waitFor();
+  await dialog.getByRole('button', { name: 'Run validation', exact: true }).waitFor();
+  await page.waitForFunction(() => !document.querySelector('[aria-busy="true"]'));
+  const validated = waitForMutation(page, '/candidates/' + candidate.id + '/validate');
+  await dialog.getByRole('button', { name: 'Run validation', exact: true }).click();
+  const validationResponse = await validated;
+  assert.equal(validationResponse.status(), 200, await validationResponse.text());
+  const validation = await validationResponse.json();
+  assert.equal(validation.evidence[0].result.passed, false, 'Unknown repositories have no trusted validation profile');
+  await dialog.getByText('Checks did not pass', { exact: true }).waitFor();
+  await dialog.getByLabel('Why choose this candidate?', { exact: true }).fill('Review selected work.');
+  assert.equal(await dialog.getByRole('button', { name: 'Apply candidate', exact: true }).isDisabled(), true);
+  assert.equal((await api('/native-state')).repositories.find((entry) => entry.id === 'app').head, baselineCommit);
+  await assertFitsViewport(page);
+  await page.keyboard.press('Escape');
+  await dialog.waitFor({ state: 'hidden' });
+  await page.getByRole('button', { name: 'Futures', exact: true }).click();
+
   // A rewind is another observation; it must not overwrite the first A revision.
   await git(futureCheckout, 'reset', '--hard', baselineCommit);
   await git(futureCheckout, 'push', '--force', 'origin', 'HEAD:refs/heads/main');
@@ -364,7 +395,7 @@ try {
   await page.getByRole('button', { name: 'Futures', exact: true }).click();
   await capture('desktop');
   console.log(
-    'Browser workflow passed: authenticated repository creation, ordinary Git push, isolated Future, immutable revision history, rewind, keyboard focus, mobile layout.',
+    'Browser workflow passed: authenticated repository creation, ordinary Git push, isolated Future, immutable revision history, selected-commit composition, untrusted validation blocking, rewind, keyboard focus, mobile layout.',
   );
 } catch (error) {
   console.error(serverOutput);

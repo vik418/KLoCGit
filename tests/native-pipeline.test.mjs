@@ -101,7 +101,7 @@ test('commit selection applies only the selected patch, retaining ordinary clone
   assert.equal(await git(clone, ['show', target.commit + ':b.txt']), 'selected change');
   assert.equal(Object.isFrozen(selection.entries), true);
   assert.equal(f.state.proposals.length, 0);
-  assert.equal(f.state.mergeRequests.length, 0);
+  assert.equal(f.engine.mr.list().length, 0);
 });
 
 test('whole-Future composition preserves source history and immutable selection receipts', async (t) => {
