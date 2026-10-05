@@ -3,6 +3,7 @@
   "name": "klocgit",
   "main": "worker/index.mjs",
   "compatibility_date": "2026-10-02",
+  "build": { "command": "npm run build" },
   // Preserve owner variables configured in the dashboard across GitHub deployments.
   "keep_vars": true,
   "assets": {
@@ -23,4 +24,16 @@
     "consumers": [{ "queue": "klocgit-git-events", "max_batch_size": 1, "max_batch_timeout": 5 }],
   },
   "vars": { "WORKSPACE_ID": "klocgit", "ARTIFACTS_NAMESPACE": "klocgit" },
+  // Previews have isolated metadata and test Git storage. Queue consumers cannot
+  // target them; omitting the executor prevents calls to its deployed service.
+  "previews": {
+    "vars": {
+      "WORKSPACE_ID": "klocgit-preview",
+      "ARTIFACTS_NAMESPACE": "klocgit-preview",
+    },
+    "durable_objects": {
+      "bindings": [{ "name": "COORDINATOR", "class_name": "WorkspaceCoordinator" }],
+    },
+    "artifacts": [{ "binding": "ARTIFACTS", "namespace": "klocgit-preview" }],
+  },
 }

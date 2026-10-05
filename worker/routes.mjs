@@ -1,5 +1,6 @@
 import { DomainError } from '../core/hash.mjs';
 import { handleWorkflowRequest } from '../server/workflow-api.mjs';
+import { handleNativeRequest, ownsNativePath } from '../server/native-api.mjs';
 import { jsonResponse } from './http.mjs';
 import { scheduleAnalysis } from './events.mjs';
 import { registerRepository, forkRepository } from './repositories.mjs';
@@ -13,7 +14,9 @@ async function processMergeQueue(engine, env, input) {
   return jsonResponse(result);
 }
 
-async function ingestPush(engine, input) {
+async function ingestPush(engine, input, actor) {
+  const native = await engine.native.observeRepositoryPush(input.event, actor);
+  if (native.handled) return jsonResponse(native);
   const fork = engine.state.forks.find((fork) => fork.id === input.event.repo);
   const event = fork ? { ...input.event, repo: fork.repo, source_repo: fork.id } : input.event;
   if (!engine.state.repositories.some((repo) => repo.id === event.repo)) {
@@ -40,6 +43,15 @@ export async function handleCoordinatorRequest(engine, env, { method, url, input
   if (path === '/internal/merge-queue' && method === 'POST') {
     return processMergeQueue(engine, env, input);
   }
+
+  // Preserve the existing repository adapter payload while native clients use id/mode.
+  const legacyRepository =
+    path === '/api/repositories' &&
+    method === 'POST' &&
+    Object.hasOwn(input, 'name') &&
+    !Object.hasOwn(input, 'id');
+  if (ownsNativePath(path) && !legacyRepository)
+    return jsonResponse(await handleNativeRequest(engine, { method, url, input, actor }));
 
   const workflow = await handleWorkflowRequest(engine, { method, url, input, actor });
   if (workflow !== null) {
@@ -79,9 +91,8 @@ export async function handleCoordinatorRequest(engine, env, { method, url, input
       ),
     });
   }
-  if (path === '/internal/push') return ingestPush(engine, input);
-  if (path === '/api/events' && method === 'POST')
-    return jsonResponse(await engine.ingest(input.event, input.metadata ?? {}));
+  if (path === '/internal/push') return ingestPush(engine, input, 'artifacts-ingress');
+  if (path === '/api/events' && method === 'POST') return ingestPush(engine, input, 'git-ingress');
   if (path === '/api/repositories' && method === 'POST')
     return jsonResponse(await registerRepository(engine, env, input, actor), 201);
   if (path === '/api/repositories/fork' && method === 'POST')

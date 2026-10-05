@@ -1,168 +1,207 @@
 # Design
 
-klocgit v0 coordinates concurrent Git work through intent, proposal, decision, implementation and evidence. Git owns code; the platform owns coordination metadata. The interface starts with decisions and exposes code, reviews and infrastructure details when needed.
+klocgit v0 manages possible software states. Git owns commits, trees and refs. klocgit owns coordination metadata, immutable observations, decisions and evidence.
+
+The native model is **System → Objective → Future → FutureRevision → Selection → CandidateState → Evidence → Decision → PromotionOperation**. This delivery implements the repository and Future lifecycle. The existing review kernel remains available as a compatibility adapter; native selection, composition and promotion are not delivered yet.
 
 ## Architecture
 
-This diagram combines the deployment boundaries with the versioned review and write protocol. The Cloudflare configuration exists; live account behavior still needs verification.
+Solid arrows show implemented responsibilities. The dotted connection is the planned bridge from native Future revisions to the existing composition and promotion kernel. Cloudflare adapters exist, but the complete live deployment path remains unverified.
 
 ```mermaid
 flowchart TD
-    subgraph outside[Untrusted producers and human clients]
+    subgraph clients[Untrusted producers and authenticated users]
         producer[Human / agent / CI / ordinary Git client]
-        browser[React decision interface]
+        browser[Attention-first React interface]
+        source[Accepted public Git source]
     end
-    subgraph cloud[Cloudflare coordination runtime]
-        artifacts[Artifacts: authoritative Git repositories]
-        queue[Queue: native push events and analysis jobs]
-        worker[Worker: authenticated API and Queue consumer]
-        coordinator[Workspace Durable Object: serialized engine]
-        versions[Immutable revisions, context and relationships]
-        composition[Retained candidate commit and composed tree]
-        evidence[Exact-tree evidence with pinned configuration and dependencies]
-        basis[Decision basis: revisions, relationships, rules and evidence]
-        journal[Persist decision and prepared-operation journal]
-        recovery[Recovery: observe exact prepared target without repeating a write]
+    subgraph runtime[Coordination runtime]
+        api[Worker / local server: authenticated HTTP and events]
+        coordinator[Durable Object / local engine: serialized coordination]
+        native[Systems, Objectives, Futures and operation journal]
+        revisions[Immutable FutureRevision vectors]
+        kernel[Existing composition, evidence and decision kernel]
+        prepared[Reviewed basis and prepared canonical operation]
     end
-    subgraph executor[Private executor runtime]
-        gateway[Executor Worker: authenticated service binding]
-        container[Container: trusted Git adapter and supervisor]
-        sandbox[Untrusted candidate: private namespaces, read-only runtime and limits]
-        cas[Git CAS: explicit lease against reviewed old head]
+    subgraph gitProviders[Git providers]
+        artifacts[Artifacts: authoritative Cloudflare Git]
+        localGit[Local bare repositories: development]
+        queue[Queue: native Artifacts push events]
+    end
+    subgraph executor[Private execution boundary]
+        gateway[Executor Worker: private service binding]
+        git[Container / local Git adapter]
+        checks[Configured trusted checks in isolation]
     end
     producer -->|ordinary Git push| artifacts
-    artifacts -->|native repo.pushed subscription| queue
-    queue --> worker
-    browser -->|owner credential, selected alternative, basis hash and expected head| worker
-    worker --> coordinator
-    coordinator -->|ingest authoritative Git facts| versions
-    versions -->|read and compose through Git adapter| gateway
-    gateway --> container
-    container -->|retain candidate ref in Git| artifacts
-    container --> composition
-    composition -->|exact tree and pinned policy| sandbox
-    sandbox -->|supervisor observations| evidence
-    versions --> basis
-    composition --> basis
-    evidence --> basis
-    basis -->|alternatives and bounded evidence| browser
-    coordinator -->|recheck source refs, policy, evidence and basis| journal
-    journal -->|only after durable preparation| gateway
-    container -->|prepared canonical write only| cas
-    cas -->|advance one canonical ref if old head matches| artifacts
-    journal -->|uncertain response or restart| recovery
-    artifacts -->|authoritative ref observation| recovery
-    recovery -->|reconcile decision, MR and queue dispositions| coordinator
+    producer -->|local Git push| localGit
+    artifacts --> queue
+    queue --> api
+    browser -->|authenticated requests| api
+    api --> coordinator
+    coordinator --> native
+    native -->|binding: create, import, fork, inspect| artifacts
+    native -->|local runtime lifecycle| localGit
+    source -->|provider-side public import| artifacts
+    source -->|restricted local import| localGit
+    artifacts -->|authoritative observations| revisions
+    localGit -->|authoritative observations| revisions
+    revisions --> native
+    native -->|state and history| browser
+    revisions -.->|native candidate binding: planned| kernel
+    coordinator -->|existing adapter workflows| kernel
+    kernel --> gateway
+    gateway --> git
+    git -->|retained candidates| artifacts
+    git -->|local candidates| localGit
+    git --> checks
+    checks -->|exact-state evidence| kernel
+    kernel -->|alternatives and uncertainty| browser
+    kernel --> prepared
+    prepared -->|persist before mutation| gateway
+    git -->|CAS one reviewed canonical ref| artifacts
+    artifacts -->|reconcile uncertain outcomes| prepared
 ```
 
-React is the frontend. The API Worker and workspace Durable Object are the backend: they authenticate requests, store coordination state and run domain policy. The private executor Worker and its Node.js Container perform native Git operations and isolated validation. JavaScript runs on both sides; the application is not frontend-only.
+The API Worker and Durable Object are the backend. The private executor Worker and Node.js Container perform native Git operations and configured isolated checks. The local Node.js server uses the same domain engine with bare repositories and persisted workspace metadata.
 
-The local Node.js server uses the same engine with bare Git repositories and a JSON workspace file. Queue delivery does not order Git history: ingestion rechecks authoritative refs and deduplicates events. The coordinator serializes its own operations; external Git clients remain protected by the Git old-head check.
+One serialization boundary protects coordination writes. Git's expected-old-head check still protects against external clients. A Durable Object does not make independent repository updates atomic.
 
-| Boundary            | Responsibility and implementation                                                                                                                                                              |
-| ------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Domain              | [`core/engine.mjs`](../core/engine.mjs) coordinates context, analysis, evidence, decisions, MRs and queue policy.                                                                              |
-| HTTP                | [`server/workflow-api.mjs`](../server/workflow-api.mjs) shares workflow dispatch between local and Worker routes.                                                                              |
-| Local runtime       | [`server/local.mjs`](../server/local.mjs), [`server/git.mjs`](../server/git.mjs) and [`server/runner.mjs`](../server/runner.mjs).                                                              |
-| Cloudflare runtime  | [`worker/index.mjs`](../worker/index.mjs), [`worker/events.mjs`](../worker/events.mjs), [`worker/artifacts.mjs`](../worker/artifacts.mjs) and [`worker/executor.mjs`](../worker/executor.mjs). |
-| Interface           | [`src/app/App.jsx`](../src/app/App.jsx) composes feature views; shared API and hooks manage requests. The browser cannot authorize evidence or Git writes.                                     |
-| Fixtures and checks | [`fixtures/application.mjs`](../fixtures/application.mjs), platform-owned [`fixtures/trusted/supervisor.mjs`](../fixtures/trusted/supervisor.mjs) and [`tests/`](../tests/).                   |
+## Native state contracts
 
-## Core model and invariants
+| Object             | Meaning and current boundary                                                                                                                      |
+| ------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------- |
+| System             | Logical software and registered repository references. Empty repositories are recorded without inventing commits.                                 |
+| Objective          | Optional requested outcome, scope and declared or unknown source. Creating a Future can record the request inline.                                |
+| Future             | Mutable workspace identity containing isolated repository copies, exact baselines, producer metadata and a current revision pointer.              |
+| FutureRevision     | Immutable repository-head, tree and baseline vectors, affected scope, producer, context reference and provenance state.                           |
+| Selection          | Planned selection of existing Git material. No native selection endpoint is delivered.                                                            |
+| CandidateState     | Planned exact state constructed from selections. Existing kernel compositions use ProposalRevisions.                                              |
+| Evidence           | Existing immutable check results pin exact trees, configuration, constraints and dependency versions. Native Git observations are not validation. |
+| Decision           | Existing kernel alternatives and reviewed basis. General native decision discovery is not delivered.                                              |
+| PromotionOperation | Existing prepared write journal. Native multi-repository promotion is not delivered.                                                              |
 
-A proposal is a logical work history. Each source update creates a content-addressed ProposalRevision with exact base/head commits, tree, affected paths, context and provenance. Rebase and force-push create new revisions. Missing provenance remains valid and visible. Identical trees can share an Implementation reference while keeping separate intent and rationale histories.
+Vectors identify repository roles and exact commit/tree inputs; their stable ordering is part of identity. Observation timestamps do not replace version identity. A changed head, rebase, force-push or rewind creates a new FutureRevision. Prior revisions retain their original baselines and provenance.
 
-Context snapshots, relationships, compositions, evidence and decisions retain immutable input references. Mutable branch pointers, MR lifecycle and evidence eligibility are separate from those records. Producer declarations use `.klocgit/` at the exact source commit.
+Context and provenance distinguish **observed, declared, retrieved, inferred and unknown**. Missing context remains unresolved. Unknown authorship is valid ingestion input. Producer declarations cannot authorize validation or canonical writes.
 
-Context items distinguish declared, retrieved, observed and inferred information. Checkable constraints may block automation; advisory statements cannot. The current context compiler supports the explicit `retry-response-v0` task, retrieving policy from another repository at a pinned commit. A material answer or explicit assumption creates a snapshot. Waiting for that answer does not block unrelated Git work.
+### Repository and Future lifecycle
 
-Relationship analysis filters by exact tree identity, affected paths, declared choices and configured validation footprints. Declared alternatives and observed interactions form review groups. It does not discover arbitrary semantic equivalence. Missing relationships do not prove compatibility; a clean textual merge produces a candidate requiring composed-tree validation. There is no LLM integration.
+Create produces an empty Git repository. The first ordinary Git push supplies its initial commit; observation then makes its actual state available as a baseline. Import copies an accepted public repository. A Future forks ready repository states and verifies the pinned commits and trees rather than silently adopting a newer baseline.
 
-Evidence pins the exact subject/tree, configuration, constraints and dependency heads. External CI is a declaration, not a trusted platform check. A changed input makes old evidence ineligible without deleting its observations. Reruns append results; a newer failed, pending or cancelled result cannot be bypassed by selecting an earlier pass for the same inputs. Finite tests establish only their listed assertions.
+The interface starts with repository creation or import. System and Objective metadata are optional secondary actions. Creating a Future does not require a branch, MR, reviewer assignment or a sequence of setup forms.
 
-Canonical advancement follows [`core/canonical.mjs`](../core/canonical.mjs): authenticate the actor; recheck source refs, MR/dependency policy, current composed-tree evidence and decision basis; persist the decision and prepared operation; then compare-and-set Git against the reviewed head. Local Git uses `update-ref` with the expected old object ID; remote Git uses an explicit `--force-with-lease`. A changed basis or head returns `409 DECISION_STALE`, requiring renewed review.
+Every native API mutation requires an authenticated actor and an idempotency key. A replay with the same inputs reuses the recorded operation; reusing the key with different inputs fails. Preparation is persisted before provider mutation. An unknown provider outcome remains visible for authoritative reconciliation. Do not turn an uncertain create or fork into another independent operation.
 
-Candidate commits are retained under `refs/klocgit/candidates/` before remote preparation. This namespace is excluded from producer ingestion. An uncertain write blocks subsequent canonical updates. Recovery accepts only an authoritative ref equal to the exact prepared target; the reviewed base, another commit or a later descendant remains `RECOVERY_REQUIRED`. Recovery never guesses by repeating the Git write.
+Git remotes contain no tokens. Returned descriptors do not grant repository access. Artifacts credentials remain scoped and separate from owner, ingress and executor credentials. New repositories do not automatically inherit a trusted executor manifest or validation profile.
 
-One operation advances one repository. Other repositories can supply pinned validation dependencies but are not locked against outside pushes; this is not a distributed transaction. Git remains cloneable and usable if coordination fails. Metadata repair must not delete or recreate intact repositories. Record immutability and hash-linked audit history are application-managed, without independently enforced append-only storage or external audit anchoring.
+### Native API
 
-## Workflows and API
+Routes below have the `/api` prefix.
 
-**Decisions** shows grouped alternatives. **Work** exposes native MRs, ordinary Git proposals and reviewed queue tickets. Preparing, commenting, validating and discussing work never advances canonical Git.
+| Routes                                                                  | Responsibility                                                  |
+| ----------------------------------------------------------------------- | --------------------------------------------------------------- |
+| `GET /native-state`                                                     | Native catalogue and operation state.                           |
+| `GET/POST /systems`, `GET/POST /objectives`                             | Optional logical grouping and requested outcomes.               |
+| `GET/POST /repositories`, `POST /repositories/:id/refresh`              | Create, import or adopt; observe the current authoritative ref. |
+| `GET/POST /futures`, `POST /objectives/:id/futures`                     | List or create isolated work directly or under an Objective.    |
+| `GET /futures/:id`, `GET /futures/:id/revisions`                        | Current identity and immutable history.                         |
+| `POST /futures/:id/{observe,abandon}`                                   | Version-checked observation or lifecycle transition.            |
+| `GET /repository-requests/:id`, `POST /repository-requests/:id/recover` | Inspect and reconcile a recorded provider operation.            |
 
-- MRs track branches in a registered canonical repository or producer fork. Draft/ready, close/reopen and title/description edits retain history; draft and closed work stays outside automatic convergence.
-- MR writes pin `expected_version` or event ID; reviews, comments and declared checks also pin `expected_revision_id`. New source commits stale approvals/checks, even when push events arrive late. Source deletion preserves history and withdraws work. External merges require exact source ancestry, not matching trees or messages.
-- Repository policy controls approval count, self-approval and required platform checks. The default requires zero separate MR approvals but still requires an explicit reviewed decision. Every included MR must satisfy current policy. Thread resolution is recorded but is not a separate merge gate. Actor identity comes from server authentication, never submitted metadata.
-- Single and batch preparation compose actual Git changes, retain a candidate commit and validate it. Ordinary producers need no MR. Applying submits the selected alternative, `basis_hash`, `expected_canonical_head` and rationale.
-- Dependencies form a revision-pinned DAG; cycles are rejected and changed prerequisites require redeclaration. A prerequisite must remain in canonical ancestry and must not have a recorded revert. Same-repository dependencies may be selected together.
-- Queue tickets pin the reviewed composition, evidence, source/MR/dependency basis and head. Processing applies at most one eligible ticket per invocation. Blocked prerequisites can allow another ticket to proceed. Changed inputs yield `needs_review`; the queue never adopts a refreshed candidate silently. Request replay cannot authorize a second write or a different payload.
-- Reverts prepare an inverse against the current head and require ordinary review, validation and CAS. An external merge needs an explicit `mainline` parent. Reverting a batch reverses its entire selected composition. Unrelated later work is preserved where Git can compose the inverse; conflicts require review.
+Creation accepts a `request_id`; repository mode is `create`, `import` or `adopt`. Future observation and abandonment also pin `expected_version`. A direct Future request can select ready `repository_ids` and include an optional plain-language statement. These routes do not synthesize validation or authorize native promotion. `api/openapi.json` documents this v0 HTTP subset; routes whitelist accepted fields and obtain actors from authentication, not request bodies.
 
-All routes have an `/api` prefix. Inspect the shared dispatcher and [`worker/routes.mjs`](../worker/routes.mjs) for payload validation.
+The old `POST /repositories/fork` route returns `NATIVE_FUTURE_REQUIRED`; use `POST /futures` to retain baselines, revision history and recovery state. Legacy repository payloads using `name` and `create` must include `request_id` and enter the same prepared operation journal.
 
-| Routes                                                                               | Purpose                                                                       |
-| ------------------------------------------------------------------------------------ | ----------------------------------------------------------------------------- |
-| `GET /workspace`, `GET /capabilities`                                                | Current coordination view and scoped support registry.                        |
-| `POST /events`, `POST /analysis`                                                     | Ingest Git events; derive or refresh decision components.                     |
-| `GET/POST /tasks`, `POST /tasks/:id/answer`, `POST /tasks/:id/assume`                | Context task, material answer or explicit assumption.                         |
-| `GET/POST /merge-requests`, `GET /merge-requests/:id`                                | List/open MRs and inspect current/history views.                              |
-| `POST /merge-requests/:id/{transition,reviews,comments,checks,dependencies}`         | Versioned lifecycle, review, discussion, declarations and dependency updates. |
-| `POST /merge-requests/reviews/batch`                                                 | Preflight several exact reviews.                                              |
-| `POST /merge-requests/:id/{validate,prepare}`                                        | Platform validation or review preparation.                                    |
-| `GET/POST /repositories/:id/policy`                                                  | Read/update versioned owner rules.                                            |
-| `POST /reviews/prepare`, `POST /reverts/prepare`                                     | Compose one/batch revisions or an inverse candidate.                          |
-| `POST /decisions/:id/{refresh,resolve}`                                              | Renew review inputs or apply an exact reviewed alternative.                   |
-| `GET/POST /merge-queue`, `POST /merge-queue/process`, `POST /merge-queue/:id/cancel` | Inspect, enqueue, process or cancel reviewed tickets.                         |
-| `POST /recover`                                                                      | Reconcile uncertain prepared writes without another CAS.                      |
+## Existing review kernel
+
+MRs, branch proposals, reviews and queue tickets are compatibility workflows. They retain their original histories and revision-specific eligibility. They do not define the native Future lifecycle.
+
+The kernel currently supports exact tree identity, declared alternatives and configured interaction footprints. It forms components from unresolved relationships and validates actual composed trees. Unknown work remains separate. Missing edges and clean textual merges are not proofs of compatibility; there is no general semantic analyzer.
+
+Evidence retains exact inputs after it becomes stale. Changed code, configuration, constraints or relevant dependencies invalidate eligibility. A newer failed, pending or cancelled run cannot be bypassed with an older pass. Producer tests and external declarations are never sole verification. Finite checks establish only their recorded assertions.
+
+Canonical updates authenticate the actor, recheck evidence and policy, compare the reviewed basis and Git head, persist the resolution and prepared operation, then conditionally update Git. A changed basis or head returns `409 DECISION_STALE`; the user must review the changed basis. Reviewed candidates are never silently rebased.
+
+An uncertain canonical write blocks later writes. Recovery observes the authoritative ref and accepts only the exact intended target as applied. The current kernel does not blindly repeat uncertain writes. Reverts construct new inverse candidates with ordinary review, checks and CAS; they do not delete history.
+
+Each current canonical operation advances one repository. Pinned dependencies in other repositories are not distributed locks. Multi-repository Futures do not imply atomic multi-repository promotion. Losing coordination must leave the underlying repositories usable.
 
 ## Local development
 
-Use Node.js 24, `npm ci`, Git and Linux/WSL. Node Git adapters invoke `/usr/bin/git`. Executable validation also needs bubblewrap, util-linux (`prlimit`, `unshare`) and permitted private user/network namespaces:
+Use Node.js 24, Git and `npm ci`. The local server defaults to `127.0.0.1:43187` and stores state under `.klocgit-workspace/`. `HOST`, `PORT` and `KLOCGIT_ROOT` override those defaults.
 
 ```sh
-sudo apt-get install git bubblewrap util-linux
 npm ci
 LOCAL_ACTOR_ID="$(git config user.email)" npm run dev
 ```
 
-Open <http://localhost:43187>. `HOST` defaults to `127.0.0.1`, `PORT` to `43187`, and `KLOCGIT_ROOT` to `.klocgit-workspace/`. `LOCAL_ACTOR_ID` is required; the command uses your configured Git email. `LOCAL_OWNER_TOKEN` optionally requires a Bearer credential. If exposing `HOST=0.0.0.0`, configure that token and use a trusted network; the development server is not organizational authentication. The interface keeps its owner credential in page memory.
+`LOCAL_ACTOR_ID` is required. `LOCAL_OWNER_TOKEN` optionally requires a Bearer credential. The browser keeps that credential in page memory. Configure the token before exposing the development server beyond localhost; this is single-owner authentication.
 
-The workspace contains metadata, bare repositories, baseline copies and producer clones. Use a disposable directory for experiments. The UI reset deletes and recreates that workspace. With the server stopped, `npm run demo:reset` deletes and recreates default `.klocgit-workspace/`; it does not reset a custom `KLOCGIT_ROOT`. Stop the server before backup/restore and preserve metadata together with repositories. Missing metadata beside existing repositories stops startup rather than overwriting code.
+Startup uses an empty workspace. The optional `npm run demo:reset` command replaces the default disposable workspace with sample repositories; stop the server first. It does not reset a custom `KLOCGIT_ROOT`. Backup and restore metadata together with its repositories. Missing metadata beside intact repositories must not trigger destructive initialization.
 
-The two sample repositories contain a payment HTTP application and a separate policy contract. Run a cloned checkout with `node app.mjs`; it exposes `/checkout`, `/charge` and `/state`. All effects are simulated. Retrying a lost processed response and sending confirmation before replay detection pass separately, but their clean composition produces duplicate confirmation. The platform supervisor observes effects at a simulated provider; candidate logs or producer tests cannot substitute for those observations.
+Executable demo validation additionally needs Linux/WSL, bubblewrap, util-linux and permitted private namespaces:
 
 ```sh
-npm run format:check
-npm run lint
-node --test tests/workflow-integration.test.mjs
-node --test tests/application.test.mjs
+sudo apt-get install git bubblewrap util-linux
 npm run check
 ```
 
-`format` and `lint:fix` write changes; review them. `check` runs formatting, lint, tests, browser build and both Worker dry runs. Focused real-Git tests cover lifecycle, revisions, dependencies, CAS and recovery. Application tests cover interaction and isolation. Tests use temporary repositories, not the interactive workspace. Worker dry runs verify bundling, not deployment or remote Git. [`core/capabilities.mjs`](../core/capabilities.mjs) records support limits and relevant test files; links are coverage references, not proof of a passing run.
+The demo contains a payment application and a separate policy contract. Retrying a lost processed response and moving confirmation before replay detection pass alone. Their clean composition duplicates confirmation. Trusted checks observe effects at a simulated provider; producer logs and tests cannot replace those observations.
 
-Common errors: `validation-unavailable` requires checking the complete sandbox, not weakening isolation; `DECISION_STALE`/`MR_STALE` requires fresh state and review; `RECOVERY_REQUIRED` requires authoritative recovery; `WORKSPACE_METADATA_MISSING` requires restoring metadata with its repositories. `unshare --user --map-root-user --net true` probes only part of the isolation setup.
+`npm run test:browser` runs the local desktop/mobile repository and Future smoke flow after installing Playwright Chromium. It covers owner authentication, ordinary Git pushes, immutable observation, dialogs and layout; it does not verify live Cloudflare infrastructure.
 
-## Runtime boundaries
+`npm run check` runs formatting, lint, tests, the UI build and both Worker dry runs. Real-Git tests cover revisions, dependencies, races and recovery. Dry runs verify bundling, not live event delivery, remote credentials or Container isolation.
 
-[`wrangler.jsonc`](../wrangler.jsonc) defines the `klocgit` API Worker, static assets, workspace Durable Object, Artifacts namespace and analysis Queue. [`wrangler.executor.jsonc`](../wrangler.executor.jsonc) defines the private `klocgit-git-executor` Worker and Container. Workers handle HTTP and coordination; the Container supplies native Git and isolated validation. Both run in the same account and use the same workspace identifier.
+## Deployment and trust boundaries
 
-The owner, ingress, private service and repository credentials serve separate trust boundaries. The API authenticates an actor before accepting decisions. The executor receives its repository manifest and scoped tokens through encrypted bindings; candidate code receives neither. Evidence must match the configured trusted validation hash.
+`wrangler.jsonc` defines the `klocgit` API Worker, assets, workspace Durable Object, Artifacts binding and Queue. `wrangler.executor.jsonc` defines `klocgit-git-executor` and its Container. Deploy the executor before the API Worker that binds it.
 
-Workspace coordination state is stored in its Durable Object. Retained candidate refs and prepared operation history must persist alongside the Git repositories. Local checks and bundle dry runs do not establish live event delivery, remote CAS, Container recovery or sandbox support.
+Wrangler builds the UI before deployment through `build.command`. Workers Builds already installs dependencies, so leave its build command empty. Use `npx wrangler deploy` for production and `npx wrangler preview` for branch previews.
 
-## Maintenance and security
+Previews use a new coordinator namespace and the separate `klocgit-preview` Artifacts namespace. Branch previews share that test Git namespace, not production repositories. Configure `AUTH_TOKEN` and `ACTOR_ID` as separate **Previews Base secrets**; production credentials are not inherited. Base secret changes apply to new previews, so update an existing preview's secrets separately.
 
-Keep responsibilities explicit: domain policy in `core/`, Git/runtime work in adapters, HTTP validation in route boundaries and presentation in `src/`. Read the real flow before changing it. Reuse existing code, standard libraries, native platform facilities and installed dependencies before adding abstractions. Choose clear names and small cohesive functions; do not compress safety checks into clever code. New dependencies must solve a concrete maintenance problem.
+The Preview lifecycle supports repository creation, import, Futures and manual refresh/observation. It has no Queue consumer or executor binding: automatic push processing, composed checks and promotion are unavailable there. Use a separately deployed staging Worker, Queue, Artifacts namespace and executor to test the complete path. These boundaries follow [Cloudflare's Preview limitations](https://developers.cloudflare.com/workers/previews/resources/#limitations).
 
-Design references: [Fundamentals of Software Engineering: From Coder to Engineer](https://www.oreilly.com/library/view/fundamentals-of-software/9781098143220/) by Dan Vega and Nathaniel Schutta, and the [Ponytail simplification ladder](https://github.com/DietrichGebert/ponytail#how-it-works). Favor readable code, small reversible changes, meaningful tests and explicit tradeoffs. Preserve validation, error handling, security and accessibility when simplifying.
+The executor uses an operator-owned repository manifest, scoped Git credentials and trusted validation configuration. Observing a new repository does not authorize executing its build scripts or promoting its code. Owner, ingress, executor and per-repository credentials serve separate boundaries.
 
-Use JSDoc for JavaScript public contracts: inputs, outputs, asynchronous behavior and meaningful errors. Comments explain design reasons and constraints. Python code uses type hints and [Google-style docstrings](https://google.github.io/styleguide/pyguide.html#383-functions-and-methods) with `Args`, `Returns` and `Raises` where applicable.
+Public imports accept restricted HTTPS sources. Reject embedded credentials, unsafe URLs and internal addresses. The local importer pins public DNS results, disables redirects, removes inherited secrets and bounds execution. Provider-side import and deployed isolation still require live verification.
 
-Add meaningful regression coverage for behavior changes, especially stale inputs, races, policy and failure/recovery. Use actual temporary Git repositories for ref semantics. Avoid tests that mirror implementation or turn sample decision counts into guarantees. Run focused checks during development and `npm run check` before delivery; report unavailable infrastructure accurately. Commit source and necessary fixtures, not local state, build output, screenshots, test reports or credentials.
+Treat repository contents, agents, metadata and generated code as untrusted. Validation rejects unsafe paths, symlinks, submodules and oversized trees. Execution uses read-only candidate/runtime mounts, scrubbed environment, private namespaces and resource limits. Failed isolation must never fall back to direct execution.
 
-Treat producer code, metadata and repository contents as untrusted. The runner rejects unsafe paths, symlinks, submodules and oversized trees; execution uses private namespaces, read-only tree/runtime, scrubbed environment, Node permissions and resource limits. Credentials remain outside candidate code and provenance. Never use producer tests or declared CI as sole write authorization, and never replace failed isolation with direct execution.
+Keep prompts, private context, tokens and secrets out of provenance, URLs and logs. Audit history is hash-linked and application-managed; independently enforced immutable retention and signed anchors are not delivered. Organizational authentication, RBAC and SSO are also not delivered.
 
-Keep owner, ingress, executor and per-repository producer credentials separate and scoped. Keep prompts, private context, tokens and secrets out of provenance, URLs and logs. Revoke exposed tokens and verify Container rotation. The current application has one owner, not organizational identity/RBAC. Report vulnerabilities through GitHub’s private Security report when available, otherwise contact the owner privately with redacted reproduction details. There is no published support schedule.
+## Capability and delivery gates
 
-Current limits include registered canonical MR targets only, no reviewer assignment/CODEOWNERS, no arbitrary CI runner, no GitHub/GitLab connectors, and no automatic semantic correctness proof. Relationship filtering scans workspace metadata rather than providing a production-scale index. Applied/deferred outcomes exist; general rejected/superseded workflows do not. Decision compression is a bounded demo result and must count upstream human clarification separately from convergence review.
+`core/capabilities.mjs` is the authenticated read-only scope registry.
+
+| Status       | Requirement                                                                                                                                          |
+| ------------ | ---------------------------------------------------------------------------------------------------------------------------------------------------- |
+| VERIFIED     | Defined state, authorization, audit and failure behavior with automated coverage in the stated runtime; live evidence when infrastructure-dependent. |
+| PARTIAL      | An implemented subset with explicit missing behavior.                                                                                                |
+| EXPERIMENTAL | Integration code whose required operational verification is incomplete.                                                                              |
+| UNSUPPORTED  | No delivered operational workflow.                                                                                                                   |
+
+Coverage links locate tests; they are not records of a successful run. Cloudflare support cannot be verified by mocks or bundle dry runs. Current local kernel claims do not establish general semantic correctness or representative decision compression.
+
+Deliver in dependency order: native state lifecycle; selections and exact candidate composition; general evidence; decision discovery; context before work; executable comparison; cross-repository rollout; protocol and scale. Security applies to every stage.
+
+Remaining work includes partial selection and dependency closure, native evaluation/promotion, general context retrieval, unseen-work decision discovery, interaction triplets, runtime previews, external evaluators, provider adapters, organizations, SSO/RBAC, quotas, retention, disaster recovery, stable schemas/events and SDKs. These are product requirements, not delivered features.
+
+Gates require ordinary Git interoperability; zero stale, wrong or unauthorized promotions; explicit uncertain recovery; measurable grouping precision/recall; lower human review effort without missed decisions; and inspectable provenance. Include real histories and conventional workflow comparisons rather than optimizing only sample fixtures.
+
+### Decisions requiring measurement
+
+The specification fixes Artifacts, standard Git semantics, immutable state, bounded evidence and conditional promotion. It does not fix every implementation language or scale component.
+
+Git-analysis libraries, execution substrate, query storage, retrieval and mature policy engines are **UNDECIDED for scale**. Benchmark correctness, resource use, isolation, startup, cost, context recall and recovery on representative workloads before selecting them. Keep current native Git and adapters while measuring alternatives.
+
+No proposed new database, custom policy language or distributed transaction is adopted by this delivery. A difficult-to-reverse choice needs an inline proposed ADR recording the problem, requirements, candidates, evidence, tradeoffs, risks and reconsideration trigger.
+
+## Maintenance
+
+Keep domain policy in `core/`, Git/runtime work in adapters, HTTP validation at route boundaries and presentation in `src/`. Prefer cohesive functions, clear names, standard formats and existing dependencies. Comments explain constraints and reasons. Do not simplify away validation or failure handling.
+
+JavaScript public contracts use JSDoc for inputs, outputs and meaningful errors. Python, if introduced, uses type hints and Google-style `Args`, `Returns` and `Raises` docstrings. The design follows the maintainability principles in Dan Vega and Nathaniel Schutta's _Fundamentals of Software Engineering: From Coder to Engineer_ and the [Ponytail simplification ladder](https://github.com/DietrichGebert/ponytail#how-it-works).
+
+Add regression tests for changed behavior, especially stale inputs, authorization, races and recovery. Use real temporary Git repositories for ref semantics. Commit source and necessary fixtures; keep local state, build output, credentials and reports out of Git.

@@ -1,7 +1,7 @@
 import { X, RefreshCw, AlertTriangle } from 'lucide-react';
 import { Badge } from '../../ui/Badge.jsx';
 import { ErrorMessage } from '../../ui/ErrorMessage.jsx';
-import { Dialog } from '../../ui/Dialog.jsx';
+import { Dialog, DialogTitle } from '../../ui/Dialog.jsx';
 import { shortId } from '../../lib/format.js';
 import { MergeRequestOverview } from './MergeRequestOverview.jsx';
 import { MergeRequestDiscussion } from './MergeRequestDiscussion.jsx';
@@ -24,7 +24,8 @@ export function MergeRequestDialog({
     return (
       <Dialog onClose={onClose}>
         <div className="native-body">
-          <p>Loading merge request…</p>
+          <DialogTitle>Loading merge request</DialogTitle>
+          <p>Reading the current request and its history…</p>
           <button className="button ghost" onClick={onClose}>
             Close
           </button>
@@ -37,7 +38,9 @@ export function MergeRequestDialog({
       <div className="dialog-header">
         <div>
           <span className="eyebrow">MERGE REQUEST · {mergeRequest.repo}</span>
-          <h2>{mergeRequest.title}</h2>
+          <DialogTitle asChild>
+            <h2>{mergeRequest.title}</h2>
+          </DialogTitle>
         </div>
         <button className="icon-btn" onClick={onClose} aria-label="Close merge request">
           <X size={20} />

@@ -70,46 +70,6 @@
   font-size: 0.875rem;
 }
 
-.workspace-summary {
-  display: grid;
-  grid-template-columns: repeat(3, minmax(0, 1fr));
-  margin-top: 28px;
-  border: 1px solid var(--line);
-  border-radius: var(--radius);
-  background: var(--surface);
-  overflow: hidden;
-}
-
-.workspace-summary > div {
-  padding: 20px 24px;
-  border-right: 1px solid var(--line);
-}
-
-.workspace-summary > div:last-child {
-  border-right: 0;
-}
-
-.workspace-summary span,
-.workspace-summary small {
-  display: block;
-  color: var(--muted);
-  font-size: 0.75rem;
-}
-
-.workspace-summary strong {
-  display: block;
-  margin: 8px 0 2px;
-  font-size: 1.75rem;
-  font-weight: 600;
-  letter-spacing: -0.05em;
-  line-height: 1.2;
-  font-variant-numeric: tabular-nums;
-}
-
-.summary-attention strong {
-  color: var(--accent);
-}
-
 .content-tabs {
   height: auto;
   gap: 6px;
@@ -354,18 +314,6 @@
     padding: 30px 18px 0;
   }
 
-  .workspace-summary > div {
-    padding: 16px 14px;
-  }
-
-  .workspace-summary small {
-    display: none;
-  }
-
-  .workspace-summary strong {
-    font-size: 1.5rem;
-  }
-
   .content-tabs {
     width: 100%;
   }
@@ -412,5 +360,27 @@
     animation-duration: 0.01ms !important;
     animation-iteration-count: 1 !important;
     transition-duration: 0.01ms !important;
+  }
+}
+
+/* Supporting views stay secondary and wrap without hiding controls on mobile. */
+.app main > footer {
+  flex-wrap: wrap;
+  gap: 14px;
+}
+.footer-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 2px;
+}
+.footer-actions [aria-current='page'] {
+  color: var(--accent);
+}
+@media (max-width: 480px) {
+  .topbar .breadcrumb {
+    display: none;
+  }
+  .topbar-actions {
+    margin-left: auto;
   }
 }

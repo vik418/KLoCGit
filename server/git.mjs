@@ -5,6 +5,12 @@ import os from 'node:os';
 import path from 'node:path';
 import { DomainError } from '../core/hash.mjs';
 import { createApplicationRunner, applicationValidationConfigHash } from './runner.mjs';
+import {
+  localRepositoryCreate,
+  localRepositoryFork,
+  localRepositoryImport,
+  localRepositoryInfo,
+} from './repositories.mjs';
 const exec = promisify(execFile);
 const gitEnvironment = {
   PATH: '/usr/bin:/bin',
@@ -58,9 +64,25 @@ export async function git(cwd, args, input, { raw = false } = {}) {
  * @param {string} root Workspace directory containing repositories/<id>.git.
  */
 export class LocalGit {
-  constructor(root) {
+  constructor(root, repositoryOptions = {}) {
     this.root = root;
     this.configHash = '';
+    this.repositoryOptions = repositoryOptions;
+  }
+  runRepositoryGit(cwd, args) {
+    return git(cwd, args);
+  }
+  repositoryCreate(input) {
+    return localRepositoryCreate(this, input);
+  }
+  repositoryImport(input) {
+    return localRepositoryImport(this, input);
+  }
+  repositoryFork(input) {
+    return localRepositoryFork(this, input);
+  }
+  repositoryInfo(input) {
+    return localRepositoryInfo(this, input);
   }
   async init() {
     this.configHash = await applicationValidationConfigHash();

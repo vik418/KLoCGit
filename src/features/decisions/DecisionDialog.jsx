@@ -12,7 +12,7 @@ import {
   Info,
 } from 'lucide-react';
 import { Badge } from '../../ui/Badge.jsx';
-import { Dialog } from '../../ui/Dialog.jsx';
+import { Dialog, DialogTitle } from '../../ui/Dialog.jsx';
 import { decisionTitle, decisionSummary } from './presentation.js';
 import { apiRequest } from '../../lib/api.js';
 import { shortId } from '../../lib/format.js';
@@ -90,7 +90,9 @@ export function DecisionDialog({ id, workspace, onClose, reload, message, onProp
       <div className="dialog-header">
         <div>
           <span className="eyebrow">DECISION / {decision.kind.toUpperCase()}</span>
-          <h2>{decisionTitle(decision, workspace)}</h2>
+          <DialogTitle asChild>
+            <h2>{decisionTitle(decision, workspace)}</h2>
+          </DialogTitle>
         </div>
         <button className="icon-btn" onClick={onClose} aria-label="Close decision">
           <X size={21} />

@@ -1,12 +1,17 @@
 import { useState } from 'react';
-import { CircleHelp, GitFork, History, Layers3, ShieldCheck } from 'lucide-react';
+import { CircleHelp, GitFork, Layers3 } from 'lucide-react';
 import { Button } from '../ui/Button.jsx';
-import { apiRequest } from '../lib/api.js';
 import { useNotifications } from '../hooks/useNotifications.js';
 import { useWorkspace } from '../hooks/useWorkspace.js';
 import { CapabilitiesDialog } from '../features/capabilities/CapabilitiesDialog.jsx';
 import { DecisionDialog } from '../features/decisions/DecisionDialog.jsx';
-import { DecisionList } from '../features/decisions/DecisionList.jsx';
+import { AttentionView } from '../features/attention/AttentionView.jsx';
+import { SystemsView } from '../features/systems/SystemsView.jsx';
+import { FuturesView } from '../features/futures/FuturesView.jsx';
+import { NewRepository } from '../features/systems/NewRepository.jsx';
+import { NewSystem } from '../features/systems/NewSystem.jsx';
+import { NewObjective } from '../features/systems/NewObjective.jsx';
+import { NewFuture } from '../features/futures/NewFuture.jsx';
 import { WorkView } from '../features/work/WorkView.jsx';
 import { MergeRequestDialog } from '../features/merge-requests/MergeRequestDialog.jsx';
 import { NewMergeRequest } from '../features/merge-requests/NewMergeRequest.jsx';
@@ -18,57 +23,55 @@ import { OwnerConnection } from './OwnerConnection.jsx';
 import { WorkspaceHeader } from './WorkspaceHeader.jsx';
 
 const tabs = [
-  ['decisions', 'Decisions', CircleHelp],
-  ['work', 'Work', Layers3],
-  ['evidence', 'Evidence', ShieldCheck],
-  ['activity', 'Activity', History],
+  ['attention', 'Attention', CircleHelp],
+  ['futures', 'Futures', GitFork],
+  ['systems', 'Systems', Layers3],
+];
+const secondaryViews = [
+  ['work', 'Git workflows'],
+  ['evidence', 'Evidence'],
+  ['activity', 'History'],
 ];
 
-function pageDescription(activeTab, summary) {
-  if (activeTab === 'decisions') {
-    if (summary.pendingClarifications) return 'One context question before coordinated work';
-    return `${summary.proposals} proposals · ${summary.decisionsRequired} ${summary.decisionsRequired === 1 ? 'decision requires' : 'decisions require'} review`;
-  }
-  if (activeTab === 'work') return 'Merge requests and ordinary Git changes.';
+function pageTitle(activeTab) {
+  if (activeTab === 'attention') return 'What needs your attention?';
+  return [...tabs, ...secondaryViews].find(([key]) => key === activeTab)[1];
+}
+
+function pageDescription(activeTab) {
+  if (activeTab === 'attention') return 'Questions, choices and operations requiring judgment.';
+  if (activeTab === 'futures') return 'Isolated repositories derived from exact Git baselines.';
+  if (activeTab === 'systems') return 'Repositories and optional system groupings.';
+  if (activeTab === 'work') return 'Compatibility workflows for merge requests and branch changes.';
   if (activeTab === 'evidence') return 'Checks tied to exact code and configuration.';
   return 'Recorded decisions and Git updates.';
 }
 
 export function App() {
   const { notification, notify, dismissNotification } = useNotifications();
-  const { workspace, setWorkspace, requiresAuthentication, authenticate, reload } =
-    useWorkspace(notify);
-  const [activeTab, setActiveTab] = useState('decisions');
+  const { workspace, requiresAuthentication, authenticate, reload } = useWorkspace(notify);
+  const [activeTab, setActiveTab] = useState('attention');
   const [selectedDecisionId, setSelectedDecisionId] = useState(null);
   const [selectedProposalId, setSelectedProposalId] = useState(null);
   const [selectedMergeRequestId, setSelectedMergeRequestId] = useState(null);
   const [showNewMergeRequest, setShowNewMergeRequest] = useState(false);
   const [showCapabilities, setShowCapabilities] = useState(false);
-  const [isBusy, setIsBusy] = useState(false);
+  const [nativeDialog, setNativeDialog] = useState(null);
 
   function openDecision(decisionId) {
     setSelectedMergeRequestId(null);
     setSelectedProposalId(null);
     setSelectedDecisionId(decisionId);
-    setActiveTab('decisions');
+    setActiveTab('attention');
   }
 
-  async function runDemoAction(action) {
-    setIsBusy(true);
-    try {
-      setWorkspace(await apiRequest(`/demo/${action}`, { method: 'POST' }));
-      setSelectedDecisionId(null);
-      setSelectedMergeRequestId(null);
-      notify(
-        action === 'reset'
-          ? 'Fresh workspace created. Answer the context question before producers start.'
-          : 'Decision basis changed. Open a decision to review fresh evidence.',
-      );
-    } catch (error) {
-      notify(error.message, 'error');
-    } finally {
-      setIsBusy(false);
-    }
+  function openNewFuture(selection = {}) {
+    setNativeDialog({ type: 'future', ...selection });
+  }
+
+  function nativeCreated(view) {
+    setNativeDialog(null);
+    setActiveTab(view);
   }
 
   if (requiresAuthentication && !workspace)
@@ -86,31 +89,15 @@ export function App() {
   return (
     <div className="app dark">
       <div className="shell">
-        <WorkspaceHeader workspace={workspace} isBusy={isBusy} onDemoAction={runDemoAction} />
+        <WorkspaceHeader
+          workspace={workspace}
+          onNewRepository={() => setNativeDialog({ type: 'repository' })}
+        />
         <main>
           <div className="page-heading">
-            <h1>{tabs.find(([key]) => key === activeTab)[1]}</h1>
-            <p>{pageDescription(activeTab, workspace.summary)}</p>
+            <h1>{pageTitle(activeTab)}</h1>
+            <p>{pageDescription(activeTab)}</p>
           </div>
-          {activeTab === 'decisions' && (
-            <div className="workspace-summary" aria-label="Workspace summary">
-              <div>
-                <span>Work produced</span>
-                <strong>{workspace.summary.proposals}</strong>
-                <small>Proposal histories</small>
-              </div>
-              <div className="summary-attention">
-                <span>Needs your attention</span>
-                <strong>{workspace.summary.decisionsRequired}</strong>
-                <small>Decisions requiring review</small>
-              </div>
-              <div>
-                <span>Repositories</span>
-                <strong>{workspace.repositories.length}</strong>
-                <small>In this workspace</small>
-              </div>
-            </div>
-          )}
           <nav className="content-tabs" aria-label="Workspace views">
             {tabs.map(([key, label, Icon]) => (
               <Button
@@ -126,11 +113,33 @@ export function App() {
               </Button>
             ))}
           </nav>
-          {activeTab === 'decisions' && (
-            <DecisionList
+          {activeTab === 'attention' && (
+            <AttentionView
               workspace={workspace}
+              onNewRepository={() => setNativeDialog({ type: 'repository' })}
+              onSystems={() => setActiveTab('systems')}
+              onFutures={() => setActiveTab('futures')}
               onDecision={setSelectedDecisionId}
               onProposal={setSelectedProposalId}
+              reload={reload}
+              message={notify}
+            />
+          )}
+          {activeTab === 'systems' && (
+            <SystemsView
+              nativeState={workspace.nativeState}
+              onNewRepository={() => setNativeDialog({ type: 'repository' })}
+              onNewSystem={() => setNativeDialog({ type: 'system' })}
+              onNewObjective={(systemId) => setNativeDialog({ type: 'objective', systemId })}
+              onNewFuture={openNewFuture}
+              reload={reload}
+              message={notify}
+            />
+          )}
+          {activeTab === 'futures' && (
+            <FuturesView
+              nativeState={workspace.nativeState}
+              onNewFuture={openNewFuture}
               reload={reload}
               message={notify}
             />
@@ -149,11 +158,23 @@ export function App() {
           {activeTab === 'evidence' && <EvidenceList workspace={workspace} />}
           {activeTab === 'activity' && <ActivityList workspace={workspace} />}
           <footer>
-            <span>{workspace.repositories.length} repositories · Git remains authoritative</span>
-            <div className="footer-actions">
-              <span>
-                {workspace.workspace.mode === 'local' ? 'Local demo' : 'Cloudflare Artifacts'}
-              </span>
+            <span>
+              Git remains authoritative ·{' '}
+              {workspace.workspace.mode === 'local' ? 'Local Git' : 'Cloudflare Artifacts'}
+            </span>
+            <nav className="footer-actions" aria-label="Supporting views">
+              {secondaryViews.map(([key, label]) => (
+                <Button
+                  key={key}
+                  type="button"
+                  variant="ghost"
+                  size="sm"
+                  aria-current={activeTab === key ? 'page' : undefined}
+                  onClick={() => setActiveTab(key)}
+                >
+                  {label}
+                </Button>
+              ))}
               <Button
                 type="button"
                 variant="ghost"
@@ -162,7 +183,7 @@ export function App() {
               >
                 Capabilities
               </Button>
-            </div>
+            </nav>
           </footer>
         </main>
       </div>
@@ -206,6 +227,44 @@ export function App() {
             setShowNewMergeRequest(false);
             setSelectedMergeRequestId(requestId);
           }}
+          reload={reload}
+          message={notify}
+        />
+      )}
+      {nativeDialog?.type === 'repository' && (
+        <NewRepository
+          onClose={() => setNativeDialog(null)}
+          onCreated={() => nativeCreated('systems')}
+          reload={reload}
+          message={notify}
+        />
+      )}
+      {nativeDialog?.type === 'system' && (
+        <NewSystem
+          nativeState={workspace.nativeState}
+          onClose={() => setNativeDialog(null)}
+          onCreated={() => nativeCreated('systems')}
+          reload={reload}
+          message={notify}
+        />
+      )}
+      {nativeDialog?.type === 'objective' && (
+        <NewObjective
+          nativeState={workspace.nativeState}
+          initialSystemId={nativeDialog.systemId}
+          onClose={() => setNativeDialog(null)}
+          onCreated={() => nativeCreated('systems')}
+          reload={reload}
+          message={notify}
+        />
+      )}
+      {nativeDialog?.type === 'future' && (
+        <NewFuture
+          nativeState={workspace.nativeState}
+          initialRepositoryId={nativeDialog.repositoryId}
+          initialSystemId={nativeDialog.systemId}
+          onClose={() => setNativeDialog(null)}
+          onCreated={() => nativeCreated('futures')}
           reload={reload}
           message={notify}
         />

@@ -12,6 +12,7 @@ import { hash, record, DomainError } from './hash.mjs';
 import { prepareTaskContext, answerTaskContext, assumeTaskContext } from './context.mjs';
 import { MergeRequests } from './merge-requests.mjs';
 import { MergeQueue } from './merge-queue.mjs';
+import { NativeState } from './native-state.mjs';
 import { validationPassed } from './evidence.mjs';
 import { readProducerMetadata } from './metadata.mjs';
 const now = () => new Date().toISOString();
@@ -104,6 +105,7 @@ export class Engine {
     this._tail = Promise.resolve();
     this.mr = new MergeRequests(this);
     this.queue = new MergeQueue(this);
+    this.native = new NativeState(this);
   }
 
   // Transports serialize a whole operation here. Delegated helpers do not enqueue
@@ -385,6 +387,18 @@ export class Engine {
     if (e.config_hash !== this.git.configHash) reasons.push('validation configuration changed');
     return { status: reasons.length ? 'stale' : 'current', reasons };
   }
+  /** Apply one observed immutable head/tree pair without rereading a mutable ref. */
+  async observeCanonical(repo, head, tree) {
+    const previous = repo.head;
+    const changed = previous !== head || !!repo.unavailable;
+    if (changed) {
+      // Retaining the old head makes an interrupted reconciliation retryable.
+      await this.mr.reconcileCanonical(repo, previous, head);
+      await this.audit('canonical.observed', 'git', { repo: repo.id, previous, head });
+    }
+    Object.assign(repo, { head, unavailable: false, ...(tree === undefined ? {} : { tree }) });
+    return changed;
+  }
   async syncHeads() {
     let changed = false;
     for (const repo of this.state.repositories) {
@@ -400,14 +414,20 @@ export class Engine {
         }
         continue;
       }
-      const restored = !!repo.unavailable;
-      repo.unavailable = false;
-      if (head !== repo.head || restored) {
-        const previous = repo.head;
-        repo.head = head;
-        changed = true;
-        await this.audit('canonical.observed', 'git', { repo: repo.id, previous, head });
-        await this.mr.reconcileCanonical(repo, previous, head);
+      if (head !== repo.head || repo.unavailable) {
+        let tree;
+        // Native projections must never pair a fresh head with the previous tree.
+        if (this.state.nativeRepositories?.some((registered) => registered.id === repo.id)) {
+          const facts = await this.git.facts(repo, head, head);
+          if (facts.head !== head)
+            throw new DomainError(
+              'INVALID_GIT_FACTS',
+              'Git did not establish the observed canonical tree',
+              503,
+            );
+          tree = facts.tree;
+        }
+        if (await this.observeCanonical(repo, head, tree)) changed = true;
       }
     }
     if (changed) await this.save(this.state);
@@ -796,6 +816,7 @@ export class Engine {
     const presented = decisions.map((c) => ({ ...c, actionable: open.some((d) => d.id === c.id) }));
     return {
       ...this.state,
+      nativeState: this.native.view(),
       discovery,
       mergeRequests: this.mr.list(),
       mergeQueue: this.queue.list(),

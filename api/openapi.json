@@ -1,0 +1,2061 @@
+{
+  "openapi": "3.1.0",
+  "jsonSchemaDialect": "https://json-schema.org/draft/2020-12/schema",
+  "info": {
+    "title": "klocgit native API",
+    "version": "0.0.0",
+    "description": "Implemented v0 repository, System, Objective and Future HTTP contract. This documents the current input/output subset; it is not a stable Futures Protocol. Selection, native CandidateState, evaluation and promotion routes are not delivered. The transport authenticates and serializes requests. Actor, trusted policy and provenance cannot be supplied through request bodies: only listed fields are forwarded. Schemas define client payloads; runtime routes currently discard unlisted top-level fields rather than enforce these schemas. Cloudflare lifecycle operation remains experimental until live verification."
+  },
+  "servers": [
+    {
+      "url": "/",
+      "description": "Same-origin authenticated workspace API"
+    }
+  ],
+  "security": [
+    {
+      "OwnerBearer": []
+    }
+  ],
+  "paths": {
+    "/api/native-state": {
+      "get": {
+        "operationId": "readNativeState",
+        "summary": "Read native state and recovery requests",
+        "description": "attention describes repository recovery only; 'nothing' does not establish that changed Futures have been evaluated or require no human judgment.",
+        "responses": {
+          "200": {
+            "description": "Current persisted result. Successful replay returns the recorded result.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/NativeState"
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/401"
+          },
+          "503": {
+            "$ref": "#/components/responses/503"
+          },
+          "default": {
+            "$ref": "#/components/responses/default"
+          }
+        }
+      }
+    },
+    "/api/repositories": {
+      "get": {
+        "operationId": "listRepositories",
+        "summary": "List registered repository Git states",
+        "responses": {
+          "200": {
+            "description": "Current persisted result. Successful replay returns the recorded result.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Repositories"
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/401"
+          },
+          "503": {
+            "$ref": "#/components/responses/503"
+          },
+          "default": {
+            "$ref": "#/components/responses/default"
+          }
+        }
+      },
+      "post": {
+        "operationId": "registerRepository",
+        "summary": "Create, import or adopt a repository",
+        "description": "Create may return an empty repository with null head/tree. Import can remain importing. Adoption records an existing provider repository. Provider mutations are journaled before execution; remotes omit credentials.",
+        "responses": {
+          "200": {
+            "description": "Current persisted result. Successful replay returns the recorded result.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RepositoryResult"
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/400"
+          },
+          "401": {
+            "$ref": "#/components/responses/401"
+          },
+          "403": {
+            "$ref": "#/components/responses/403"
+          },
+          "404": {
+            "$ref": "#/components/responses/404"
+          },
+          "409": {
+            "$ref": "#/components/responses/409"
+          },
+          "413": {
+            "$ref": "#/components/responses/413"
+          },
+          "422": {
+            "$ref": "#/components/responses/422"
+          },
+          "503": {
+            "$ref": "#/components/responses/503"
+          },
+          "default": {
+            "$ref": "#/components/responses/default"
+          }
+        },
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/RepositoryCreate"
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/repositories/{id}/refresh": {
+      "post": {
+        "operationId": "refreshRepository",
+        "summary": "Observe the current repository ref",
+        "description": "Refresh reads authoritative Git. It does not validate code or configure trusted execution.",
+        "responses": {
+          "200": {
+            "description": "Current persisted result. Successful replay returns the recorded result.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RepositoryResult"
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/400"
+          },
+          "401": {
+            "$ref": "#/components/responses/401"
+          },
+          "403": {
+            "$ref": "#/components/responses/403"
+          },
+          "404": {
+            "$ref": "#/components/responses/404"
+          },
+          "409": {
+            "$ref": "#/components/responses/409"
+          },
+          "413": {
+            "$ref": "#/components/responses/413"
+          },
+          "503": {
+            "$ref": "#/components/responses/503"
+          },
+          "default": {
+            "$ref": "#/components/responses/default"
+          }
+        },
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/Id"
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/OperationRequest"
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/systems": {
+      "get": {
+        "operationId": "listSystems",
+        "summary": "List optional Systems",
+        "responses": {
+          "200": {
+            "description": "Current persisted result. Successful replay returns the recorded result.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Systems"
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/401"
+          },
+          "503": {
+            "$ref": "#/components/responses/503"
+          },
+          "default": {
+            "$ref": "#/components/responses/default"
+          }
+        }
+      },
+      "post": {
+        "operationId": "createSystem",
+        "summary": "Group registered repositories",
+        "responses": {
+          "200": {
+            "description": "Current persisted result. Successful replay returns the recorded result.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SystemResult"
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/400"
+          },
+          "401": {
+            "$ref": "#/components/responses/401"
+          },
+          "403": {
+            "$ref": "#/components/responses/403"
+          },
+          "404": {
+            "$ref": "#/components/responses/404"
+          },
+          "409": {
+            "$ref": "#/components/responses/409"
+          },
+          "413": {
+            "$ref": "#/components/responses/413"
+          },
+          "503": {
+            "$ref": "#/components/responses/503"
+          },
+          "default": {
+            "$ref": "#/components/responses/default"
+          }
+        },
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/SystemCreate"
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/systems/{id}": {
+      "get": {
+        "operationId": "readSystem",
+        "summary": "Read a System",
+        "responses": {
+          "200": {
+            "description": "Current persisted result. Successful replay returns the recorded result.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SystemResult"
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/401"
+          },
+          "404": {
+            "$ref": "#/components/responses/404"
+          },
+          "503": {
+            "$ref": "#/components/responses/503"
+          },
+          "default": {
+            "$ref": "#/components/responses/default"
+          }
+        },
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/Id"
+          }
+        ]
+      }
+    },
+    "/api/objectives": {
+      "get": {
+        "operationId": "listObjectives",
+        "summary": "List Objectives",
+        "responses": {
+          "200": {
+            "description": "Current persisted result. Successful replay returns the recorded result.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Objectives"
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/401"
+          },
+          "503": {
+            "$ref": "#/components/responses/503"
+          },
+          "default": {
+            "$ref": "#/components/responses/default"
+          }
+        }
+      },
+      "post": {
+        "operationId": "createObjective",
+        "summary": "Record a requested outcome",
+        "responses": {
+          "200": {
+            "description": "Current persisted result. Successful replay returns the recorded result.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ObjectiveResult"
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/400"
+          },
+          "401": {
+            "$ref": "#/components/responses/401"
+          },
+          "403": {
+            "$ref": "#/components/responses/403"
+          },
+          "404": {
+            "$ref": "#/components/responses/404"
+          },
+          "409": {
+            "$ref": "#/components/responses/409"
+          },
+          "413": {
+            "$ref": "#/components/responses/413"
+          },
+          "503": {
+            "$ref": "#/components/responses/503"
+          },
+          "default": {
+            "$ref": "#/components/responses/default"
+          }
+        },
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ObjectiveCreate"
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/objectives/{id}": {
+      "get": {
+        "operationId": "readObjective",
+        "summary": "Read an Objective",
+        "responses": {
+          "200": {
+            "description": "Current persisted result. Successful replay returns the recorded result.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ObjectiveResult"
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/401"
+          },
+          "404": {
+            "$ref": "#/components/responses/404"
+          },
+          "503": {
+            "$ref": "#/components/responses/503"
+          },
+          "default": {
+            "$ref": "#/components/responses/default"
+          }
+        },
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/Id"
+          }
+        ]
+      }
+    },
+    "/api/objectives/{id}/futures": {
+      "post": {
+        "operationId": "createObjectiveFuture",
+        "summary": "Fork work under an existing Objective",
+        "description": "Without repository_ids, forks every repository in the Objective's System. Partial provider effects remain explicit recovery state.",
+        "responses": {
+          "200": {
+            "description": "Current persisted result. Successful replay returns the recorded result.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/FutureResult"
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/400"
+          },
+          "401": {
+            "$ref": "#/components/responses/401"
+          },
+          "403": {
+            "$ref": "#/components/responses/403"
+          },
+          "404": {
+            "$ref": "#/components/responses/404"
+          },
+          "409": {
+            "$ref": "#/components/responses/409"
+          },
+          "413": {
+            "$ref": "#/components/responses/413"
+          },
+          "503": {
+            "$ref": "#/components/responses/503"
+          },
+          "default": {
+            "$ref": "#/components/responses/default"
+          }
+        },
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/Id"
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ObjectiveFutureCreate"
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/futures": {
+      "get": {
+        "operationId": "listFutures",
+        "summary": "List isolated work",
+        "responses": {
+          "200": {
+            "description": "Current persisted result. Successful replay returns the recorded result.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Futures"
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/401"
+          },
+          "503": {
+            "$ref": "#/components/responses/503"
+          },
+          "default": {
+            "$ref": "#/components/responses/default"
+          }
+        }
+      },
+      "post": {
+        "operationId": "createFuture",
+        "summary": "Fork pinned repository states",
+        "description": "Choose an existing System/Objective or nonempty repository_ids. Missing logical metadata is recorded without setup forms. Baselines are exact observed commits/trees. Multi-repository capture is not atomic. Declared producer metadata cannot authenticate actors or establish trusted provenance.",
+        "responses": {
+          "200": {
+            "description": "Current persisted result. Successful replay returns the recorded result.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/FutureResult"
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/400"
+          },
+          "401": {
+            "$ref": "#/components/responses/401"
+          },
+          "403": {
+            "$ref": "#/components/responses/403"
+          },
+          "404": {
+            "$ref": "#/components/responses/404"
+          },
+          "409": {
+            "$ref": "#/components/responses/409"
+          },
+          "413": {
+            "$ref": "#/components/responses/413"
+          },
+          "503": {
+            "$ref": "#/components/responses/503"
+          },
+          "default": {
+            "$ref": "#/components/responses/default"
+          }
+        },
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/FutureCreate"
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/futures/{id}": {
+      "get": {
+        "operationId": "readFuture",
+        "summary": "Read a Future and immutable history",
+        "responses": {
+          "200": {
+            "description": "Current persisted result. Successful replay returns the recorded result.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/FutureDetail"
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/401"
+          },
+          "404": {
+            "$ref": "#/components/responses/404"
+          },
+          "503": {
+            "$ref": "#/components/responses/503"
+          },
+          "default": {
+            "$ref": "#/components/responses/default"
+          }
+        },
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/Id"
+          }
+        ]
+      }
+    },
+    "/api/futures/{id}/revisions": {
+      "get": {
+        "operationId": "listFutureRevisions",
+        "summary": "Read immutable Future revisions",
+        "responses": {
+          "200": {
+            "description": "Current persisted result. Successful replay returns the recorded result.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RevisionsResult"
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/401"
+          },
+          "404": {
+            "$ref": "#/components/responses/404"
+          },
+          "503": {
+            "$ref": "#/components/responses/503"
+          },
+          "default": {
+            "$ref": "#/components/responses/default"
+          }
+        },
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/Id"
+          }
+        ]
+      }
+    },
+    "/api/futures/{id}/observe": {
+      "post": {
+        "operationId": "observeFuture",
+        "summary": "Observe an exact Future Git state",
+        "description": "Compare expected_version, read authoritative heads and trees, then create an immutable revision for changed Git states. Unchanged observations reuse the current revision. Rewinds create new history. This records Git facts, not behavioral validation.",
+        "responses": {
+          "200": {
+            "description": "Current persisted result. Successful replay returns the recorded result.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/FutureResult"
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/400"
+          },
+          "401": {
+            "$ref": "#/components/responses/401"
+          },
+          "403": {
+            "$ref": "#/components/responses/403"
+          },
+          "404": {
+            "$ref": "#/components/responses/404"
+          },
+          "409": {
+            "$ref": "#/components/responses/409"
+          },
+          "413": {
+            "$ref": "#/components/responses/413"
+          },
+          "503": {
+            "$ref": "#/components/responses/503"
+          },
+          "default": {
+            "$ref": "#/components/responses/default"
+          }
+        },
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/Id"
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/VersionedRequest"
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/futures/{id}/abandon": {
+      "post": {
+        "operationId": "abandonFuture",
+        "summary": "Abandon a Future without deleting Git",
+        "description": "Compare expected_version before transition. Retain historical revisions and underlying repositories.",
+        "responses": {
+          "200": {
+            "description": "Current persisted result. Successful replay returns the recorded result.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/FutureResult"
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/400"
+          },
+          "401": {
+            "$ref": "#/components/responses/401"
+          },
+          "403": {
+            "$ref": "#/components/responses/403"
+          },
+          "404": {
+            "$ref": "#/components/responses/404"
+          },
+          "409": {
+            "$ref": "#/components/responses/409"
+          },
+          "413": {
+            "$ref": "#/components/responses/413"
+          },
+          "503": {
+            "$ref": "#/components/responses/503"
+          },
+          "default": {
+            "$ref": "#/components/responses/default"
+          }
+        },
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/Id"
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/VersionedRequest"
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/repository-requests/{id}": {
+      "get": {
+        "operationId": "readRepositoryRequest",
+        "summary": "Inspect an operation journal",
+        "responses": {
+          "200": {
+            "description": "Current persisted result. Successful replay returns the recorded result.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RequestDetail"
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/401"
+          },
+          "404": {
+            "$ref": "#/components/responses/404"
+          },
+          "503": {
+            "$ref": "#/components/responses/503"
+          },
+          "default": {
+            "$ref": "#/components/responses/default"
+          }
+        },
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/Id"
+          }
+        ]
+      }
+    },
+    "/api/repository-requests/{id}/recover": {
+      "post": {
+        "operationId": "recoverRepositoryRequest",
+        "summary": "Reconcile a prepared repository operation",
+        "description": "Inspect authoritative provider state and operation ownership. An empty import destination is not success. Partial multi-repository creation remains recovery_required; reconciliation does not blindly repeat external effects.",
+        "responses": {
+          "200": {
+            "description": "Current persisted result. Successful replay returns the recorded result.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RecoveryResult"
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/400"
+          },
+          "401": {
+            "$ref": "#/components/responses/401"
+          },
+          "403": {
+            "$ref": "#/components/responses/403"
+          },
+          "404": {
+            "$ref": "#/components/responses/404"
+          },
+          "409": {
+            "$ref": "#/components/responses/409"
+          },
+          "413": {
+            "$ref": "#/components/responses/413"
+          },
+          "503": {
+            "$ref": "#/components/responses/503"
+          },
+          "default": {
+            "$ref": "#/components/responses/default"
+          }
+        },
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/Id"
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/OperationRequest"
+              }
+            }
+          }
+        }
+      }
+    }
+  },
+  "components": {
+    "securitySchemes": {
+      "OwnerBearer": {
+        "type": "http",
+        "scheme": "bearer",
+        "description": "Configured single-owner credential. Actor identity comes from server configuration, never request-body input. Local loopback development may explicitly omit token enforcement."
+      }
+    },
+    "parameters": {
+      "Id": {
+        "name": "id",
+        "in": "path",
+        "required": true,
+        "schema": {
+          "$ref": "#/components/schemas/Identifier"
+        },
+        "description": "Existing native object or journal identity. URI-encode path values."
+      }
+    },
+    "responses": {
+      "400": {
+        "description": "Invalid JSON input, field type or bound; INVALID_REQUEST, INVALID_NATIVE_INPUT, INVALID_REPO, INVALID_REF, INVALID_DESCRIPTION or INVALID_IMPORT_SOURCE.",
+        "content": {
+          "application/json": {
+            "schema": {
+              "$ref": "#/components/schemas/Error"
+            }
+          }
+        }
+      },
+      "401": {
+        "description": "UNAUTHENTICATED. Actor or required owner Bearer credential is missing or invalid.",
+        "content": {
+          "application/json": {
+            "schema": {
+              "$ref": "#/components/schemas/Error"
+            }
+          }
+        }
+      },
+      "403": {
+        "description": "FORBIDDEN_ORIGIN. Mutating request origin differs from the Worker origin.",
+        "content": {
+          "application/json": {
+            "schema": {
+              "$ref": "#/components/schemas/Error"
+            }
+          }
+        }
+      },
+      "404": {
+        "description": "REPO_NOT_FOUND, SYSTEM_NOT_FOUND, OBJECTIVE_NOT_FOUND, FUTURE_NOT_FOUND or REQUEST_NOT_FOUND.",
+        "content": {
+          "application/json": {
+            "schema": {
+              "$ref": "#/components/schemas/Error"
+            }
+          }
+        }
+      },
+      "405": {
+        "description": "METHOD_NOT_ALLOWED for an unsupported method.",
+        "content": {
+          "application/json": {
+            "schema": {
+              "$ref": "#/components/schemas/Error"
+            }
+          }
+        }
+      },
+      "409": {
+        "description": "State or idempotency conflict. IDEMPOTENCY_CONFLICT, REPO_EXISTS, REPOSITORY_NOT_READY, OBJECTIVE_CLOSED, OBJECTIVE_SYSTEM_MISMATCH, CANONICAL_CHANGED, FUTURE_STALE, FUTURE_CHANGED, FUTURE_ABANDONED, FUTURE_NOT_READY, FORK_NAME_COLLISION, FORK_BASELINE_MISMATCH, RECOVERY_REQUIRED or RECOVERY_NOT_REQUIRED. Re-read current state; reconcile uncertain effects instead of blindly replaying mutations.",
+        "content": {
+          "application/json": {
+            "schema": {
+              "$ref": "#/components/schemas/Error"
+            }
+          }
+        }
+      },
+      "413": {
+        "description": "PAYLOAD_TOO_LARGE. Worker requests are bounded to 1,000,000 bytes.",
+        "content": {
+          "application/json": {
+            "schema": {
+              "$ref": "#/components/schemas/Error"
+            }
+          }
+        }
+      },
+      "422": {
+        "description": "IMPORT_SOURCE_NOT_ALLOWED or IMPORT_DEPTH_LIMIT.",
+        "content": {
+          "application/json": {
+            "schema": {
+              "$ref": "#/components/schemas/Error"
+            }
+          }
+        }
+      },
+      "503": {
+        "description": "AUTH_NOT_CONFIGURED, NATIVE_STATE_UNAVAILABLE, REPOSITORY_PROVIDER_UNAVAILABLE, INVALID_PROVIDER_RESULT, INVALID_GIT_FACTS or RECOVERY_REQUIRED. Uncertain provider effects remain journaled.",
+        "content": {
+          "application/json": {
+            "schema": {
+              "$ref": "#/components/schemas/Error"
+            }
+          }
+        }
+      },
+      "default": {
+        "description": "Runtime or repository provider failure.",
+        "content": {
+          "application/json": {
+            "schema": {
+              "$ref": "#/components/schemas/Error"
+            }
+          }
+        }
+      }
+    },
+    "schemas": {
+      "Identifier": {
+        "type": "string",
+        "maxLength": 200,
+        "pattern": "[\\s\\S]*\\S[\\s\\S]*",
+        "minLength": 1
+      },
+      "RepositoryId": {
+        "type": "string",
+        "minLength": 1,
+        "maxLength": 100,
+        "pattern": "^[A-Za-z0-9][A-Za-z0-9._-]{0,99}$"
+      },
+      "GitObjectId": {
+        "type": "string",
+        "pattern": "^[a-f0-9]{40}(?:[a-f0-9]{24})?$",
+        "description": "Immutable commit or tree object ID. Current lifecycle providers use SHA-1 Git repositories."
+      },
+      "BranchRef": {
+        "type": "string",
+        "maxLength": 255,
+        "pattern": "^refs/heads/[A-Za-z0-9][A-Za-z0-9._/-]*$",
+        "description": "Git branch ref; no '..', '//', trailing slash or segments starting/ending with '.' or ending with '.lock'."
+      },
+      "Producer": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "kind": {
+            "type": "string",
+            "maxLength": 100,
+            "pattern": "[\\s\\S]*\\S[\\s\\S]*",
+            "minLength": 1,
+            "description": "Producer declaration, including 'unknown'. This does not authenticate an actor."
+          },
+          "id": {
+            "type": "string",
+            "maxLength": 200,
+            "pattern": "[\\s\\S]*\\S[\\s\\S]*",
+            "minLength": 1
+          }
+        },
+        "required": ["kind"]
+      },
+      "ImportSource": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "url": {
+            "type": "string",
+            "format": "uri",
+            "maxLength": 2048,
+            "description": "Canonical public HTTPS GitHub or GitLab Git URL. No credentials, query, fragment, port or trailing slash. Private imports and arbitrary hosts are unsupported."
+          },
+          "branch": {
+            "type": "string",
+            "maxLength": 244,
+            "description": "Source branch name, validated as a branch ref."
+          },
+          "depth": {
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 1000,
+            "default": 100
+          }
+        },
+        "required": ["url"]
+      },
+      "RepositoryCreate": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "request_id": {
+            "type": "string",
+            "maxLength": 128,
+            "pattern": "[\\s\\S]*\\S[\\s\\S]*",
+            "minLength": 1,
+            "description": "Stable identity for one operation and its unchanged inputs. Retain it across lost-response retries; changing input requires a new identity."
+          },
+          "id": {
+            "$ref": "#/components/schemas/RepositoryId"
+          },
+          "ref": {
+            "$ref": "#/components/schemas/BranchRef",
+            "description": "Defaults to refs/heads/{source.branch} for import with a branch, otherwise refs/heads/main."
+          },
+          "mode": {
+            "type": "string",
+            "enum": ["create", "import", "adopt"],
+            "default": "create"
+          },
+          "description": {
+            "type": "string",
+            "maxLength": 1000,
+            "description": "Bounded text without control characters or reserved operation markers."
+          },
+          "source": {
+            "$ref": "#/components/schemas/ImportSource"
+          }
+        },
+        "required": ["request_id", "id"],
+        "allOf": [
+          {
+            "if": {
+              "properties": {
+                "mode": {
+                  "const": "import"
+                }
+              },
+              "required": ["mode"]
+            },
+            "then": {
+              "required": ["source"]
+            }
+          }
+        ]
+      },
+      "OperationRequest": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "request_id": {
+            "type": "string",
+            "maxLength": 128,
+            "pattern": "[\\s\\S]*\\S[\\s\\S]*",
+            "minLength": 1,
+            "description": "Stable identity for one operation and its unchanged inputs. Retain it across lost-response retries; changing input requires a new identity."
+          }
+        },
+        "required": ["request_id"]
+      },
+      "VersionedRequest": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "request_id": {
+            "type": "string",
+            "maxLength": 128,
+            "pattern": "[\\s\\S]*\\S[\\s\\S]*",
+            "minLength": 1,
+            "description": "Stable identity for one operation and its unchanged inputs. Retain it across lost-response retries; changing input requires a new identity."
+          },
+          "expected_version": {
+            "type": "integer",
+            "minimum": 1
+          }
+        },
+        "required": ["request_id", "expected_version"]
+      },
+      "SystemCreate": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "request_id": {
+            "type": "string",
+            "maxLength": 128,
+            "pattern": "[\\s\\S]*\\S[\\s\\S]*",
+            "minLength": 1,
+            "description": "Stable identity for one operation and its unchanged inputs. Retain it across lost-response retries; changing input requires a new identity."
+          },
+          "name": {
+            "type": "string",
+            "maxLength": 100,
+            "pattern": "[\\s\\S]*\\S[\\s\\S]*",
+            "minLength": 1
+          },
+          "description": {
+            "type": "string",
+            "maxLength": 2000,
+            "pattern": "^$|[\\s\\S]*\\S[\\s\\S]*"
+          },
+          "repository_ids": {
+            "type": "array",
+            "minItems": 1,
+            "maxItems": 100,
+            "uniqueItems": true,
+            "items": {
+              "$ref": "#/components/schemas/RepositoryId"
+            }
+          }
+        },
+        "required": ["request_id", "name", "repository_ids"]
+      },
+      "ObjectiveCreate": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "request_id": {
+            "type": "string",
+            "maxLength": 128,
+            "pattern": "[\\s\\S]*\\S[\\s\\S]*",
+            "minLength": 1,
+            "description": "Stable identity for one operation and its unchanged inputs. Retain it across lost-response retries; changing input requires a new identity."
+          },
+          "system_id": {
+            "$ref": "#/components/schemas/Identifier"
+          },
+          "statement": {
+            "type": "string",
+            "maxLength": 2000,
+            "pattern": "[\\s\\S]*\\S[\\s\\S]*",
+            "minLength": 1
+          },
+          "scope": {
+            "type": "array",
+            "maxItems": 100,
+            "uniqueItems": true,
+            "items": {
+              "type": "string",
+              "maxLength": 200,
+              "pattern": "[\\s\\S]*\\S[\\s\\S]*",
+              "minLength": 1
+            },
+            "default": []
+          }
+        },
+        "required": ["request_id", "system_id", "statement"]
+      },
+      "FutureCreate": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "request_id": {
+            "type": "string",
+            "maxLength": 128,
+            "pattern": "[\\s\\S]*\\S[\\s\\S]*",
+            "minLength": 1,
+            "description": "Stable identity for one operation and its unchanged inputs. Retain it across lost-response retries; changing input requires a new identity."
+          },
+          "system_id": {
+            "type": "string",
+            "maxLength": 200,
+            "pattern": "^$|[\\s\\S]*\\S[\\s\\S]*"
+          },
+          "objective_id": {
+            "type": "string",
+            "maxLength": 200,
+            "pattern": "^$|[\\s\\S]*\\S[\\s\\S]*"
+          },
+          "repository_ids": {
+            "type": "array",
+            "maxItems": 100,
+            "uniqueItems": true,
+            "items": {
+              "$ref": "#/components/schemas/RepositoryId"
+            }
+          },
+          "statement": {
+            "type": "string",
+            "maxLength": 2000,
+            "pattern": "^$|[\\s\\S]*\\S[\\s\\S]*"
+          },
+          "name": {
+            "type": "string",
+            "maxLength": 100,
+            "pattern": "^$|[\\s\\S]*\\S[\\s\\S]*"
+          },
+          "producer": {
+            "$ref": "#/components/schemas/Producer"
+          }
+        },
+        "required": ["request_id"],
+        "anyOf": [
+          {
+            "required": ["system_id"],
+            "properties": {
+              "system_id": {
+                "minLength": 1
+              }
+            }
+          },
+          {
+            "required": ["objective_id"],
+            "properties": {
+              "objective_id": {
+                "minLength": 1
+              }
+            }
+          },
+          {
+            "required": ["repository_ids"],
+            "properties": {
+              "repository_ids": {
+                "minItems": 1
+              }
+            }
+          }
+        ]
+      },
+      "ObjectiveFutureCreate": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "request_id": {
+            "type": "string",
+            "maxLength": 128,
+            "pattern": "[\\s\\S]*\\S[\\s\\S]*",
+            "minLength": 1,
+            "description": "Stable identity for one operation and its unchanged inputs. Retain it across lost-response retries; changing input requires a new identity."
+          },
+          "repository_ids": {
+            "type": "array",
+            "maxItems": 100,
+            "uniqueItems": true,
+            "items": {
+              "$ref": "#/components/schemas/RepositoryId"
+            }
+          },
+          "name": {
+            "type": "string",
+            "maxLength": 100,
+            "pattern": "^$|[\\s\\S]*\\S[\\s\\S]*"
+          },
+          "producer": {
+            "$ref": "#/components/schemas/Producer"
+          }
+        },
+        "required": ["request_id"]
+      },
+      "Repository": {
+        "type": "object",
+        "required": ["id", "canonical_ref", "status"],
+        "properties": {
+          "id": {
+            "$ref": "#/components/schemas/RepositoryId"
+          },
+          "name": {
+            "type": "string"
+          },
+          "description": {
+            "type": "string"
+          },
+          "canonical_ref": {
+            "$ref": "#/components/schemas/BranchRef"
+          },
+          "provider": {
+            "type": "string"
+          },
+          "remote": {
+            "type": ["string", "null"]
+          },
+          "status": {
+            "type": "string",
+            "enum": ["empty", "ready", "importing", "forking", "unavailable"]
+          },
+          "head": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/GitObjectId"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "tree": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/GitObjectId"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "baseline": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/GitObjectId"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "version": {
+            "type": "integer",
+            "minimum": 1
+          },
+          "operation_id": {
+            "type": ["string", "null"]
+          },
+          "validation_profile": {
+            "type": ["string", "null"]
+          },
+          "context_repo": {
+            "type": ["string", "null"]
+          },
+          "unavailable": {
+            "type": "boolean"
+          }
+        },
+        "description": "Git state descriptor. Empty repositories have null head/tree. Ready establishes Git identity, not validation or executor eligibility. Token-free remotes do not grant Git access."
+      },
+      "SystemRef": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "repo_id": {
+            "$ref": "#/components/schemas/RepositoryId"
+          },
+          "ref": {
+            "$ref": "#/components/schemas/BranchRef"
+          },
+          "status": {
+            "type": "string",
+            "enum": ["empty", "ready", "importing", "forking", "unavailable"]
+          },
+          "remote": {
+            "type": ["string", "null"]
+          }
+        },
+        "required": ["repo_id", "ref"]
+      },
+      "System": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "id": {
+            "$ref": "#/components/schemas/Identifier"
+          },
+          "name": {
+            "type": "string"
+          },
+          "description": {
+            "type": "string"
+          },
+          "repository_refs": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/SystemRef"
+            }
+          },
+          "repository_ids": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/RepositoryId"
+            }
+          },
+          "version": {
+            "type": "integer",
+            "minimum": 1
+          },
+          "created_by": {
+            "type": "string"
+          },
+          "created_at": {
+            "type": "string",
+            "format": "date-time"
+          }
+        },
+        "required": [
+          "id",
+          "name",
+          "description",
+          "repository_refs",
+          "version",
+          "created_by",
+          "created_at"
+        ]
+      },
+      "ObjectiveSource": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "basis": {
+            "type": "string",
+            "enum": ["declared", "unknown"]
+          },
+          "actor": {
+            "type": "string"
+          },
+          "origin": {
+            "type": "string"
+          }
+        },
+        "required": ["basis"]
+      },
+      "Objective": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "id": {
+            "$ref": "#/components/schemas/Identifier"
+          },
+          "system_id": {
+            "$ref": "#/components/schemas/Identifier"
+          },
+          "statement": {
+            "type": ["string", "null"]
+          },
+          "scope": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "source": {
+            "$ref": "#/components/schemas/ObjectiveSource"
+          },
+          "status": {
+            "type": "string",
+            "enum": ["open"]
+          },
+          "created_by": {
+            "type": "string"
+          },
+          "created_at": {
+            "type": "string",
+            "format": "date-time"
+          }
+        },
+        "required": [
+          "id",
+          "system_id",
+          "statement",
+          "scope",
+          "source",
+          "status",
+          "created_by",
+          "created_at"
+        ]
+      },
+      "Baseline": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "repo_id": {
+            "$ref": "#/components/schemas/RepositoryId"
+          },
+          "ref": {
+            "$ref": "#/components/schemas/BranchRef"
+          },
+          "commit": {
+            "$ref": "#/components/schemas/GitObjectId"
+          },
+          "tree": {
+            "$ref": "#/components/schemas/GitObjectId"
+          }
+        },
+        "required": ["repo_id", "ref", "commit", "tree"]
+      },
+      "FutureRepository": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "canonical_repo_id": {
+            "$ref": "#/components/schemas/RepositoryId"
+          },
+          "repo_id": {
+            "$ref": "#/components/schemas/RepositoryId"
+          },
+          "ref": {
+            "$ref": "#/components/schemas/BranchRef"
+          },
+          "remote": {
+            "type": ["string", "null"]
+          },
+          "status": {
+            "type": "string",
+            "enum": ["prepared", "empty", "ready", "importing", "forking", "unavailable"]
+          }
+        },
+        "required": ["canonical_repo_id", "repo_id", "ref", "remote", "status"]
+      },
+      "Future": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "id": {
+            "$ref": "#/components/schemas/Identifier"
+          },
+          "system_id": {
+            "$ref": "#/components/schemas/Identifier"
+          },
+          "objective_id": {
+            "$ref": "#/components/schemas/Identifier"
+          },
+          "name": {
+            "type": "string"
+          },
+          "producer": {
+            "$ref": "#/components/schemas/Producer"
+          },
+          "provenance_state": {
+            "type": "string",
+            "enum": ["declared", "unknown"]
+          },
+          "baseline_refs": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/Baseline"
+            }
+          },
+          "repositories": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/FutureRepository"
+            }
+          },
+          "status": {
+            "type": "string",
+            "enum": [
+              "preparing",
+              "active",
+              "recovery_required",
+              "unavailable",
+              "abandoned",
+              "failed"
+            ]
+          },
+          "creation_request_id": {
+            "$ref": "#/components/schemas/Identifier"
+          },
+          "current_revision_id": {
+            "type": ["string", "null"]
+          },
+          "version": {
+            "type": "integer",
+            "minimum": 1
+          },
+          "created_by": {
+            "type": "string"
+          },
+          "created_at": {
+            "type": "string",
+            "format": "date-time"
+          }
+        },
+        "required": [
+          "id",
+          "system_id",
+          "objective_id",
+          "name",
+          "producer",
+          "provenance_state",
+          "baseline_refs",
+          "repositories",
+          "status",
+          "creation_request_id",
+          "current_revision_id",
+          "version",
+          "created_by",
+          "created_at"
+        ]
+      },
+      "RepositoryHead": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "repo_id": {
+            "$ref": "#/components/schemas/RepositoryId"
+          },
+          "source_repo_id": {
+            "$ref": "#/components/schemas/RepositoryId"
+          },
+          "ref": {
+            "$ref": "#/components/schemas/BranchRef"
+          },
+          "commit": {
+            "$ref": "#/components/schemas/GitObjectId"
+          }
+        },
+        "required": ["repo_id", "source_repo_id", "ref", "commit"]
+      },
+      "TreeHash": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "repo_id": {
+            "$ref": "#/components/schemas/RepositoryId"
+          },
+          "tree": {
+            "$ref": "#/components/schemas/GitObjectId"
+          }
+        },
+        "required": ["repo_id", "tree"]
+      },
+      "AffectedScope": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "repo_id": {
+            "$ref": "#/components/schemas/RepositoryId"
+          },
+          "paths": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          }
+        },
+        "required": ["repo_id", "paths"]
+      },
+      "FutureRevision": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "id": {
+            "$ref": "#/components/schemas/Identifier"
+          },
+          "future_id": {
+            "$ref": "#/components/schemas/Identifier"
+          },
+          "previous_revision_id": {
+            "type": ["string", "null"]
+          },
+          "repository_heads": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/RepositoryHead"
+            }
+          },
+          "tree_hashes": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/TreeHash"
+            }
+          },
+          "baseline_refs": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/Baseline"
+            }
+          },
+          "affected_scope": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/AffectedScope"
+            }
+          },
+          "producer": {
+            "$ref": "#/components/schemas/Producer"
+          },
+          "context_snapshot": {
+            "type": "null"
+          },
+          "provenance_state": {
+            "type": "string",
+            "enum": ["declared", "unknown"]
+          },
+          "created_at": {
+            "type": "string",
+            "format": "date-time"
+          }
+        },
+        "required": [
+          "id",
+          "future_id",
+          "previous_revision_id",
+          "repository_heads",
+          "tree_hashes",
+          "baseline_refs",
+          "affected_scope",
+          "producer",
+          "context_snapshot",
+          "provenance_state",
+          "created_at"
+        ]
+      },
+      "RequestError": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "code": {
+            "type": "string"
+          },
+          "message": {
+            "type": "string"
+          },
+          "status": {
+            "type": "integer"
+          }
+        },
+        "required": ["code", "message", "status"]
+      },
+      "RequestReceipt": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "id": {
+            "$ref": "#/components/schemas/Identifier"
+          },
+          "status": {
+            "type": "string",
+            "enum": ["applied", "failed"]
+          },
+          "retryable": {
+            "type": "boolean"
+          }
+        },
+        "required": ["id", "status"]
+      },
+      "RepositoryResult": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "repository": {
+            "$ref": "#/components/schemas/Repository"
+          },
+          "request": {
+            "$ref": "#/components/schemas/RequestReceipt"
+          }
+        },
+        "required": ["repository"]
+      },
+      "FutureResult": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "future": {
+            "$ref": "#/components/schemas/Future"
+          },
+          "revision": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/FutureRevision"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "changed": {
+            "type": "boolean"
+          }
+        },
+        "required": ["future"]
+      },
+      "SystemResult": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "system": {
+            "$ref": "#/components/schemas/System"
+          }
+        },
+        "required": ["system"]
+      },
+      "ObjectiveResult": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "objective": {
+            "$ref": "#/components/schemas/Objective"
+          }
+        },
+        "required": ["objective"]
+      },
+      "RevisionsResult": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "revisions": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/FutureRevision"
+            }
+          }
+        },
+        "required": ["revisions"]
+      },
+      "FutureDetail": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "future": {
+            "$ref": "#/components/schemas/Future"
+          },
+          "revisions": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/FutureRevision"
+            }
+          }
+        },
+        "required": ["future", "revisions"]
+      },
+      "Request": {
+        "type": "object",
+        "required": ["id", "request_id", "operation", "actor", "status", "created_at", "attempts"],
+        "properties": {
+          "id": {
+            "$ref": "#/components/schemas/Identifier"
+          },
+          "request_id": {
+            "type": "string",
+            "maxLength": 128,
+            "pattern": "[\\s\\S]*\\S[\\s\\S]*",
+            "minLength": 1,
+            "description": "Stable identity for one operation and its unchanged inputs. Retain it across lost-response retries; changing input requires a new identity."
+          },
+          "operation": {
+            "type": "string",
+            "enum": [
+              "repository.register",
+              "repository.refresh",
+              "repository.recover",
+              "system.create",
+              "objective.create",
+              "future.create",
+              "future.observe",
+              "future.abandon"
+            ]
+          },
+          "input_hash": {
+            "type": "string"
+          },
+          "actor": {
+            "type": "string"
+          },
+          "status": {
+            "type": "string",
+            "enum": ["prepared", "applied", "failed", "recovery_required"]
+          },
+          "future_id": {
+            "$ref": "#/components/schemas/Identifier"
+          },
+          "created_at": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "attempts": {
+            "type": "integer",
+            "minimum": 1
+          },
+          "error": {
+            "$ref": "#/components/schemas/RequestError"
+          }
+        },
+        "description": "Durable operation journal projection. Inspection includes prepared/observed effect records; catalogue projection omits inputs, effects and results."
+      },
+      "RequestDetail": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "request": {
+            "$ref": "#/components/schemas/Request"
+          }
+        },
+        "required": ["request"]
+      },
+      "InterruptedRead": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "request": {
+            "$ref": "#/components/schemas/RequestReceipt"
+          },
+          "outcome": {
+            "type": "string",
+            "const": "no_repository_effect"
+          }
+        },
+        "required": ["request", "outcome"]
+      },
+      "RecoveryResult": {
+        "oneOf": [
+          {
+            "$ref": "#/components/schemas/RepositoryResult"
+          },
+          {
+            "$ref": "#/components/schemas/FutureResult"
+          },
+          {
+            "$ref": "#/components/schemas/SystemResult"
+          },
+          {
+            "$ref": "#/components/schemas/ObjectiveResult"
+          },
+          {
+            "$ref": "#/components/schemas/InterruptedRead"
+          }
+        ]
+      },
+      "NativeState": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "systems": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/System"
+            }
+          },
+          "objectives": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/Objective"
+            }
+          },
+          "futures": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/Future"
+            }
+          },
+          "futureRevisions": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/FutureRevision"
+            }
+          },
+          "repositories": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/Repository"
+            }
+          },
+          "requests": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/Request"
+            }
+          },
+          "attention": {
+            "type": "object",
+            "additionalProperties": false,
+            "properties": {
+              "kind": {
+                "type": "string",
+                "enum": ["nothing", "recovery"]
+              },
+              "count": {
+                "type": "integer",
+                "minimum": 0
+              }
+            },
+            "required": ["kind", "count"]
+          }
+        },
+        "required": [
+          "systems",
+          "objectives",
+          "futures",
+          "futureRevisions",
+          "repositories",
+          "requests",
+          "attention"
+        ]
+      },
+      "Error": {
+        "type": "object",
+        "required": ["error"],
+        "properties": {
+          "error": {
+            "type": "string"
+          },
+          "message": {
+            "type": "string"
+          },
+          "details": {
+            "type": "object",
+            "additionalProperties": true
+          }
+        },
+        "description": "Domain error code, explanatory message where available and bounded recovery details. Provider-specific failures may add error codes."
+      },
+      "Repositories": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "repositories": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/Repository"
+            }
+          }
+        },
+        "required": ["repositories"]
+      },
+      "Systems": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "systems": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/System"
+            }
+          }
+        },
+        "required": ["systems"]
+      },
+      "Objectives": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "objectives": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/Objective"
+            }
+          }
+        },
+        "required": ["objectives"]
+      },
+      "Futures": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "futures": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/Future"
+            }
+          }
+        },
+        "required": ["futures"]
+      }
+    }
+  }
+}

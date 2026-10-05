@@ -28,7 +28,7 @@ test('current capability registry keeps bounded trust and deployment limits visi
   const registry = getCapabilities();
   assert.equal(registry.version, 0);
   const statuses = new Set(registry.statuses.map((status) => status.id));
-  assert.deepEqual(statuses, new Set(['SUPPORTED', 'PARTIAL', 'EXPERIMENTAL', 'UNSUPPORTED']));
+  assert.deepEqual(statuses, new Set(['VERIFIED', 'PARTIAL', 'EXPERIMENTAL', 'UNSUPPORTED']));
   const entries = new Map(registry.capabilities.map((capability) => [capability.id, capability]));
   assert.equal(entries.size, registry.capabilities.length, 'Capability IDs must be unique');
   for (const capability of entries.values()) {
@@ -59,6 +59,12 @@ test('current capability registry keeps bounded trust and deployment limits visi
   assert.match(entries.get('security.identity').limits, /no multi-user authentication/i);
   assert.equal(entries.get('cloudflare.live').status, 'EXPERIMENTAL');
   assert.match(entries.get('cloudflare.live').limits, /live provisioning.*unverified/i);
+  assert.equal(entries.get('cloudflare.lifecycle').status, 'EXPERIMENTAL');
+  assert.equal(entries.get('state.futures').status, 'PARTIAL');
+  assert.match(entries.get('state.observation').limits, /not behavior.*trusted validation/i);
+  assert.equal(entries.get('composition.native').status, 'UNSUPPORTED');
+  assert.equal(entries.get('canonical.multi').status, 'UNSUPPORTED');
+  assert.equal(entries.get('decisions.semantic').status, 'UNSUPPORTED');
 });
 
 test('capability snapshots cannot change later responses', () => {
@@ -68,14 +74,14 @@ test('capability snapshots cannot change later responses', () => {
   edited.statuses[0].label = 'Forged';
   edited.capabilities[0].status = 'UNSUPPORTED';
   edited.capabilities[0].limits = '';
-  edited.capabilities[0].tests.pop();
+  edited.capabilities.find((capability) => capability.tests?.length).tests.pop();
   edited.capabilities.pop();
   assert.deepEqual(getCapabilities(), expected);
 });
 
-test('supported capability claims link to existing automated coverage suites', async () => {
+test('verified capability claims link to existing automated coverage suites', async () => {
   const entries = getCapabilities().capabilities;
-  for (const entry of entries.filter((value) => value.status === 'SUPPORTED')) {
+  for (const entry of entries.filter((value) => value.status === 'VERIFIED')) {
     assert.ok(Array.isArray(entry.tests) && entry.tests.length, `${entry.id} needs coverage links`);
   }
   const files = new Set(entries.flatMap((entry) => entry.tests ?? []));
@@ -83,7 +89,7 @@ test('supported capability claims link to existing automated coverage suites', a
     [...files].map(async (file) => {
       assert.match(
         file,
-        /^tests\/[\w-]+\.test\.mjs$/,
+        /^tests\/[\w-]+\.(?:test|smoke)\.mjs$/,
         'Coverage links must be relative test-suite paths',
       );
       assert.ok(
@@ -106,7 +112,7 @@ test('capability API is authenticated, read-only and independent of producer inp
   );
   const result = await handleWorkflowRequest(inaccessibleEngine, {
     ...request,
-    input: { actor: 'forged-owner', status: 'SUPPORTED', capabilities: [] },
+    input: { actor: 'forged-owner', status: 'VERIFIED', capabilities: [] },
   });
   assert.deepEqual(result, getCapabilities());
   result.capabilities[0].limits = 'Forged';

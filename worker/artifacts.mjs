@@ -1,4 +1,10 @@
 import { DomainError } from '../core/hash.mjs';
+import {
+  artifactRepositoryCreate,
+  artifactRepositoryFork,
+  artifactRepositoryImport,
+  artifactRepositoryInfo,
+} from './artifact-repositories.mjs';
 
 /**
  * Worker-side Git adapter: native Artifacts reads remain available without the
@@ -12,6 +18,18 @@ export class ArtifactsGit {
   constructor(env) {
     this.env = env;
     this.configHash = env.VALIDATION_CONFIG_HASH;
+  }
+  repositoryCreate(input) {
+    return artifactRepositoryCreate(this.env, input);
+  }
+  repositoryImport(input) {
+    return artifactRepositoryImport(this.env, input);
+  }
+  repositoryFork(input) {
+    return artifactRepositoryFork(this.env, input);
+  }
+  repositoryInfo(input) {
+    return artifactRepositoryInfo(this.env, input);
   }
   async withRepo(repo, fn) {
     const capability = await this.env.ARTIFACTS.get(repo.id);

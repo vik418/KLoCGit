@@ -15,7 +15,7 @@ concurrency:
 jobs:
   check:
     runs-on: ubuntu-22.04
-    timeout-minutes: 15
+    timeout-minutes: 20
     steps:
       - uses: actions/checkout@v7
       - uses: actions/setup-node@v7
@@ -30,3 +30,6 @@ jobs:
           git config --global user.email "tests@localhost"
       - run: npm ci
       - run: npm run check
+      - name: Install browser
+        run: npx playwright install --with-deps chromium
+      - run: npm run test:browser

@@ -220,9 +220,9 @@ select:focus-visible {
   line-height: 1.5;
 }
 
-.field input,
-.field select,
-.field textarea {
+.field input:not([data-slot='input']),
+.field select:not([data-slot='native-select']),
+.field textarea:not([data-slot='textarea']) {
   display: block;
   width: 100%;
   margin-top: 7px;
@@ -237,6 +237,12 @@ select:focus-visible {
 
 .field textarea {
   resize: vertical;
+}
+
+.field [data-slot='input'],
+.field [data-slot='textarea'],
+.field [data-slot='native-select-wrapper'] {
+  margin-top: 7px;
 }
 
 .form-grid {

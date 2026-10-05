@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { X } from 'lucide-react';
 import { ErrorMessage } from '../../ui/ErrorMessage.jsx';
-import { Dialog } from '../../ui/Dialog.jsx';
+import { Dialog, DialogTitle } from '../../ui/Dialog.jsx';
 import { useMutation } from '../../hooks/useMutation.js';
 
 export function NewMergeRequest({ workspace, onClose, onCreated, reload, message }) {
@@ -38,7 +38,9 @@ export function NewMergeRequest({ workspace, onClose, onCreated, reload, message
       <div className="dialog-header">
         <div>
           <span className="eyebrow">NATIVE MERGE REQUEST</span>
-          <h2>Open a merge request</h2>
+          <DialogTitle asChild>
+            <h2>Open a merge request</h2>
+          </DialogTitle>
         </div>
         <button className="icon-btn" onClick={onClose} aria-label="Close new merge request">
           <X size={20} />

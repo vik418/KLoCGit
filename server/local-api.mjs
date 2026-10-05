@@ -1,6 +1,7 @@
 import { DomainError, record } from '../core/hash.mjs';
 import { createDemo, produceWork } from '../scripts/demo.mjs';
 import { handleWorkflowRequest } from './workflow-api.mjs';
+import { handleNativeRequest, ownsNativePath } from './native-api.mjs';
 
 async function resetDemo(engine, actor, { root, save }) {
   const next = await createDemo(root, save, { pending: true });
@@ -67,6 +68,9 @@ async function handleDemoRequest(engine, { method, path, actor }, options) {
 
 /** Called only inside the local server's serialized request boundary. */
 export async function handleLocalRequest(engine, { method, url, input, actor }, options) {
+  if (ownsNativePath(url.pathname))
+    return handleNativeRequest(engine, { method, url, input, actor });
+
   const workflow = await handleWorkflowRequest(engine, { method, url, input, actor });
   if (workflow !== null) return workflow;
   const path = url.pathname;
@@ -116,7 +120,9 @@ export async function handleLocalRequest(engine, { method, url, input, actor }, 
       ),
     };
   }
-  if (path === '/api/events' && method === 'POST')
-    return engine.ingest(input.event, input.metadata);
+  if (path === '/api/events' && method === 'POST') {
+    const native = await engine.native.observeRepositoryPush(input.event, actor);
+    return native.handled ? native : engine.ingest(input.event, input.metadata);
+  }
   throw new DomainError('NOT_FOUND', 'Endpoint not found', 404);
 }
