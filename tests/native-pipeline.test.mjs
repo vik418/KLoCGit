@@ -546,3 +546,98 @@ test('recovery after a lost metadata acknowledgement does not duplicate canonica
   );
   assert.equal(updates.length, 1);
 });
+
+test('operator settlement records a declared outcome and releases the block without replay', async (t) => {
+  const f = await fixture(t);
+  const candidate = await f.candidate(await f.selection());
+  const input = await f.reviewed(candidate);
+  let writes = 0;
+  f.adapter.cas = async () => { writes++; throw new Error('unknown transport outcome'); };
+  await assert.rejects(() => f.engine.pipeline.promote(candidate.id, input, 'owner'));
+  await f.engine.recover();
+  const operation = f.state.operations[0];
+  const settlementInput = {
+    request_id: 'operator-settlement', expected_head: f.base, outcome: 'not_applied',
+    confirmed: true, rationale: 'Inspected repository history and the executor operation log.',
+  };
+  const result = await f.engine.pipeline.settleOperation(operation.id, settlementInput, 'owner');
+  assert.equal(result.operation.status, 'settled');
+  assert.equal(result.settlement.basis, 'declared');
+  assert.equal(result.settlement.observed_ref.basis, 'observed');
+  assert.equal(result.settlement.observed_ref.commit, f.base);
+  assert.equal(result.settlement.actor, 'owner');
+  assert.equal(writes, 1, 'Settlement never calls CAS');
+  assert.deepEqual(
+    await f.engine.pipeline.settleOperation(operation.id, settlementInput, 'owner'), result,
+  );
+  assert.equal(f.state.nativeSettlements.length, 1);
+  assert.equal(Object.isFrozen(f.state.nativeSettlements[0]), true);
+  f.adapter.cas = LocalGit.prototype.cas.bind(f.adapter);
+  const applied = await f.engine.pipeline.promote(candidate.id, {
+    ...input, request_id: 'new-reviewed-promotion',
+  }, 'owner');
+  assert.equal(applied.operation.status, 'applied');
+});
+
+test('operator settlement preserves an applied-then-moved attestation without changing Git', async (t) => {
+  const f = await fixture(t);
+  const candidate = await f.candidate(await f.selection());
+  const input = await f.reviewed(candidate);
+  const cas = f.adapter.cas.bind(f.adapter);
+  f.adapter.cas = async (...args) => {
+    await cas(...args);
+    await git(f.adapter.dir({ id: 'app' }), ['update-ref', ref, f.a]);
+    throw new Error('lost reply after external movement');
+  };
+  await assert.rejects(() => f.engine.pipeline.promote(candidate.id, input, 'owner'));
+  await f.engine.recover();
+  const result = await f.engine.pipeline.settleOperation(f.state.operations[0].id, {
+    request_id: 'moved-settlement', expected_head: f.a, outcome: 'applied_then_moved',
+    confirmed: true, rationale: 'Inspected the write receipt and later external ref update.',
+  }, 'owner');
+  assert.equal(result.settlement.outcome, 'applied_then_moved');
+  assert.equal(result.settlement.basis, 'declared');
+  assert.equal(await f.adapter.ref({ id: 'app' }, ref), f.a);
+});
+
+test('settlement rejects stale refs, missing confirmation and unauthenticated actors', async (t) => {
+  const f = await fixture(t);
+  const candidate = await f.candidate(await f.selection());
+  const input = await f.reviewed(candidate);
+  f.adapter.cas = async () => { throw new Error('unknown outcome'); };
+  await assert.rejects(() => f.engine.pipeline.promote(candidate.id, input, 'owner'));
+  const operation = f.state.operations[0];
+  const settlement = {
+    request_id: 'stale-settlement', expected_head: f.base, outcome: 'not_applied',
+    confirmed: true, rationale: 'Inspected the history.',
+  };
+  await assert.rejects(() => f.engine.pipeline.settleOperation(operation.id, {
+    ...settlement, confirmed: false,
+  }, 'owner'), { code: 'INVALID_SETTLEMENT' });
+  await assert.rejects(() => f.engine.pipeline.settleOperation(operation.id, settlement, ''), {
+    code: 'UNAUTHENTICATED',
+  });
+  await git(f.adapter.dir({ id: 'app' }), ['update-ref', ref, f.a]);
+  await assert.rejects(() => f.engine.pipeline.settleOperation(operation.id, settlement, 'owner'), {
+    code: 'SETTLEMENT_STALE',
+  });
+  assert.equal(operation.status, 'recovery-required');
+  assert.equal(f.state.nativeSettlements.length, 0);
+});
+
+test('an exact prepared target is reconciled rather than settled through a human claim', async (t) => {
+  const f = await fixture(t);
+  const candidate = await f.candidate(await f.selection());
+  const input = await f.reviewed(candidate);
+  const cas = f.adapter.cas.bind(f.adapter);
+  f.adapter.cas = async (...args) => { await cas(...args); throw new Error('lost reply'); };
+  await assert.rejects(() => f.engine.pipeline.promote(candidate.id, input, 'owner'));
+  const operation = f.state.operations[0];
+  await assert.rejects(() => f.engine.pipeline.settleOperation(operation.id, {
+    request_id: 'target-settlement', expected_head: operation.target_commit,
+    outcome: 'not_applied', confirmed: true, rationale: 'A proposed attestation.',
+  }, 'owner'), { code: 'RECOVERY_TARGET_PRESENT' });
+  assert.equal(f.state.nativeSettlements.length, 0);
+  await f.engine.recover();
+  assert.equal(operation.status, 'applied');
+});

@@ -136,7 +136,7 @@ npm ci
 LOCAL_ACTOR_ID="$(git config user.email)" npm run dev
 ```
 
-`LOCAL_ACTOR_ID` is required. `LOCAL_OWNER_TOKEN` optionally requires a *** The browser keeps that credential in page memory. Configure the token before exposing the development server beyond localhost; this is single-owner authentication.
+`LOCAL_ACTOR_ID` is required. `LOCAL_OWNER_TOKEN` optionally requires a Bearer credential. The browser keeps that credential in page memory. Configure the token before exposing the development server beyond localhost; this is single-owner authentication.
 
 Startup uses an empty workspace. The optional `npm run demo:reset` command replaces the default disposable workspace with sample repositories; stop the server first. It does not reset a custom `KLOCGIT_ROOT`. Backup and restore metadata together with its repositories. Missing metadata beside intact repositories must not trigger destructive initialization.
 
@@ -215,3 +215,5 @@ A CandidateState records selected revisions, canonical base heads and retained r
 The review basis covers the candidate, selections, evidence, constraints, configuration, current Future pointers and canonical heads. Promotion verifies both that basis and expected heads, checks source refs directly, then persists an immutable decision and prepared operation before Git CAS. Native and compatibility writes share one journal. Lost replies block further writes; recovery observes the exact target and never repeats CAS.
 
 This version promotes exactly one changed repository. Multi-repository candidates can be composed and validated, but promotion is blocked. Cross-repository atomicity and protection against a dependency changing during the final single-ref write are not claimed. Cloudflare execution still requires operator-owned validation profiles and admission of every source repository to the scoped executor manifest.
+
+An issued promotion whose exact target is no longer present remains uncertain. An authenticated operator may settle its outcome after inspecting history, pinning the observed ref and recording a rationale. The historical outcome remains a declared attestation; the ref read is observed evidence. Settlement is audited and never writes Git or silently retries the prepared target.

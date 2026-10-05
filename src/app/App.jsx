@@ -12,6 +12,7 @@ import { NewRepository } from '../features/systems/NewRepository.jsx';
 import { NewSystem } from '../features/systems/NewSystem.jsx';
 import { NewObjective } from '../features/systems/NewObjective.jsx';
 import { NewCandidate } from '../features/futures/NewCandidate.jsx';
+import { SettlementDialog } from '../features/futures/SettlementDialog.jsx';
 import { CandidateDialog } from '../features/futures/CandidateDialog.jsx';
 import { NewFuture } from '../features/futures/NewFuture.jsx';
 import { WorkView } from '../features/work/WorkView.jsx';
@@ -58,6 +59,7 @@ export function App() {
   const [selectedMergeRequestId, setSelectedMergeRequestId] = useState(null);
   const [showNewMergeRequest, setShowNewMergeRequest] = useState(false);
   const [showCapabilities, setShowCapabilities] = useState(false);
+  const [settlementId, setSettlementId] = useState(null);
   const [candidateId, setCandidateId] = useState(null);
   const [nativeDialog, setNativeDialog] = useState(null);
 
@@ -123,6 +125,7 @@ export function App() {
               onSystems={() => setActiveTab('systems')}
               onFutures={() => setActiveTab('futures')}
               onCandidate={setCandidateId}
+              onSettlement={setSettlementId}
               onDecision={setSelectedDecisionId}
               onProposal={setSelectedProposalId}
               reload={reload}
@@ -203,6 +206,15 @@ export function App() {
             setCandidateId(id);
             setActiveTab('attention');
           }}
+        />
+      )}
+      {settlementId && workspace.nativeState.promotions.some((operation) => operation.id === settlementId) && (
+        <SettlementDialog
+          operation={workspace.nativeState.promotions.find((operation) => operation.id === settlementId)}
+          repository={workspace.repositories.find((repo) =>
+            repo.id === workspace.nativeState.promotions.find((operation) => operation.id === settlementId).repo
+          )}
+          onClose={() => setSettlementId(null)} reload={reload} message={notify}
         />
       )}
       {candidateId && (

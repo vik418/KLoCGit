@@ -32,7 +32,7 @@ export class NativePipeline {
   }
 
   get state() {
-    for (const key of ['selections', 'candidateStates', 'nativeDecisions'])
+    for (const key of ['selections', 'candidateStates', 'nativeDecisions', 'nativeSettlements'])
       this.engine.state[key] ??= [];
     return this.engine.state;
   }
@@ -339,6 +339,8 @@ export class NativePipeline {
           decision: this.object('nativeDecisions', previous.decision_id),
           operation: previous,
         };
+      if (previous.status === 'settled')
+        throw new DomainError('PROMOTION_SETTLED', 'The prior attempt was settled; review and submit a new request', 409);
       if (previous.status === 'not-applied')
         throw new DomainError(
           'PROMOTION_NOT_ISSUED',
@@ -457,6 +459,74 @@ export class NativePipeline {
     operation.status = 'applied';
   }
 
+  /**
+   * Settle an issued write from an explicit operator attestation. A current ref
+   * cannot prove historical non-application; retain the claim as declared data.
+   * This releases the journal block without issuing, undoing or repeating Git.
+   */
+  async settleOperation(id, input, actor) {
+    actorIdentity(actor);
+    if (
+      input.confirmed !== true ||
+      !['not_applied', 'applied_then_moved'].includes(input.outcome) ||
+      !oid.test(input.expected_head ?? '') ||
+      typeof input.rationale !== 'string' ||
+      !input.rationale.trim() ||
+      input.rationale.length > 4000
+    )
+      throw new DomainError('INVALID_SETTLEMENT', 'Confirm the inspected outcome and rationale');
+    const operation = this.state.operations.find((entry) => entry.id === id && entry.kind === 'native');
+    if (!operation) throw new DomainError('NOT_FOUND', 'Native promotion not found', 404);
+    const value = {
+      expected_head: input.expected_head,
+      outcome: input.outcome,
+      confirmed: input.confirmed,
+      rationale: input.rationale,
+      request_id: input.request_id,
+    };
+    return this.engine.native.request(
+      'promotion.settle',
+      {
+        operation_id: id,
+        expected_head: value.expected_head,
+        outcome: value.outcome,
+        confirmed: value.confirmed,
+        rationale: value.rationale,
+        request_id: value.request_id,
+      },
+      actor,
+      async () => {
+        if (operation.status !== 'recovery-required' || operation.dispatch_state !== 'issued')
+          throw new DomainError('OPERATION_NOT_UNCERTAIN', 'Reconcile the operation before settlement', 409);
+        const repo = this.engine.repo(operation.repo);
+        const observed = await this.engine.git.ref(repo, repo.canonical_ref);
+        if (observed !== value.expected_head)
+          throw new DomainError('SETTLEMENT_STALE', 'Git changed; reopen and review the settlement', 409);
+        if (observed === operation.target_commit)
+          throw new DomainError('RECOVERY_TARGET_PRESENT', 'The exact target is present; run reconciliation', 409);
+        const settlement = await record('settlement', {
+          operation_id: id,
+          decision_id: operation.decision_id,
+          outcome: value.outcome,
+          basis: 'declared',
+          observed_ref: { repo_id: repo.id, ref: repo.canonical_ref, commit: observed, basis: 'observed' },
+          rationale: value.rationale.trim(),
+          actor,
+          created_at: now(),
+        });
+        this.state.nativeSettlements.push(settlement);
+        operation.status = 'settled';
+        operation.settlement_id = settlement.id;
+        await this.engine.native.event('promotion.settled', actor, {
+          operation_id: id,
+          settlement_id: settlement.id,
+          repo: repo.id,
+        });
+        return { settlement, operation };
+      },
+    );
+  }
+
   async recoverOperation(operation) {
     const decision = this.object('nativeDecisions', operation.decision_id);
     const candidate = this.object('candidateStates', decision.candidate_id);
@@ -489,6 +559,7 @@ export class NativePipeline {
       selections: this.state.selections,
       candidates: this.state.candidateStates,
       decisions: this.state.nativeDecisions,
+      settlements: this.state.nativeSettlements,
       promotions: this.state.operations.filter((operation) => operation.kind === 'native'),
     });
   }

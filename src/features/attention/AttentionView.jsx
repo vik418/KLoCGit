@@ -1,6 +1,7 @@
 import { CircleHelp, GitFork, TriangleAlert } from 'lucide-react';
 import { Button } from '../../ui/Button.jsx';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '../../ui/Card.jsx';
+import { useNativeMutation } from '../../hooks/useNativeMutation.js';
 import { DecisionList } from '../decisions/DecisionList.jsx';
 
 export function AttentionView({
@@ -9,12 +10,14 @@ export function AttentionView({
   onSystems,
   onFutures,
   onCandidate,
+  onSettlement,
   onDecision,
   onProposal,
   reload,
   message,
 }) {
   const native = workspace.nativeState;
+  const { busy, error, mutate } = useNativeMutation(reload, message);
   const recovery = native.requests.filter((request) =>
     ['prepared', 'recovery_required'].includes(request.status),
   );
@@ -40,25 +43,24 @@ export function AttentionView({
               A promotion has an uncertain outcome. Recovery reads Git and never repeats the write.
             </CardDescription>
           </CardHeader>
-          <CardContent>
+          <CardContent className="space-y-3">
+            {error && <p className="error-banner" role="alert">{error}</p>}
             <Button
               type="button"
               variant="outline"
-              onClick={async () => {
-                try {
-                  const { apiRequest } = await import('../../lib/api.js');
-                  await apiRequest('/recover', { method: 'POST', body: {} });
-                  await reload();
-                  message(
-                    'Canonical reconciliation completed. Inspect any remaining recovery state.',
-                  );
-                } catch (error) {
-                  message(error.message, 'error');
-                }
-              }}
+              disabled={busy}
+              onClick={() =>
+                mutate('/recover', {}, 'Canonical reconciliation completed. Inspect remaining recovery state.')
+              }
             >
-              Reconcile promotion
+              {busy ? 'Reconciling…' : 'Reconcile promotion'}
             </Button>
+            {promotions.filter((operation) => operation.status === 'recovery-required' && operation.dispatch_state === 'issued').map((operation) => (
+              <Button key={operation.id} type="button" variant="outline" disabled={busy}
+                onClick={() => onSettlement(operation.id)}>
+                Inspect outcome for {operation.repo}
+              </Button>
+            ))}
           </CardContent>
         </Card>
       )}

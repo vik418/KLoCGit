@@ -4,6 +4,7 @@ const roots = [
   '/api/native-state',
   '/api/selections',
   '/api/candidates',
+  '/api/promotions',
   '/api/systems',
   '/api/objectives',
   '/api/futures',
@@ -84,6 +85,15 @@ export async function handleNativeRequest(engine, { method, url, input = {}, act
         actor,
       );
     methodError();
+  }
+  const promotion = path.match(/^\/api\/promotions\/([^/]+)\/settle$/);
+  if (promotion) {
+    if (method !== 'POST') methodError();
+    return engine.pipeline.settleOperation(
+      promotion[1],
+      pick(input, ['request_id', 'expected_head', 'outcome', 'confirmed', 'rationale']),
+      actor,
+    );
   }
   if (path === '/api/repositories') {
     if (method === 'GET') return { repositories: native.view(actor).repositories };
