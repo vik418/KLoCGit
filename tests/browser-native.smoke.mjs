@@ -84,6 +84,14 @@ async function authenticate(page, url) {
   await page.getByRole('button', { name: 'Systems', exact: true }).waitFor();
 }
 
+async function waitForFocus(page, control) {
+  // Radix restores focus during unmount, after the dialog leaves the document.
+  const element = await control.elementHandle();
+  await page.waitForFunction((node) => node === document.activeElement, element, {
+    timeout: 5000,
+  });
+}
+
 async function assertFitsViewport(page) {
   const dimensions = await page.evaluate(() => ({
     width: window.innerWidth,
@@ -159,6 +167,7 @@ try {
   );
   await page.keyboard.press('Escape');
   await dialog.waitFor({ state: 'hidden' });
+  await waitForFocus(page, addRepository);
   assert.equal(
     await addRepository.evaluate((element) => element === document.activeElement),
     true,
@@ -294,6 +303,7 @@ try {
   await assertFitsViewport(page);
   await page.keyboard.press('Escape');
   await dialog.waitFor({ state: 'hidden' });
+  await waitForFocus(page, addRepository);
   assert.equal(await addRepository.evaluate((element) => element === document.activeElement), true);
   assert.deepEqual(pageErrors, [], 'Browser must not throw runtime errors');
   assert.deepEqual(
