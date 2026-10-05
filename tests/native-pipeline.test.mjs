@@ -332,3 +332,11 @@ test('a crash after preparing but before dispatch is safely settled without Git 
   assert.equal(writes, 0);
   assert.equal(await f.adapter.ref({ id: 'app' }, ref), f.base);
 });
+
+test('local CAS does not classify an unacknowledged unchanged head as proof of no write', async (t) => {
+  const f = await fixture(t);
+  await assert.rejects(() => f.adapter.cas(f.engine.repo('app'), f.base, '0'.repeat(40)), {
+    code: 'CANONICAL_WRITE_UNCERTAIN',
+  });
+  assert.equal(await f.adapter.ref({ id: 'app' }, ref), f.base);
+});

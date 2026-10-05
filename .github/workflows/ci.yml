@@ -39,6 +39,7 @@ jobs:
           for (const path of paths) console.log('KLOCGIT_FORMATTED_FILE ' + JSON.stringify({ path, content: readFileSync(path, 'utf8') }));
           NODE
           npm run lint
+          node --test tests/native-pipeline.test.mjs
           npm test
           npm run build
           npm run check:worker

@@ -572,15 +572,30 @@ export class LocalGit {
    * @param {{id: string, canonical_ref: string}} repo Canonical repository descriptor.
    * @param {string} expected Immutable old commit ID supplied by the reviewed decision.
    * @param {string} commit Retained candidate commit selected for application.
-   * @returns {Promise<boolean>} True when update-ref completes; false on any caught
-   *   command/path failure, including an old-head mismatch. False has no finer diagnosis.
+   * @returns {Promise<boolean>} True when update-ref completes; false when a failed command is
+   *   followed by an observed different head. Ambiguous outcomes throw for recovery.
    */
   async cas(repo, expected, commit) {
+    immutableCommit(expected);
+    immutableCommit(commit);
+    if (
+      !/^refs\/heads\/[a-zA-Z0-9._/-]+$/.test(repo.canonical_ref ?? '') ||
+      repo.canonical_ref.includes('..')
+    )
+      throw new DomainError('INVALID_REF', 'A valid canonical branch ref is required');
     try {
       await git(this.dir(repo), ['update-ref', repo.canonical_ref, commit, expected]);
       return true;
     } catch {
-      return false;
+      const observed = await this.ref(repo, repo.canonical_ref);
+      // A command failure is not proof of no write. Preserve ambiguous outcomes
+      // for the coordinator's exact-target recovery instead of permitting replay.
+      if (observed !== expected && observed !== commit) return false;
+      throw new DomainError(
+        'CANONICAL_WRITE_UNCERTAIN',
+        'Git did not acknowledge the canonical write; reconciliation is required',
+        503,
+      );
     }
   }
   async diff(repo, base, head) {
