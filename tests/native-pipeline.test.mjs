@@ -541,9 +541,8 @@ test('recovery after a lost metadata acknowledgement does not duplicate canonica
   const restarted = new Engine(structuredClone(f.saved.at(-1)), f.adapter);
   await restarted.recover();
   assert.equal(restarted.state.operations[0].status, 'applied');
-  assert.equal(
-    restarted.state.nativeEvents.filter((event) => event.type === 'io.klocgit.canonical.updated')
-      .length,
-    1,
+  const updates = restarted.state.nativeEvents.filter(
+    (event) => event.type === 'io.klocgit.canonical.updated',
   );
+  assert.equal(updates.length, 1);
 });
