@@ -106,6 +106,7 @@ export async function createBridge({ manifest, token = process.env.GIT_BRIDGE_TO
         if (
           [
             '/compose',
+            '/compose-selections',
             '/revert',
             '/is-ancestor',
             '/merge-base',
@@ -121,6 +122,8 @@ export async function createBridge({ manifest, token = process.env.GIT_BRIDGE_TO
             'Repository validation configuration differs between coordinator and trusted executor',
             409,
           );
+        if (req.url === '/compose-selections')
+          return adapter.composeSelections(repo, input.head, input.selections);
         if (req.url === '/compose') return adapter.compose(repo, input.head, input.revisions);
         if (req.url === '/revert')
           return adapter.revert(repo, input.head, input.target, input.mainline);

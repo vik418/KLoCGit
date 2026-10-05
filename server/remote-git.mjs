@@ -193,6 +193,21 @@ export class RemoteGit extends LocalGit {
     // Retain the actual candidate before the engine prepares a canonical operation.
     return this.retainCandidate(repo, result);
   }
+  async composeSelections(repo, head, selections) {
+    commit(head);
+    await this.ensureCommit(repo.id, head);
+    if (!Array.isArray(selections) || selections.length > 100)
+      throw new DomainError('INVALID_SELECTION', 'A bounded selection list is required');
+    for (const selection of selections) {
+      const source = selection.source_repo;
+      for (const oid of [selection.base_commit, selection.head_commit, ...(selection.commits ?? [])])
+        await this.ensureCommit(source, oid);
+    }
+    return this.retainCandidate(
+      repo,
+      await super.composeSelections(this.configured(repo), head, selections),
+    );
+  }
   async revert(repo, currentHead, targetCommit, mainline) {
     commit(currentHead);
     commit(targetCommit);

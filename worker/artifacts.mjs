@@ -174,6 +174,9 @@ export class ArtifactsGit {
   async compose(repo, head, revisions) {
     return this.execute('compose', { ...this.descriptor(repo), head, revisions });
   }
+  async composeSelections(repo, head, selections) {
+    return this.execute('compose-selections', { ...this.descriptor(repo), head, selections });
+  }
   async isAncestor(repo, ancestor, descendant) {
     if (![ancestor, descendant].every((value) => /^[a-f0-9]{40}$/.test(value ?? '')))
       throw new DomainError('INVALID_COMMIT', 'Ancestry checks require immutable commit hashes');

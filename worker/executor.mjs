@@ -9,6 +9,7 @@ const json = (data, status = 200) =>
   });
 const operations = new Set([
   '/compose',
+  '/compose-selections',
   '/revert',
   '/is-ancestor',
   '/merge-base',

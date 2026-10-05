@@ -12,6 +12,7 @@ import { hash, record, DomainError } from './hash.mjs';
 import { prepareTaskContext, answerTaskContext, assumeTaskContext } from './context.mjs';
 import { MergeRequests } from './merge-requests.mjs';
 import { MergeQueue } from './merge-queue.mjs';
+import { NativePipeline } from './native-pipeline.mjs';
 import { NativeState } from './native-state.mjs';
 import { validationPassed } from './evidence.mjs';
 import { readProducerMetadata } from './metadata.mjs';
@@ -106,6 +107,7 @@ export class Engine {
     this.mr = new MergeRequests(this);
     this.queue = new MergeQueue(this);
     this.native = new NativeState(this);
+    this.pipeline = new NativePipeline(this);
   }
 
   // Transports serialize a whole operation here. Delegated helpers do not enqueue
@@ -816,7 +818,7 @@ export class Engine {
     const presented = decisions.map((c) => ({ ...c, actionable: open.some((d) => d.id === c.id) }));
     return {
       ...this.state,
-      nativeState: this.native.view(),
+      nativeState: { ...this.native.view(), ...this.pipeline.view() },
       discovery,
       mergeRequests: this.mr.list(),
       mergeQueue: this.queue.list(),

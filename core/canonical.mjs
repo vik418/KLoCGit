@@ -203,6 +203,10 @@ export async function recoverOperations(engine) {
   for (const operation of engine.state.operations.filter((d) =>
     ['prepared', 'recovery-required'].includes(d.status),
   )) {
+    if (operation.kind === 'native') {
+      await engine.pipeline.recoverOperation(operation);
+      continue;
+    }
     const decision = engine.state.decisions.find((d) => d.id === operation.decision_id);
     if (!decision)
       throw new DomainError(
