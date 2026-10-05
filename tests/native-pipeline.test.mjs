@@ -5,7 +5,8 @@ import os from 'node:os';
 import path from 'node:path';
 import { Engine, emptyState } from '../core/engine.mjs';
 import { LocalGit, git } from '../server/git.mjs';
-import { record } from '../core/hash.mjs';
+import { RemoteGit } from '../server/remote-git.mjs';
+import { DomainError, record } from '../core/hash.mjs';
 import { handleNativeRequest } from '../server/native-api.mjs';
 
 const ref = 'refs/heads/main';
@@ -687,4 +688,39 @@ test('an exact prepared target is reconciled rather than settled through a human
   assert.equal(f.state.nativeSettlements.length, 0);
   await f.engine.recover();
   assert.equal(operation.status, 'applied');
+});
+
+test('remote CAS recognizes an actual Git porcelain lease rejection', async (t) => {
+  const f = await fixture(t);
+  await git(f.adapter.dir({ id: 'app' }), ['update-ref', ref, f.a]);
+  const remote = new RemoteGit(f.root, {});
+  // The trusted test transport uses a local bare destination, not Cloudflare.
+  remote.entry = () => ({ remote: f.adapter.dir({ id: 'app' }), tokenEnv: 'FIXTURE_GIT_TOKEN' });
+  remote.ensureCommit = async () => {};
+  assert.equal(await remote.cas(f.engine.repo('app'), f.base, f.b), false);
+  assert.equal(await f.adapter.ref({ id: 'app' }, ref), f.a);
+});
+
+test('a lost remote acknowledgement followed by another push remains uncertain', async (t) => {
+  const f = await fixture(t);
+  const candidate = await f.candidate(await f.selection());
+  const target = candidate.repositories[0].commit;
+  const remote = new RemoteGit(f.root, {});
+  remote.entry = () => ({ remote: 'https://fixture.artifacts.cloudflare.net/app.git' });
+  remote.ensureCommit = async () => {};
+  let attempts = 0;
+  remote.remote = async (_id, args) => {
+    if (args[0] === 'push') {
+      attempts++;
+      await f.adapter.cas(f.engine.repo('app'), f.base, target);
+      await git(f.adapter.dir({ id: 'app' }), ['update-ref', ref, f.a]);
+      throw new DomainError('REMOTE_GIT_FAILED', 'Lost acknowledgement', 503);
+    }
+    throw new Error('No ref observation can prove that the write never happened');
+  };
+  await assert.rejects(() => remote.cas(f.engine.repo('app'), f.base, target), {
+    code: 'REMOTE_GIT_FAILED',
+  });
+  assert.equal(attempts, 1);
+  assert.equal(await f.adapter.ref({ id: 'app' }, ref), f.a);
 });

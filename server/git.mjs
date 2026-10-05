@@ -607,8 +607,8 @@ export class LocalGit {
    * @param {{id: string, canonical_ref: string}} repo Canonical repository descriptor.
    * @param {string} expected Immutable old commit ID supplied by the reviewed decision.
    * @param {string} commit Retained candidate commit selected for application.
-   * @returns {Promise<boolean>} True when update-ref completes; false when a failed command is
-   *   followed by an observed different head. Ambiguous outcomes throw for recovery.
+   * @returns {Promise<boolean>} True when update-ref completes; false for an explicit Git compare
+   *   rejection. Other command failures remain uncertain and throw for recovery.
    */
   async cas(repo, expected, commit) {
     immutableCommit(expected);
@@ -621,11 +621,15 @@ export class LocalGit {
     try {
       await git(this.dir(repo), ['update-ref', repo.canonical_ref, commit, expected]);
       return true;
-    } catch {
-      const observed = await this.ref(repo, repo.canonical_ref);
-      // A command failure is not proof of no write. Preserve ambiguous outcomes
-      // for the coordinator's exact-target recovery instead of permitting replay.
-      if (observed !== expected && observed !== commit) return false;
+    } catch (error) {
+      // Only Git's explicit compare rejection proves that this attempt made no
+      // write. A later ref value cannot establish historical non-application.
+      if (
+        typeof error.stderr === 'string' &&
+        error.stderr.includes("cannot lock ref '" + repo.canonical_ref + "'") &&
+        error.stderr.includes('but expected ' + expected)
+      )
+        return false;
       throw new DomainError(
         'CANONICAL_WRITE_UNCERTAIN',
         'Git did not acknowledge the canonical write; reconciliation is required',

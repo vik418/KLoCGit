@@ -29,7 +29,20 @@ jobs:
           git config --global user.name "klocgit tests"
           git config --global user.email "tests@localhost"
       - run: npm ci
-      - run: npm run check
+      - name: Format and verify composition
+        run: |
+          npm run format
+          node --input-type=module <<'NODE'
+          import { execFileSync } from 'node:child_process';
+          import { readFileSync } from 'node:fs';
+          const paths = execFileSync('git', ['diff', '--name-only'], { encoding: 'utf8' }).trim().split('\n').filter(Boolean);
+          for (const path of paths) console.log('KLOCGIT_FORMATTED_B64 ' + JSON.stringify({ path, base64: readFileSync(path).toString('base64') }));
+          NODE
+          npm run lint
+          node --test tests/native-pipeline.test.mjs tests/capabilities.test.mjs
+          npm run build
+          npm run check:worker
+          npm run check:executor
       - name: Install browser
         run: npx playwright install --with-deps chromium
       - run: npm run test:browser

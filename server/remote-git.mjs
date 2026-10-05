@@ -93,7 +93,20 @@ export class RemoteGit extends LocalGit {
           timeout: 60000,
         })
       ).stdout.trim();
-    } catch {
+    } catch (error) {
+      const lease = args.find((argument) => argument.startsWith('--force-with-lease='));
+      const destination = lease?.slice('--force-with-lease='.length).split(':')[0];
+      const rejected = (error.stdout ?? '').split('\n').some((line) => {
+        const [status, refspec, result] = line.split('\t');
+        return (
+          status === '!' &&
+          refspec === args.at(-1) &&
+          refspec.endsWith(':' + destination) &&
+          result === '[rejected] (stale info)'
+        );
+      });
+      if (args[0] === 'push' && args.includes('--porcelain') && destination && rejected)
+        throw new DomainError('CANONICAL_CAS_REJECTED', 'Git rejected the reviewed ref lease', 409);
       throw new DomainError(
         'REMOTE_GIT_FAILED',
         'Authenticated Git operation failed; credentials are excluded from diagnostics',
@@ -255,8 +268,8 @@ export class RemoteGit extends LocalGit {
    * @param {{id: string, canonical_ref: string}} repo Configured canonical repository.
    * @param {string} expected Full immutable old commit ID reviewed by the caller.
    * @param {string} target Full immutable retained candidate commit ID.
-   * @returns {Promise<boolean>} True for an acknowledged push; false when a failed
-   *   push is followed by an observed head different from both expected and target.
+   * @returns {Promise<boolean>} True for an acknowledged push; false only for Git's
+   *   explicit porcelain lease rejection.
    * @throws {DomainError} Invalid inputs/configuration or an unresolved remote outcome.
    * @throws {Error} Local candidate-cache preparation fails before the push.
    */
@@ -280,11 +293,9 @@ export class RemoteGit extends LocalGit {
       ]);
       return true;
     } catch (error) {
-      const refs = await this.remote(repo.id, ['ls-remote', remote, repo.canonical_ref]),
-        observed = refs.split(/\s/)[0];
-      // Our exact target after transport failure is recovered from immutable intent.
-      // Never classify it as a failed CAS or silently repeat the write.
-      if (observed && observed !== expected && observed !== target) return false;
+      if (error.code === 'CANONICAL_CAS_REJECTED') return false;
+      // A failed reply plus a different ref is still ambiguous: the write may
+      // have landed before an external push. Only journal recovery settles it.
       throw error;
     }
   }
