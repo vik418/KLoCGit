@@ -306,11 +306,23 @@ try {
   const validationResponse = await validated;
   assert.equal(validationResponse.status(), 200, await validationResponse.text());
   const validation = await validationResponse.json();
-  assert.equal(validation.evidence[0].result.passed, false, 'Unknown repositories have no trusted validation profile');
+  assert.equal(
+    validation.evidence[0].result.passed,
+    false,
+    'Unknown repositories have no trusted validation profile',
+  );
   await dialog.getByText('Checks did not pass', { exact: true }).waitFor();
-  await dialog.getByLabel('Why choose this candidate?', { exact: true }).fill('Review selected work.');
-  assert.equal(await dialog.getByRole('button', { name: 'Apply candidate', exact: true }).isDisabled(), true);
-  assert.equal((await api('/native-state')).repositories.find((entry) => entry.id === 'app').head, baselineCommit);
+  await dialog
+    .getByLabel('Why choose this candidate?', { exact: true })
+    .fill('Review selected work.');
+  assert.equal(
+    await dialog.getByRole('button', { name: 'Apply candidate', exact: true }).isDisabled(),
+    true,
+  );
+  assert.equal(
+    (await api('/native-state')).repositories.find((entry) => entry.id === 'app').head,
+    baselineCommit,
+  );
   await assertFitsViewport(page);
   await page.keyboard.press('Escape');
   await dialog.waitFor({ state: 'hidden' });

@@ -442,12 +442,18 @@ export class NativePipeline {
       operation.target_commit,
       operation.target_tree,
     );
-    await this.engine.native.event('canonical.updated', actor, {
-      repo: operation.repo,
-      decision_id: operation.decision_id,
-      candidate_id: operation.candidate_id,
-      head: operation.target_commit,
-    });
+    const alreadyRecorded = this.state.nativeEvents.some(
+      (event) =>
+        event.type === 'io.klocgit.canonical.updated' && event.data.operation_id === operation.id,
+    );
+    if (!alreadyRecorded)
+      await this.engine.native.event('canonical.updated', actor, {
+        operation_id: operation.id,
+        repo: operation.repo,
+        decision_id: operation.decision_id,
+        candidate_id: operation.candidate_id,
+        head: operation.target_commit,
+      });
     operation.status = 'applied';
   }
 

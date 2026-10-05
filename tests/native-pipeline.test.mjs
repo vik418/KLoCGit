@@ -519,3 +519,31 @@ test('canonical targets reject the zero OID rather than deleting the Git ref', a
   });
   assert.equal(await f.adapter.ref({ id: 'app' }, ref), f.base);
 });
+
+test('recovery after a lost metadata acknowledgement does not duplicate canonical events', async (t) => {
+  const f = await fixture(t);
+  const candidate = await f.candidate(await f.selection());
+  const input = await f.reviewed(candidate);
+  const save = f.engine.save;
+  let lost = false;
+  f.engine.save = async (state) => {
+    await save(state);
+    if (!lost && state.operations.at(-1)?.status === 'applied') {
+      lost = true;
+      throw new Error('lost metadata acknowledgement');
+    }
+  };
+  await assert.rejects(
+    () => f.engine.pipeline.promote(candidate.id, input, 'owner'),
+    /lost metadata acknowledgement/,
+  );
+  assert.equal(f.state.operations[0].status, 'recovery-required');
+  const restarted = new Engine(structuredClone(f.saved.at(-1)), f.adapter);
+  await restarted.recover();
+  assert.equal(restarted.state.operations[0].status, 'applied');
+  assert.equal(
+    restarted.state.nativeEvents.filter((event) => event.type === 'io.klocgit.canonical.updated')
+      .length,
+    1,
+  );
+});
