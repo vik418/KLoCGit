@@ -3,10 +3,10 @@
   <path
     d="M8 8v5c0 4 8 2 8 7v4M24 8v5c0 4-8 2-8 7"
     fill="none"
-    stroke="#F3A712"
+    stroke="#FFFF00"
     stroke-width="2.5"
   />
   <circle cx="8" cy="8" r="2.5" fill="#DB2B39" />
-  <circle cx="24" cy="8" r="2.5" fill="#F3A712" />
-  <circle cx="16" cy="24" r="2.5" fill="#F3A712" />
+  <circle cx="24" cy="8" r="2.5" fill="#FFFF00" />
+  <circle cx="16" cy="24" r="2.5" fill="#FFFF00" />
 </svg>
