@@ -35,9 +35,130 @@ test('canonical Artifacts operations fail closed without a trusted Git executor'
 test('production API requires authenticated identity before forwarding mutations', async () => {
   const response = await worker.fetch(
     new Request('https://example/api/decisions/x/resolve', { method: 'POST', body: '{}' }),
-    {},
+    { AUTH_TOKEN: 'configured-owner-token', ACTOR_ID: 'owner' },
   );
   assert.equal(response.status, 401);
+  assert.equal((await response.json()).error, 'UNAUTHENTICATED');
+});
+
+test('production authentication distinguishes incomplete runtime configuration from rejected owner credentials', async () => {
+  const ownerToken = 'private-owner-test-token',
+    ingressToken = 'private-ingress-test-token',
+    wrongToken = 'wrong-private-test-token',
+    forwarded = [];
+  const coordinator = {
+    idFromName: (name) => name,
+    get: () => ({
+      fetch: async (request) => {
+        forwarded.push(new URL(request.url).pathname);
+        return Response.json({ forwarded: true });
+      },
+    }),
+  };
+  const configured = {
+    AUTH_TOKEN: ownerToken,
+    ACTOR_ID: 'configured-owner',
+    INGEST_TOKEN: ingressToken,
+    COORDINATOR: coordinator,
+  };
+  const call = (env, token = ownerToken, path = '/api/analysis') =>
+    worker.fetch(
+      new Request('https://example' + path, {
+        method: 'POST',
+        headers: token === null ? {} : { Authorization: 'Bearer ' + token },
+        body: '{}',
+      }),
+      env,
+    );
+  const cases = [
+    [{ AUTH_TOKEN: undefined }, ['AUTH_TOKEN']],
+    [{ AUTH_TOKEN: ' \t' }, ['AUTH_TOKEN']],
+    [{ AUTH_TOKEN: 123 }, ['AUTH_TOKEN']],
+    [{ ACTOR_ID: undefined }, ['ACTOR_ID']],
+    [{ ACTOR_ID: ' \t' }, ['ACTOR_ID']],
+    [{ ACTOR_ID: { value: 'owner' } }, ['ACTOR_ID']],
+    [{ AUTH_TOKEN: undefined, ACTOR_ID: undefined }, ['AUTH_TOKEN', 'ACTOR_ID']],
+  ];
+  for (const [override, missing] of cases) {
+    const response = await call({ ...configured, ...override });
+    assert.equal(response.status, 503);
+    const payload = await response.json();
+    assert.equal(payload.error, 'AUTH_NOT_CONFIGURED');
+    assert.deepEqual(payload.details, { missing });
+    for (const binding of missing) assert.ok(payload.message.includes(binding));
+    for (const secret of [ownerToken, ingressToken, wrongToken]) {
+      assert.ok(!JSON.stringify(payload).includes(secret));
+    }
+  }
+  for (const token of [null, wrongToken]) {
+    const response = await call(configured, token);
+    assert.equal(response.status, 401);
+    const payload = await response.json();
+    assert.equal(payload.error, 'UNAUTHENTICATED');
+    assert.match(payload.message, /missing or incorrect/);
+    assert.match(payload.message, /AUTH_TOKEN/);
+    for (const secret of [ownerToken, ingressToken, wrongToken]) {
+      assert.ok(!JSON.stringify(payload).includes(secret));
+    }
+  }
+  assert.deepEqual(forwarded, []);
+  assert.equal((await call(configured)).status, 200);
+  assert.deepEqual(forwarded, ['/api/analysis']);
+});
+
+test('production ingress authentication depends only on its own configured token', async () => {
+  let forwarded = 0;
+  const coordinator = {
+    idFromName: (name) => name,
+    get: () => ({
+      fetch: async () => {
+        forwarded++;
+        return Response.json({ forwarded: true });
+      },
+    }),
+  };
+  const call = (env, path, token) =>
+    worker.fetch(
+      new Request('https://example' + path, {
+        method: 'POST',
+        headers: { Authorization: 'Bearer ' + token },
+        body: '{}',
+      }),
+      { ...env, COORDINATOR: coordinator },
+    );
+  for (const value of [undefined, ' \t', 123]) {
+    const response = await call(
+      { AUTH_TOKEN: 'owner-token', ACTOR_ID: 'owner', INGEST_TOKEN: value },
+      '/api/events',
+      'owner-token',
+    );
+    assert.equal(response.status, 503);
+    const payload = await response.json();
+    assert.equal(payload.error, 'AUTH_NOT_CONFIGURED');
+    assert.deepEqual(payload.details, { missing: ['INGEST_TOKEN'] });
+    assert.ok(!JSON.stringify(payload).includes('owner-token'));
+  }
+  const wrongIngress = await call(
+    { INGEST_TOKEN: 'ingress-token' },
+    '/api/events',
+    'wrong-ingress-token',
+  );
+  assert.equal(wrongIngress.status, 401);
+  const wrongPayload = await wrongIngress.json();
+  assert.equal(wrongPayload.error, 'UNAUTHENTICATED');
+  assert.match(wrongPayload.message, /INGEST_TOKEN/);
+  assert.ok(!JSON.stringify(wrongPayload).includes('ingress-token'));
+  assert.equal(forwarded, 0);
+  assert.equal(
+    (await call({ INGEST_TOKEN: 'ingress-token' }, '/api/events', 'ingress-token')).status,
+    200,
+  );
+  assert.equal(
+    (await call({ AUTH_TOKEN: 'owner-token', ACTOR_ID: 'owner' }, '/api/analysis', 'owner-token'))
+      .status,
+    200,
+  );
+  assert.equal(forwarded, 2);
 });
 test('Artifacts context reads decode exact immutable Blob contents and retain the full message', async () => {
   const commit = 'a'.repeat(40),
@@ -281,7 +402,7 @@ test('production middleware isolates ingress credentials, enforces origin and bo
   delete env.ACTOR_ID;
   assert.equal(
     (await call('/api/analysis', { Authorization: 'Bearer test-owner-token' })).status,
-    401,
+    503,
   );
   assert.equal(
     (await call('/api/events', { Authorization: 'Bearer test-ingress-token' })).status,

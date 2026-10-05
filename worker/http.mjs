@@ -21,12 +21,34 @@ export async function handlePublicRequest(request, env) {
   if (!url.pathname.startsWith('/api/')) return env.ASSETS.fetch(request);
 
   const ingress = url.pathname === '/api/events';
+  const requiredBindings = ingress ? ['INGEST_TOKEN'] : ['AUTH_TOKEN', 'ACTOR_ID'];
+  const missingBindings = requiredBindings.filter(
+    (name) => typeof env[name] !== 'string' || !env[name].trim(),
+  );
+  // Missing deployment credentials are an operator error, not a rejected login.
+  // Check them before forwarding so an incomplete deployment stays fail-closed.
+  if (missingBindings.length) {
+    return jsonResponse(
+      {
+        error: 'AUTH_NOT_CONFIGURED',
+        message:
+          'Authentication is not configured. Missing or invalid runtime bindings: ' +
+          missingBindings.join(', ') +
+          '.',
+        details: { missing: missingBindings },
+      },
+      503,
+    );
+  }
+
   const secret = ingress ? env.INGEST_TOKEN : env.AUTH_TOKEN;
-  if (!(await authenticated(request, secret)) || (!ingress && !env.ACTOR_ID)) {
+  if (!(await authenticated(request, secret))) {
     return jsonResponse(
       {
         error: 'UNAUTHENTICATED',
-        message: 'A configured authenticated actor is required.',
+        message: ingress
+          ? 'The ingress credential is missing or incorrect. Supply the configured INGEST_TOKEN as a Bearer token.'
+          : 'The owner credential is missing or incorrect. Use the token stored as AUTH_TOKEN on this Worker.',
       },
       401,
     );

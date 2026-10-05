@@ -13,8 +13,10 @@ export function useWorkspace(notify) {
 
   useEffect(() => {
     reload().catch((error) => {
-      if (error.error === 'UNAUTHENTICATED') setRequiresAuthentication(true);
-      else notify(error.message, 'error');
+      if (error.error === 'UNAUTHENTICATED' || error.error === 'AUTH_NOT_CONFIGURED') {
+        setRequiresAuthentication(true);
+        if (error.error === 'AUTH_NOT_CONFIGURED') notify(error.message, 'error');
+      } else notify(error.message, 'error');
     });
   }, [reload, notify]);
 

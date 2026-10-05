@@ -3,6 +3,8 @@
   "name": "klocgit",
   "main": "worker/index.mjs",
   "compatibility_date": "2026-10-02",
+  // Preserve owner variables configured in the dashboard across GitHub deployments.
+  "keep_vars": true,
   "assets": {
     "directory": "./dist",
     "binding": "ASSETS",
