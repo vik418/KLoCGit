@@ -50,6 +50,13 @@ export async function git(cwd, args, input, { raw = false } = {}) {
   }
   return finish((await exec('/usr/bin/git', [...protectedGitArguments, ...args], options)).stdout);
 }
+/**
+ * Trusted adapter for bare repositories under a local workspace. Git supplies
+ * observed facts; composition creates retained candidates rather than advancing
+ * canonical refs. The coordinator owns review policy, evidence and write recovery.
+ *
+ * @param {string} root Workspace directory containing repositories/<id>.git.
+ */
 export class LocalGit {
   constructor(root) {
     this.root = root;
@@ -158,6 +165,19 @@ export class LocalGit {
       );
     return immutableCommit(bases[0]);
   }
+  /**
+   * Build an actual Git composition on an immutable canonical base. Covered
+   * ancestors are composed once, while trailers retain every proposal history.
+   * Retaining the result keeps later review/recovery independent of the temp clone.
+   *
+   * @param {{id: string}} repo Destination repository descriptor.
+   * @param {string} head Full immutable canonical commit ID captured for review.
+   * @param {object[]} revisions Immutable revisions with source head/base IDs.
+   * @returns {Promise<object>} Candidate tree/commit, baseTree, source_heads and
+   *   canonical_parent. Its candidate ref is retained; canonical Git is unchanged.
+   * @throws {DomainError} Invalid IDs, inconsistent revision inputs or a Git conflict.
+   * @throws {Error} Repository import, Git command or temporary-filesystem failure.
+   */
   async compose(repo, head, revisions) {
     immutableCommit(head);
     for (const revision of revisions) {
@@ -337,6 +357,18 @@ export class LocalGit {
       await rm(temp, { recursive: true, force: true });
     }
   }
+  /**
+   * Read a literal path at the caller's immutable commit. Only an observed missing
+   * entry means absence: treating read failures as absence could incorrectly
+   * authorize fallback to older producer metadata.
+   *
+   * @param {{id: string}} repo Repository descriptor.
+   * @param {string} commit Immutable commit ID to read, rather than a moving ref.
+   * @param {string} name Repository-relative literal file path.
+   * @returns {Promise<string|null>} Trimmed Git text, or null for an absent entry.
+   * @throws {DomainError} The repository identifier is invalid.
+   * @throws {Error} Commit lookup or file reading fails, including timeout/buffer limits.
+   */
   async file(repo, commit, name) {
     const directory = this.dir(repo);
     const entry = await git(directory, [
@@ -408,6 +440,17 @@ export class LocalGit {
       limitations: ['No trusted profile exists for this repository.'],
     };
   }
+  /**
+   * Ask Git to update a canonical ref against the reviewed old object ID. Using
+   * that captured ID, rather than a fresh head, protects against external writers
+   * that are outside the coordinator's serialization boundary.
+   *
+   * @param {{id: string, canonical_ref: string}} repo Canonical repository descriptor.
+   * @param {string} expected Immutable old commit ID supplied by the reviewed decision.
+   * @param {string} commit Retained candidate commit selected for application.
+   * @returns {Promise<boolean>} True when update-ref completes; false on any caught
+   *   command/path failure, including an old-head mismatch. False has no finer diagnosis.
+   */
   async cas(repo, expected, commit) {
     try {
       await git(this.dir(repo), ['update-ref', repo.canonical_ref, commit, expected]);

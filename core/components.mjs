@@ -182,9 +182,21 @@ async function explainEdge(relationship, revisions, state, options) {
   };
 }
 
-// Maximal independent sets in the blocker graph are maximal cliques in its
-// complement. Bron–Kerbosch avoids enumerating every possible proposal subset.
-// If a bound is reached, no partial candidate list is presented as complete.
+/**
+ * Enumerate maximal choices, so adding another implementation would introduce
+ * a recorded blocker. Maximal independent sets become cliques in the complement
+ * graph; Bron–Kerbosch avoids examining every proposal subset.
+ * A budget failure discards partial results rather than hiding a human choice.
+ *
+ * @param {string[]} keys Implementation identities; duplicate keys are collapsed.
+ * @param {Array<[string, string]>} blockerPairs Undirected implementation blockers.
+ * @param {object} [limits] Bounds on search size, effort, and result count.
+ * @param {number} [limits.maxImplementations=18]
+ * @param {number} [limits.maxSearchNodes=100000]
+ * @param {number} [limits.maxAlternatives=64]
+ * @returns {{status: string, subsets: string[][], visited: number, reason?: string}}
+ *   Complete deterministic choices, or manual-review with no partial choices.
+ */
 export function maximalConsistentSubsets(
   keys,
   blockerPairs,
@@ -260,16 +272,24 @@ export function maximalConsistentSubsets(
 }
 
 /**
- * Pure derivation; this function never writes Git, invents relationships, or
- * labels a candidate safe. The coordinator must compose and validate candidates.
+ * Group active revisions only through unresolved alternative/conflict edges.
+ * Unknown overlap and equivalence cannot manufacture a human decision. Evidence
+ * affects the explanation of an edge; a candidate still needs actual composition
+ * and validation before the coordinator can advance Git.
  *
- * options.activeRevisions: authoritative active revision array (defaults to refs)
- * options.evidenceValidity: Engine.evidenceValidity, including config checks
- * options.configHash: current trusted configuration, if no validity callback
- * options.trustedEvidence: platform-owned evidence policy, never producer claims
- *
- * Result components expose engine-compatible single-repository alternatives,
- * plus alternative.compositions for explicit cross-repository execution.
+ * @param {object} state Coordination snapshot; this derivation does not mutate it.
+ * @param {object} [options]
+ * @param {object[]} [options.activeRevisions] Authoritative active revisions;
+ *   otherwise derived from the snapshot's refVersions.
+ * @param {Function} [options.evidenceValidity] Current/stale/unknown assessment
+ *   including configuration checks; may return a promise.
+ * @param {string} [options.configHash] Current trusted configuration when no
+ *   evidenceValidity callback is provided.
+ * @param {Function} [options.trustedEvidence] Platform evidence ownership policy;
+ *   may return a promise and must not rely on producer trust declarations.
+ * @returns {Promise<object>} Components, ungrouped revision IDs, equivalence groups,
+ *   historical terminal components, and diagnostics. Alternatives carry per-repo
+ *   composition plans; these plans provide no cross-repository atomicity guarantee.
  */
 export async function deriveDecisionComponents(state, options = {}) {
   const active = [...(options.activeRevisions ?? activeFromState(state))].sort((a, b) =>

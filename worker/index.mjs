@@ -4,6 +4,14 @@ import { handlePublicRequest, jsonResponse } from './http.mjs';
 import { handleCoordinatorRequest } from './routes.mjs';
 import { consumeEvents } from './events.mjs';
 
+/**
+ * Workspace metadata and operation serialization live in one Durable Object.
+ * Recovery runs before request handling. This boundary orders platform writes;
+ * external Git clients still require the separate reviewed-head CAS check.
+ *
+ * @param {object} ctx Durable Object storage and lifecycle context.
+ * @param {object} env Worker bindings and configured owner identity.
+ */
 export class WorkspaceCoordinator {
   constructor(ctx, env) {
     this.ctx = ctx;
@@ -24,6 +32,16 @@ export class WorkspaceCoordinator {
     await this.engine.recover();
   }
 
+  /**
+   * Dispatch an authenticated public request or trusted internal queue request.
+   * Reads serialize too: a workspace view can reconcile newly observed Git heads.
+   * Authentication belongs to the public gateway; this route never trusts a
+   * request-body actor to authorize canonical changes.
+   *
+   * @param {Request} request Request forwarded by the public gateway or queue consumer.
+   * @returns {Promise<Response>} Domain response, with handled failures encoded as JSON.
+   * @throws {Error} Initialization/storage/recovery fails before dispatch can begin.
+   */
   async fetch(request) {
     await this.ready;
     return this.engine.serial(async () => {

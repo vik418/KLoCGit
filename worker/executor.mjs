@@ -26,8 +26,15 @@ async function authorized(request, secret) {
   );
 }
 
-// A separately deployed service binding routes to this named Container DO.
-// Repository credentials stay in trusted processes; candidate code gets an empty environment.
+/**
+ * Private service gateway to one serialized trusted Git Container. Repository
+ * credentials enter trusted processes only at Container startup; the validator
+ * separately isolates candidate code from them. Cache disk is replaceable, so
+ * prepared-write recovery belongs to the workspace coordinator and remote Git.
+ *
+ * @param {object} ctx Durable Object context with Container and fault-control storage.
+ * @param {object} env Private service credentials and trusted executor manifest/token map.
+ */
 export class GitExecutorContainer extends DurableObject {
   constructor(ctx, env) {
     super(ctx, env);
@@ -83,6 +90,17 @@ export class GitExecutorContainer extends DurableObject {
     }
     throw new Error('EXECUTOR_START_TIMEOUT');
   }
+  /**
+   * Authorize and forward one executor operation, or an explicitly enabled test
+   * control request. Authentication precedes Container startup. A forwarding 503
+   * does not establish that a canonical write failed; the coordinator must observe
+   * its prepared target instead of repeating the request.
+   *
+   * @param {Request} request Private bridge request, or separately authorized fault control.
+   * @returns {Promise<Response>} Executor reply, an authorization/input failure, or
+   *   an unavailable response when Container readiness/forwarding fails.
+   * @throws {Error} Body parsing/read or test-control storage failures outside forwarding.
+   */
   async fetch(request) {
     return this.serial(async () => {
       const url = new URL(request.url);

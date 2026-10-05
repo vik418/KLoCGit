@@ -1,12 +1,12 @@
 # KLoCGit
 
-KLoCGit groups concurrent Git changes into decisions. Review alternatives and their evidence, then apply a selected composition against the exact Git head and decision basis you reviewed. Git remains the source of truth for code.
+Pronounced **“clock it.”**
 
-The application includes native merge requests, revision-bound reviews, candidate validation, a merge queue and reviewed reverts. It is under development; see [architecture](docs/architecture.md) for the current boundaries.
+When several people or tools change the same project, KLoCGit brings related work together. You compare the choices, see the checks, and decide what to keep. Git stores the code. KLoCGit records the reasons and decisions.
 
-## Start locally
+## Run locally
 
-Install Node.js 24 and Git, then:
+Install Node.js 24 and Git:
 
 ```sh
 git clone https://github.com/vik418/KLoCGit.git
@@ -15,32 +15,24 @@ npm ci
 npm run dev
 ```
 
-Open <http://localhost:43187>. To change the port, use `PORT=43188 npm run dev`.
+Open <http://localhost:43187>. Use `PORT=43188 npm run dev` to change the port.
 
-The local workspace lives in `.demo-v2/`. It contains two sample Git repositories and a question about retrying a lost payment response. Answer the question and start the sample producers to explore the review flow. **Work** also provides merge requests and ordinary proposal review.
+The demo has two sample repositories. Answer the setup question, then start the sample producers. Code validation needs Linux or WSL with bubblewrap and util-linux. See [local setup](docs/design.md#local-development).
 
-Application validation requires Linux, bubblewrap, util-linux and permission to create private user and network namespaces. The interface can start without those facilities, but executable candidates cannot pass validation. Windows users should use WSL; see [development](docs/development.md) for setup and troubleshooting.
+## How it runs
 
-## Work on the project
+- **React UI:** shows work, choices, and checks.
+- **Worker backend:** handles the API, records work, and coordinates decisions through a Durable Object.
+- **Private Git executor:** runs Git and trusted checks in a Container.
+
+JavaScript runs both the backend and UI. The local server uses the same engine as the Cloudflare deployment.
+
+Cloudflare runs the API as `klocgit` and the Git executor as `klocgit-git-executor`. Both use this repository’s `main` branch.
+
+## Develop
 
 ```sh
 npm run check
 ```
 
-This runs formatting, lint, tests, browser build and Worker dry runs. The full test suite needs the Linux sandbox described above. Dry runs check bundling and do not deploy resources.
-
-- [Development and tests](docs/development.md)
-- [Design and guarantees](docs/architecture.md)
-- [Merge requests, queues and reverts](docs/workflows.md)
-- [Cloudflare deployment](docs/cloudflare.md)
-- [Contribution guidelines](CONTRIBUTING.md) and [security policy](SECURITY.md)
-
-To inspect the sample application's resulting code, clone its ordinary repository:
-
-```sh
-git clone .demo-v2/repositories/checkout-api.git checkout-result
-cd checkout-result
-node app.mjs
-```
-
-The sample uses simulated payment and confirmation effects. Its [fixture documentation](fixtures/README.md) explains the interaction being tested.
+The [design document](docs/design.md) contains the system diagram, contracts, workflows, runtime boundaries, security, and coding standards. The project is under development; its supported workflows and limits are listed there.

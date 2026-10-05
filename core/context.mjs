@@ -236,9 +236,10 @@ async function createResolvedPreparation(preparation, resolution, createdAt) {
 }
 
 /**
- * Read one exact cross-repository constraint before authorizing a producer.
- * git needs ref(repo, ref) and file(repo, immutableCommit, relativePath).
- * No repository code is executed and no task prose is semantically interpreted.
+ * Pin the cross-repository policy to a Git commit before resolving the retry
+ * parameter. The supported schema yields an answer or one material question;
+ * task prose cannot introduce additional questions or authorize execution.
+ * The coordinator must recheck source freshness before using an authorization.
  *
  * @param {object} input
  * @param {{schema: 'retry-response-v1', statement: string, target_repo: string,
@@ -248,6 +249,10 @@ async function createResolvedPreparation(preparation, resolution, createdAt) {
  * @param {{ref: Function, file: Function}} input.git Immutable Git read adapter.
  * @param {string} input.actor Authenticated identity supplied by the caller.
  * @param {string} [input.created_at] Timestamp supplied by the trusted caller.
+ * @returns {Promise<object>} Frozen preparation: ready with a snapshot and
+ *   authorization, or needs_clarification with one question and neither record.
+ * @throws {DomainError} For invalid task/source inputs, unregistered repositories,
+ *   unauthenticated declarations, or an answer conflicting with a retrieved decision.
  */
 export async function prepareTaskContext({ task: input, repositories, git, actor, created_at }) {
   requireActor(actor);
@@ -391,8 +396,19 @@ function requireUnansweredQuestion(preparation) {
 }
 
 /**
- * Answer the single question with a boolean declaration. The caller supplies
- * authenticated actor identity and, when specified, the declaration timestamp.
+ * Preserve the answer as a declaration, separate from the retrieved policy.
+ * This consumes the captured preparation; source freshness and persistence
+ * remain the coordinator's responsibility.
+ *
+ * @param {object} preparation Unanswered preparation from prepareTaskContext.
+ * @param {object} declaration
+ * @param {boolean} declaration.value An allowed retry choice.
+ * @param {string} declaration.actor Authenticated identity supplied by the caller.
+ * @param {string} [declaration.created_at] Timestamp supplied by the trusted caller.
+ * @returns {Promise<object>} New frozen preparation with the answer, snapshot,
+ *   and authorization; the unanswered preparation remains unchanged.
+ * @throws {DomainError} CONTEXT_ALREADY_RESOLVED, UNAUTHENTICATED, or
+ *   INVALID_CONTEXT_ANSWER when the declaration cannot resolve this question.
  */
 export async function answerTaskContext(preparation, { value, actor, created_at }) {
   requireUnansweredQuestion(preparation);
@@ -418,6 +434,17 @@ export async function answerTaskContext(preparation, { value, actor, created_at 
  * Producers need not wait indefinitely: an explicit, auditable assumption can
  * authorize code while retaining the unresolved question for human review.
  * Elapsed time never counts as an answer, and no automatic timeout chooses one.
+ *
+ * @param {object} preparation Unanswered preparation from prepareTaskContext.
+ * @param {object} declaration
+ * @param {boolean} declaration.value An allowed retry choice to assume.
+ * @param {string} declaration.rationale Why work should proceed without an answer.
+ * @param {string} declaration.actor Authenticated identity supplied by the caller.
+ * @param {string} [declaration.created_at] Timestamp supplied by the trusted caller.
+ * @returns {Promise<object>} New frozen ready_with_assumption preparation whose
+ *   authorization requires human review and whose assumption remains unresolved.
+ * @throws {DomainError} For a resolved preparation, unauthenticated actor,
+ *   disallowed answer, or missing assumption rationale.
  */
 export async function assumeTaskContext(preparation, { value, rationale, actor, created_at }) {
   requireUnansweredQuestion(preparation);
@@ -445,7 +472,16 @@ export async function assumeTaskContext(preparation, { value, rationale, actor, 
   return createResolvedPreparation(preparation, { value, item, assumption: true }, createdAt);
 }
 
-/** IDs travel with Git code; full retrieved content and task prose stay metadata. */
+/**
+ * Carry immutable coordination IDs with code while keeping task prose and the
+ * full retrieved policy in metadata. This formats references; ingestion must
+ * independently verify the artifact and exact trailing Git references.
+ *
+ * @param {object} preparation Resolved preparation with snapshot and authorization.
+ * @returns {Promise<object>} Frozen provenance containing metadata, Git trailer
+ *   lines, and the producer context artifact. No Git files or commits are written.
+ * @throws {DomainError} PRODUCER_NOT_AUTHORIZED if the question is unresolved.
+ */
 export async function contextProvenance(preparation) {
   if (!preparation?.snapshot || !preparation.authorization)
     throw new DomainError(

@@ -1,4 +1,13 @@
 import { DomainError } from '../core/hash.mjs';
+
+/**
+ * Worker-side Git adapter: native Artifacts reads remain available without the
+ * executor, while composition, validation and canonical writes use the trusted
+ * service. A native read result never substitutes for composed-tree validation.
+ *
+ * @param {object} env Artifacts binding, private executor service/credential and
+ *   the expected validation configuration hash.
+ */
 export class ArtifactsGit {
   constructor(env) {
     this.env = env;
@@ -89,6 +98,18 @@ export class ArtifactsGit {
       ? ['checkout-effects']
       : [];
   }
+  /**
+   * Send one trusted operation with the platform's configuration hash. The
+   * executor can reject mismatched validation code; caller-supplied payloads
+   * cannot replace this hash. No request is retried here, since a lost mutation
+   * reply requires canonical journal recovery.
+   *
+   * @param {string} operation Executor operation selected by an adapter wrapper.
+   * @param {object} payload Repository and exact operation inputs.
+   * @returns {Promise<*>} Parsed operation-specific JSON from the executor.
+   * @throws {DomainError} Executor/configuration is missing or a non-success reply arrives.
+   * @throws {Error} Service transport or response JSON parsing fails.
+   */
   async execute(operation, payload) {
     if (!this.env.GIT_EXECUTOR || !this.env.GIT_BRIDGE_TOKEN || this.configHash === 'unconfigured')
       throw new DomainError(

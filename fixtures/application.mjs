@@ -7,6 +7,11 @@ export const policyFixturePath = fileURLToPath(new URL('./payment-policy/', impo
 
 export async function copyApplicationFixture(destination) {
   await cp(applicationFixturePath, destination, { recursive: true });
+  // Ordinary documentation producers need a README in the generated Git repository.
+  await writeFile(
+    path.join(destination, 'README.md'),
+    '# Checkout application\n\nRun `node app.mjs` to start the payment HTTP application.\n',
+  );
 }
 export async function copyPolicyFixture(destination) {
   await cp(policyFixturePath, destination, { recursive: true });

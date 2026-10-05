@@ -10,6 +10,14 @@ const commit = (value) => {
   return value;
 };
 
+/**
+ * Artifacts Git transport backed by a replaceable local object cache. Remotes,
+ * trusted validation profiles and credential-variable names come from the owner
+ * manifest; producer payloads cannot choose them. Canonical authority stays remote.
+ *
+ * @param {string} root Cache workspace directory used by LocalGit.
+ * @param {object} manifest Trusted repository configuration, without token values.
+ */
 export class RemoteGit extends LocalGit {
   constructor(root, manifest) {
     super(root);
@@ -93,6 +101,16 @@ export class RemoteGit extends LocalGit {
       );
     }
   }
+  /**
+   * Refresh the cache from its configured remote. Both candidate-ref namespaces
+   * are fetched because prepared operations may predate the rename, and recovery
+   * must not depend on the previous Container's disk.
+   *
+   * @param {string} id Bounded repository ID present in the trusted manifest.
+   * @returns {Promise<void>} Local heads and retained objects have been fetched.
+   * @throws {DomainError} Repository/credentials are unconfigured or transport fails.
+   * @throws {Error} Local directory creation or bare-repository initialization fails.
+   */
   async ensure(id) {
     const entry = this.entry(id);
     await mkdir(this.dir({ id }), { recursive: true });
@@ -213,6 +231,19 @@ export class RemoteGit extends LocalGit {
     await this.ensureCommit(repo.id, head);
     return super.diff(repo, base, head);
   }
+  /**
+   * Push the selected immutable candidate with an explicit old-head lease. A lost
+   * reply can follow a successful write, so an ambiguous result must reach the
+   * coordinator's prepared-operation recovery rather than trigger another push.
+   *
+   * @param {{id: string, canonical_ref: string}} repo Configured canonical repository.
+   * @param {string} expected Full immutable old commit ID reviewed by the caller.
+   * @param {string} target Full immutable retained candidate commit ID.
+   * @returns {Promise<boolean>} True for an acknowledged push; false when a failed
+   *   push is followed by an observed head different from both expected and target.
+   * @throws {DomainError} Invalid inputs/configuration or an unresolved remote outcome.
+   * @throws {Error} Local candidate-cache preparation fails before the push.
+   */
   async cas(repo, expected, target) {
     commit(expected);
     commit(target);
