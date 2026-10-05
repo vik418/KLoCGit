@@ -236,3 +236,99 @@ test('native API binds the transport actor and does not accept producer evidence
     method: 'GET', url: '/api/candidates', actor: '',
   }), { code: 'UNAUTHENTICATED' });
 });
+
+test('composed dependency checks read candidate commits while freshness tracks canonical baselines', async (t) => {
+  const f = await fixture(t);
+  await git(f.root, ['clone', '--bare', '--quiet', f.adapter.dir({ id: 'app' }), f.adapter.dir({ id: 'policy' })]);
+  await git(f.root, ['clone', '--bare', '--quiet', f.adapter.dir({ id: 'source' }), f.adapter.dir({ id: 'policy-source' })]);
+  f.state.repositories.push({ id: 'policy', canonical_ref: ref, head: f.base, tree: f.baseTree, baseline: f.base });
+  const policyRevision = await record('future-revision', {
+    future_id: 'policy-future',
+    repository_heads: [{ repo_id: 'policy', source_repo_id: 'policy-source', ref, commit: f.b }],
+    baseline_refs: [{ repo_id: 'policy', ref, commit: f.base, tree: f.baseTree }],
+    tree_hashes: [{ repo_id: 'policy', tree: f.revision.tree_hashes[0].tree }],
+  });
+  f.state.futureRevisions.push(policyRevision);
+  f.state.futures.push({ id: 'policy-future', status: 'active', current_revision_id: policyRevision.id });
+  const policy = (await f.engine.pipeline.createSelection({
+    future_revision_id: policyRevision.id, kind: 'future', request_id: 'policy-selection',
+  }, 'owner')).selection;
+  const app = await f.selection();
+  const candidate = (await f.engine.pipeline.createCandidate({
+    selection_ids: [app.id, policy.id], request_id: 'composed-system',
+  }, 'owner')).candidate;
+  const runs = [];
+  f.adapter.validate = async (repo, commit, constraints, heads) => {
+    runs.push({ repo: repo.id, commit, heads });
+    return { passed: true, checks: [{ name: 'exact composed dependencies', passed: true }] };
+  };
+  const { evidence } = await f.engine.pipeline.validateCandidate(candidate.id, {
+    request_id: 'composed-checks',
+  }, 'owner');
+  for (const run of runs) {
+    assert.equal(run.heads.app, candidate.repositories.find((repo) => repo.repo_id === 'app').commit);
+    assert.equal(run.heads.policy, candidate.repositories.find((repo) => repo.repo_id === 'policy').commit);
+  }
+  assert.equal(evidence[0].validity_heads.policy, f.base);
+  assert.equal(evidence[0].evaluation_heads.policy, runs[0].heads.policy);
+  const review = await f.engine.pipeline.review(candidate.id);
+  assert.equal(review.validation_passing, true);
+  assert.equal(review.promotion_supported, false);
+  await assert.rejects(() => f.engine.pipeline.promote(candidate.id, {
+    request_id: 'multi-repo-promotion', decision_basis_hash: review.decision_basis_hash,
+    expected_heads: review.expected_heads, rationale: 'Both selected roles.',
+  }, 'owner'), { code: 'MULTI_REPO_PROMOTION_UNSUPPORTED' });
+  assert.equal(f.state.operations.length, 0);
+  assert.equal(await f.adapter.ref({ id: 'app' }, ref), f.base);
+  assert.equal(await f.adapter.ref({ id: 'policy' }, ref), f.base);
+});
+
+test('concurrent resolutions serialize to one canonical write and stale evidence cannot be reused', async (t) => {
+  const f = await fixture(t);
+  const first = await f.candidate(await f.selection());
+  const second = await f.candidate(await f.selection('commits'));
+  const a = await f.reviewed(first);
+  const b = await f.reviewed(second);
+  const outcomes = await Promise.allSettled([
+    f.engine.serial(() => f.engine.pipeline.promote(first.id, a, 'owner')),
+    f.engine.serial(() => f.engine.pipeline.promote(second.id, b, 'owner')),
+  ]);
+  assert.equal(outcomes.filter((result) => result.status === 'fulfilled').length, 1);
+  assert.equal(outcomes[1].reason.code, 'DECISION_STALE');
+  const review = await f.engine.pipeline.review(second.id);
+  assert.equal(review.heads_current, false);
+  assert.equal(review.evidence[0].validity.status, 'stale');
+  assert.equal(f.state.operations.filter((operation) => operation.status === 'applied').length, 1);
+});
+
+test('native promotion cannot bypass a pending compatibility operation', async (t) => {
+  const f = await fixture(t);
+  const candidate = await f.candidate(await f.selection());
+  const input = await f.reviewed(candidate);
+  f.state.operations.push({ id: 'legacy-operation', status: 'prepared' });
+  await assert.rejects(() => f.engine.pipeline.promote(candidate.id, input, 'owner'), {
+    code: 'RECOVERY_REQUIRED',
+  });
+  assert.equal(await f.adapter.ref({ id: 'app' }, ref), f.base);
+});
+
+test('a crash after preparing but before dispatch is safely settled without Git mutation', async (t) => {
+  const f = await fixture(t);
+  const candidate = await f.candidate(await f.selection());
+  const input = await f.reviewed(candidate);
+  const save = f.engine.save;
+  f.engine.save = async (state) => {
+    await save(state);
+    if (state.operations.at(-1)?.dispatch_state === 'not_started')
+      throw new Error('crash before dispatch');
+  };
+  let writes = 0;
+  const cas = f.adapter.cas.bind(f.adapter);
+  f.adapter.cas = async (...args) => { writes++; return cas(...args); };
+  await assert.rejects(() => f.engine.pipeline.promote(candidate.id, input, 'owner'), /crash before dispatch/);
+  const restarted = new Engine(structuredClone(f.saved.at(-1)), f.adapter);
+  await restarted.recover();
+  assert.equal(restarted.state.operations[0].status, 'not-applied');
+  assert.equal(writes, 0);
+  assert.equal(await f.adapter.ref({ id: 'app' }, ref), f.base);
+});

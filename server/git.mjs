@@ -404,7 +404,7 @@ export class LocalGit {
       ].join('\n'));
       await git(this.dir(repo), ['fetch', '--quiet', cwd, commit]);
       await git(this.dir(repo), ['update-ref', 'refs/klocgit/candidates/' + commit, commit]);
-      return { tree, commit, baseTree: initial.baseTree, canonical_parent: head };
+      return { tree, commit: tree === initial.baseTree ? head : commit, baseTree: initial.baseTree, canonical_parent: head };
     } finally {
       await rm(temp, { recursive: true, force: true });
     }

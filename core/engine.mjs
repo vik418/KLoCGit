@@ -443,7 +443,7 @@ export class Engine {
         409,
       );
   }
-  async validate(subject, repo, tree, commit, validityHeads = {}) {
+  async validate(subject, repo, tree, commit, validityHeads = {}, evaluationHeads = validityHeads) {
     const configHash = this.git.configHash;
     const constraints = this.state.constraints.filter((c) => c.active);
     const constraintVersions = constraints.map((c) => c.id);
@@ -451,7 +451,7 @@ export class Engine {
       repo,
       commit,
       constraints.filter((c) => c.kind === 'checkable'),
-      validityHeads,
+      evaluationHeads,
     );
     const evidence = await record('ev', {
       subject_ref: subject,
@@ -462,6 +462,7 @@ export class Engine {
       source: 'platform-owned checks',
       created_at: now(),
       validity_heads: validityHeads,
+      ...(evaluationHeads !== validityHeads ? { evaluation_heads: evaluationHeads } : {}),
       constraint_versions: constraintVersions,
       claim: 'Establishes only the listed checks for this exact tree and configuration.',
     });

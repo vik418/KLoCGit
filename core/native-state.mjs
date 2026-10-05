@@ -158,7 +158,7 @@ export class NativeState {
     const id = 'request_' + (await hash({ actor, request_id: requestId }));
     const digest = await hash({ operation, input: payload });
     const existing = this.state.nativeRequests.find((request) => request.id === id);
-    const safeRetry = ['repository.refresh', 'future.observe', 'repository.recover'].includes(
+    const safeRetry = ['repository.refresh', 'future.observe', 'repository.recover', 'selection.create', 'candidate.create', 'candidate.validate'].includes(
       operation,
     );
     if (existing) {

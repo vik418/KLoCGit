@@ -211,6 +211,12 @@ export class NativePipeline {
       actor,
       async () => {
         await this.engine.syncHeads();
+        // Runtime dependencies use composed commits. Their evidence still becomes
+        // stale when the reviewed canonical base vector changes.
+        const evaluationHeads = {
+          ...candidate.base_heads,
+          ...Object.fromEntries(candidate.repositories.map((repo) => [repo.repo_id, repo.commit])),
+        };
         const evidence = [];
         for (const repository of candidate.repositories)
           evidence.push(await this.engine.validate(
@@ -219,6 +225,7 @@ export class NativePipeline {
             repository.tree,
             repository.commit,
             candidate.base_heads,
+            evaluationHeads,
           ));
         await this.engine.native.event('candidate.validated', actor, {
           candidate_id: id,
@@ -292,6 +299,8 @@ export class NativePipeline {
         throw new DomainError('IDEMPOTENCY_CONFLICT', 'The request identity has different inputs', 409);
       if (previous.status === 'applied')
         return { decision: this.object('nativeDecisions', previous.decision_id), operation: previous };
+      if (previous.status === 'not-applied')
+        throw new DomainError('PROMOTION_NOT_ISSUED', 'The prior attempt did not issue a Git write; review and submit a new request', 409);
       throw new DomainError('RECOVERY_REQUIRED', 'Reconcile the recorded promotion before retrying', 409);
     }
     if (this.state.operations.some((operation) =>
@@ -338,11 +347,14 @@ export class NativePipeline {
       target_commit: repository.commit,
       target_tree: repository.tree,
       status: 'prepared',
+      dispatch_state: 'not_started',
     };
     this.state.operations.push(operation);
     await this.engine.audit('canonical.prepared', actor, { operation_id: operation.id, decision_id: decision.id });
     // Persist intent before issuing the only canonical mutation. Ambiguous replies
     // are observed through recovery, never converted into a second push.
+    await this.engine.save(this.state);
+    operation.dispatch_state = 'issued';
     await this.engine.save(this.state);
     try {
       const repo = this.engine.repo(operation.repo);
@@ -388,6 +400,11 @@ export class NativePipeline {
       target.base_commit !== operation.expected_head
     )
       throw new DomainError('RECOVERY_REQUIRED', 'The journal differs from its immutable candidate', 503);
+    if (operation.dispatch_state === 'not_started') {
+      operation.status = 'not-applied';
+      await this.engine.audit('canonical.not-issued', 'coordinator', { operation_id: operation.id });
+      return;
+    }
     const repo = this.engine.repo(operation.repo);
     if (await this.engine.git.ref(repo, repo.canonical_ref) === operation.target_commit)
       await this.complete(operation, 'coordinator');
