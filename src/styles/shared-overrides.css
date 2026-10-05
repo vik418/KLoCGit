@@ -215,10 +215,6 @@
     font-size: 0.69rem;
     gap: 10px;
   }
-  .dialog {
-    width: calc(100% - 20px);
-    max-height: 95vh;
-  }
   .dialog-header {
     padding: 20px 18px;
   }

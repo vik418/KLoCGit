@@ -3,6 +3,9 @@ import assert from 'node:assert/strict';
 import { ArtifactsGit } from '../worker/artifacts.mjs';
 import worker, { WorkspaceCoordinator } from '../worker/index.mjs';
 import { emptyState } from '../core/engine.mjs';
+import { NativeState } from '../core/native-state.mjs';
+import { DomainError } from '../core/hash.mjs';
+import { registerRepository } from '../worker/repositories.mjs';
 import { scheduleAnalysis } from '../worker/events.mjs';
 test('untrusted __proto__ filenames remain visible in observed affected scope', async () => {
   const binding = {
@@ -566,56 +569,188 @@ test('production middleware isolates ingress credentials, enforces origin and bo
   );
 });
 
-test('fork transport disposes Artifacts capabilities, withholds minted tokens and maps pushes to the registered canonical repository', async () => {
+function repositoryCreationFixture({ loseAcknowledgement = false } = {}) {
+  const state = emptyState(),
+    persisted = [],
+    physical = new Map(),
+    actors = [];
+  let creates = 0,
+    directBindingCalls = 0;
+  const engine = {
+    state,
+    save: async (value) => persisted.push(structuredClone(value)),
+    audit: async (type, actor) => actors.push({ type, actor }),
+    git: {
+      repositoryInfo: async ({ id }) => {
+        if (!physical.has(id)) throw new DomainError('REPO_NOT_FOUND', 'Repository not found', 404);
+        return structuredClone(physical.get(id));
+      },
+      repositoryCreate: async ({ id, ref, operation_id }) => {
+        creates++;
+        const journal = persisted.at(-1).nativeRequests[0];
+        assert.equal(journal.status, 'prepared');
+        assert.equal(journal.effects[0].status, 'prepared');
+        assert.equal(journal.effects[0].method, 'repositoryCreate');
+        assert.equal(journal.id, operation_id);
+        const repository = {
+          id,
+          ref,
+          provider: 'cloudflare-artifacts',
+          remote: 'https://account.artifacts.cloudflare.net/git/test/' + id + '.git',
+          status: 'empty',
+          operation_id,
+        };
+        physical.set(id, repository);
+        if (loseAcknowledgement) throw new Error('Reply lost after creation');
+        return structuredClone(repository);
+      },
+    },
+  };
+  engine.native = new NativeState(engine);
+  const env = {
+    ARTIFACTS: {
+      create: async () => {
+        directBindingCalls++;
+        throw new Error('Legacy create bypassed its journal');
+      },
+    },
+  };
+  return {
+    engine,
+    env,
+    persisted,
+    actors,
+    counts: () => ({ creates, directBindingCalls }),
+  };
+}
+
+test('legacy create uses the native durable journal and replays its receipt', async () => {
+  const fixture = repositoryCreationFixture();
+  const input = { name: 'app', create: true, description: 'Checkout', request_id: 'create-app' };
+  const result = await registerRepository(fixture.engine, fixture.env, input, 'configured-owner');
+  assert.equal(result.name, 'app');
+  assert.equal(result.remote, 'https://account.artifacts.cloudflare.net/git/test/app.git');
+  assert.equal(result.needs_initial_commit, true);
+  assert.equal(fixture.engine.state.nativeRequests[0].actor, 'configured-owner');
+  assert.equal(fixture.engine.state.nativeRequests[0].status, 'applied');
+  assert.equal(fixture.engine.state.nativeRepositories[0].head, null);
+  assert.deepEqual(fixture.engine.state.repositories, []);
+  assert.ok(fixture.actors.every(({ actor }) => actor === 'configured-owner'));
+
+  // The first external push may register a canonical head before a client retries.
+  const head = 'a'.repeat(40);
+  fixture.engine.state.repositories.push({
+    id: 'app',
+    head,
+    baseline: head,
+    canonical_ref: 'refs/heads/main',
+  });
+  assert.deepEqual(
+    await registerRepository(fixture.engine, fixture.env, input, 'configured-owner'),
+    result,
+  );
+  await assert.rejects(
+    () =>
+      registerRepository(
+        fixture.engine,
+        fixture.env,
+        { ...input, description: 'Changed request' },
+        'configured-owner',
+      ),
+    (error) => error.code === 'IDEMPOTENCY_CONFLICT' && error.status === 409,
+  );
+  assert.deepEqual(fixture.counts(), { creates: 1, directBindingCalls: 0 });
+});
+
+test('legacy create requires a stable request identity before any provider effect', async () => {
+  const fixture = repositoryCreationFixture();
+  await assert.rejects(
+    () =>
+      registerRepository(
+        fixture.engine,
+        fixture.env,
+        { name: 'app', create: true },
+        'configured-owner',
+      ),
+    (error) => error.code === 'INVALID_NATIVE_INPUT',
+  );
+  assert.deepEqual(fixture.counts(), { creates: 0, directBindingCalls: 0 });
+  assert.deepEqual(fixture.engine.state.nativeRequests, []);
+  assert.deepEqual(fixture.persisted, []);
+});
+
+test('lost legacy create acknowledgement requires ownership reconciliation rather than replay', async () => {
+  const fixture = repositoryCreationFixture({ loseAcknowledgement: true });
+  const input = { name: 'app', create: true, request_id: 'create-app' };
+  const create = () => registerRepository(fixture.engine, fixture.env, input, 'configured-owner');
+  await assert.rejects(create, (error) => error.code === 'RECOVERY_REQUIRED');
+  const operation = fixture.engine.state.nativeRequests[0];
+  assert.equal(operation.status, 'recovery_required');
+  assert.deepEqual(fixture.engine.state.nativeRepositories, []);
+  await assert.rejects(create, (error) => error.code === 'RECOVERY_REQUIRED');
+  assert.deepEqual(fixture.counts(), { creates: 1, directBindingCalls: 0 });
+
+  await fixture.engine.native.recoverRequest(
+    operation.id,
+    { request_id: 'recover-app' },
+    'configured-owner',
+  );
+  assert.equal(operation.status, 'applied');
+  const result = await create();
+  assert.equal(result.name, 'app');
+  assert.equal(result.needs_initial_commit, true);
+  assert.deepEqual(fixture.counts(), { creates: 1, directBindingCalls: 0 });
+});
+
+test('legacy fork requests fail before invoking Artifacts or mutating fork history', async () => {
   const state = emptyState(),
     head = 'a'.repeat(40);
   state.repositories.push({ id: 'app', head, baseline: head, canonical_ref: 'refs/heads/main' });
-  let disposed = 0;
-  const env = {
-    WORKSPACE_ID: 'klocgit',
-    ACTOR_ID: 'owner',
-    ARTIFACTS: {
-      get: async () => ({
-        fork: async (name, options) => {
-          assert.equal(options.defaultBranchOnly, true);
-          return {
-            id: 'artifact-id',
-            name,
-            remote: 'https://example/work.git',
-            defaultBranch: 'main',
-            token: 'private-test-token',
-          };
-        },
-        [Symbol.dispose]() {
-          disposed++;
-        },
-      }),
-    },
-  };
+  let providerCalls = 0;
   const coordinator = new WorkspaceCoordinator(
     {
       storage: { get: async () => state, put: async () => {} },
       blockConcurrencyWhile: (fn) => fn(),
     },
-    env,
+    {
+      WORKSPACE_ID: 'klocgit',
+      ACTOR_ID: 'owner',
+      ARTIFACTS: {
+        get: async () => {
+          providerCalls++;
+          throw new Error('Legacy fork accessed Artifacts');
+        },
+      },
+    },
   );
   await coordinator.ready;
   const response = await coordinator.fetch(
     new Request('https://coordinator/api/repositories/fork', {
       method: 'POST',
-      body: JSON.stringify({ source: 'app', name: 'work' }),
+      body: JSON.stringify({ source: 'app', name: 'work', request_id: 'fork-work' }),
     }),
   );
-  assert.equal(response.status, 201);
-  assert.deepEqual(await response.json(), {
-    id: 'artifact-id',
-    name: 'work',
-    remote: 'https://example/work.git',
-    defaultBranch: 'main',
-  });
-  assert.equal(disposed, 1);
-  assert.deepEqual(state.forks, [{ id: 'work', repo: 'app', base_commit: head }]);
-  assert.ok(!JSON.stringify(state).includes('private-test-token'));
+  assert.equal(response.status, 409);
+  const result = await response.json();
+  assert.equal(result.error, 'NATIVE_FUTURE_REQUIRED');
+  assert.match(result.message, /POST \/api\/futures/);
+  assert.equal(providerCalls, 0);
+  assert.deepEqual(state.forks, []);
+});
+
+test('historical fork push mappings remain ingestible without creating another physical fork', async () => {
+  const state = emptyState(),
+    head = 'a'.repeat(40);
+  state.repositories.push({ id: 'app', head, baseline: head, canonical_ref: 'refs/heads/main' });
+  state.forks.push({ id: 'work', repo: 'app', base_commit: head });
+  const coordinator = new WorkspaceCoordinator(
+    {
+      storage: { get: async () => state, put: async () => {} },
+      blockConcurrencyWhile: (fn) => fn(),
+    },
+    { WORKSPACE_ID: 'klocgit' },
+  );
+  await coordinator.ready;
   const ingested = [];
   coordinator.engine.ingest = async (event) => {
     ingested.push(event);
@@ -638,6 +773,37 @@ test('fork transport disposes Artifacts capabilities, withholds minted tokens an
   );
   assert.deepEqual(await unknown.json(), { ignored: true, reason: 'UNREGISTERED_REPOSITORY' });
   assert.equal(ingested.length, 1);
+});
+
+test('native ingress uses its service identity without an owner or producer claim', async () => {
+  const coordinator = new WorkspaceCoordinator(
+    {
+      storage: { get: async () => undefined, put: async () => {} },
+      blockConcurrencyWhile: (fn) => fn(),
+    },
+    { WORKSPACE_ID: 'klocgit' },
+  );
+  await coordinator.ready;
+  const calls = [];
+  coordinator.engine.native.observeRepositoryPush = async (event, actor) => {
+    calls.push({ event, actor });
+    return { handled: true, revision_id: 'observed-native-revision' };
+  };
+  const event = { repo: 'work', ref: 'refs/heads/main', after: 'b'.repeat(40) };
+  for (const path of ['/internal/push', '/api/events']) {
+    const response = await coordinator.fetch(
+      new Request('https://coordinator' + path, {
+        method: 'POST',
+        body: JSON.stringify({ event, actor: 'forged-producer' }),
+      }),
+    );
+    assert.equal(response.status, 200);
+    assert.equal((await response.json()).revision_id, 'observed-native-revision');
+  }
+  assert.deepEqual(calls, [
+    { event, actor: 'artifacts-ingress' },
+    { event, actor: 'git-ingress' },
+  ]);
 });
 
 test('canonical resolution reports durable success after enqueue failure and preserves stale-decision rejection', async () => {

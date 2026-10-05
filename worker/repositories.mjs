@@ -3,19 +3,23 @@ import { DomainError } from '../core/hash.mjs';
 const validName = /^[a-zA-Z0-9][a-zA-Z0-9._-]{0,99}$/;
 const supportedProfiles = ['checkout-effects-v0', 'context-document-v0'];
 
-async function createRepository(engine, env, input, actor) {
-  const created = await env.ARTIFACTS.create(input.name, {
-    description: String(input.description ?? ''),
-    setDefaultBranch: 'main',
-  });
-  await engine.audit('repository.created', actor, { repo: input.name });
-  await engine.save(engine.state);
+async function createRepository(engine, input, actor) {
+  // Share the native journal so acknowledgement loss cannot create a second repo.
+  const { repository } = await engine.native.registerRepository(
+    {
+      id: input.name,
+      mode: 'create',
+      description: input.description,
+      request_id: input.request_id,
+    },
+    actor,
+  );
   return {
-    name: created.name,
-    remote: created.remote,
-    needs_initial_commit: true,
+    name: repository.id,
+    remote: repository.remote,
+    needs_initial_commit: repository.status === 'empty',
     instruction:
-      'Push an initial main commit using a separately provisioned scoped Git token, then register this repository without create:true.',
+      'Push an initial main commit using a separately provisioned scoped Git token, then refresh the repository Git state.',
   };
 }
 
@@ -55,10 +59,10 @@ export async function registerRepository(engine, env, input, actor) {
   const name = input.name;
   if (!validName.test(name ?? ''))
     throw new DomainError('INVALID_REPO', 'Use a valid repository name');
+  if (input.create) return createRepository(engine, input, actor);
   if (engine.state.repositories.some((repo) => repo.id === name)) {
     throw new DomainError('REPO_EXISTS', 'Repository is already registered', 409);
   }
-  if (input.create) return createRepository(engine, env, input, actor);
 
   const info = await repositoryInfo(env, name);
   const profile = await trustedProfile(engine, input);
@@ -85,28 +89,10 @@ export async function registerRepository(engine, env, input, actor) {
   return repo;
 }
 
-export async function forkRepository(engine, env, input, actor) {
-  const source = engine.repo(input.source);
-  if (!validName.test(input.name ?? ''))
-    throw new DomainError('INVALID_REPO', 'Use a valid fork name');
-  const capability = await env.ARTIFACTS.get(source.id);
-  let result;
-  try {
-    result = await capability.fork(input.name, {
-      description: String(input.description ?? ''),
-      defaultBranchOnly: true,
-    });
-  } finally {
-    capability[Symbol.dispose]?.();
-  }
-  engine.state.forks.push({ id: result.name, repo: source.id, base_commit: source.head });
-  await engine.audit('repository.forked', actor, { source: source.id, fork: result.name });
-  await engine.save(engine.state);
-  // Artifacts mints a scoped token; it is never returned as coordination data.
-  return {
-    id: result.id,
-    name: result.name,
-    remote: result.remote,
-    defaultBranch: result.defaultBranch,
-  };
+export async function forkRepository() {
+  throw new DomainError(
+    'NATIVE_FUTURE_REQUIRED',
+    'Create an isolated Future through POST /api/futures; repository forks require its durable journal and exact baseline.',
+    409,
+  );
 }

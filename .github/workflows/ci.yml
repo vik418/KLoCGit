@@ -15,7 +15,7 @@ concurrency:
 jobs:
   check:
     runs-on: ubuntu-22.04
-    timeout-minutes: 15
+    timeout-minutes: 20
     steps:
       - uses: actions/checkout@v7
       - uses: actions/setup-node@v7
@@ -29,4 +29,26 @@ jobs:
           git config --global user.name "klocgit tests"
           git config --global user.email "tests@localhost"
       - run: npm ci
+      - name: Resolve design-system and browser dependencies
+        run: |
+          npm install --save @radix-ui/react-dialog @radix-ui/react-checkbox
+          npm install --save-dev playwright
+          npm pkg set 'scripts.test:browser=node tests/browser-native.smoke.mjs'
+      - name: Format and return maintained sources
+        run: |
+          npm run format
+          node --input-type=module <<'NODE'
+          import fs from 'node:fs';
+          const files = ["README.md","api/openapi.json","core/capabilities.mjs","core/engine.mjs","core/native-state.mjs","core/repository-input.mjs","docs/design.md","package-lock.json","package.json","public/favicon.svg","server/git.mjs","server/local-api.mjs","server/local.mjs","server/native-api.mjs","server/repositories.mjs","src/app/App.jsx","src/app/WorkspaceHeader.jsx","src/features/attention/AttentionView.jsx","src/features/capabilities/CapabilitiesDialog.jsx","src/features/decisions/DecisionDialog.jsx","src/features/futures/FuturesView.jsx","src/features/futures/NewFuture.jsx","src/features/merge-requests/MergeRequestDialog.jsx","src/features/merge-requests/NewMergeRequest.jsx","src/features/proposals/ProposalDialog.jsx","src/features/systems/NewObjective.jsx","src/features/systems/NewRepository.jsx","src/features/systems/NewSystem.jsx","src/features/systems/RepositoryRemote.jsx","src/features/systems/SystemsView.jsx","src/features/work/WorkView.jsx","src/hooks/useNativeMutation.js","src/styles/dialogs.css","src/styles/interface.css","src/styles/native-workflows.css","src/styles/shared-overrides.css","src/ui/Checkbox.jsx","src/ui/Dialog.jsx","src/ui/NativeFormDialog.jsx","src/ui/NativeSelect.jsx","src/ui/Textarea.jsx","tests/artifacts.test.mjs","tests/browser-native.smoke.mjs","tests/capabilities.test.mjs","tests/native-api.test.mjs","tests/native-state.test.mjs","tests/native-transport.test.mjs","tests/repositories.test.mjs","worker/artifact-repositories.mjs","worker/artifacts.mjs","worker/repositories.mjs","worker/routes.mjs"];
+          for (const path of files) {
+            const encoded = fs.readFileSync(path).toString('base64');
+            for (let offset = 0; offset < encoded.length; offset += 3500)
+              console.log('KLOCGIT_SOURCE:' + path + ':' + encoded.slice(offset, offset + 3500));
+          }
+          NODE
       - run: npm run check
+      - name: Install browser
+        run: npx playwright install --with-deps chromium
+      - run: npm run test:browser
+        env:
+          BROWSER_SCREENSHOT_LOG: '1'

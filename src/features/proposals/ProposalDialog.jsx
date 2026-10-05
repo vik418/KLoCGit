@@ -2,7 +2,7 @@ import { useState, useEffect } from 'react';
 import { FileCode2, X } from 'lucide-react';
 import { Badge } from '../../ui/Badge.jsx';
 import { ErrorMessage } from '../../ui/ErrorMessage.jsx';
-import { Dialog } from '../../ui/Dialog.jsx';
+import { Dialog, DialogTitle } from '../../ui/Dialog.jsx';
 import { useMutation } from '../../hooks/useMutation.js';
 import { apiRequest } from '../../lib/api.js';
 import { shortId } from '../../lib/format.js';
@@ -22,7 +22,7 @@ export function ProposalDialog({ id, workspace, onClose, onDecision, reload, mes
     return (
       <Dialog onClose={onClose}>
         <div className="native-body">
-          <p>This historical revision is unavailable.</p>
+          <DialogTitle>Revision unavailable</DialogTitle><p>This historical revision is unavailable.</p>
           <button className="button ghost" onClick={onClose}>
             Close
           </button>
@@ -44,7 +44,7 @@ export function ProposalDialog({ id, workspace, onClose, onDecision, reload, mes
       <div className="dialog-header">
         <div>
           <span className="eyebrow">IMMUTABLE PROPOSAL REVISION</span>
-          <h2>{p.title}</h2>
+          <DialogTitle asChild><h2>{p.title}</h2></DialogTitle>
         </div>
         <button className="icon-btn" onClick={onClose} aria-label="Close proposal">
           <X size={20} />

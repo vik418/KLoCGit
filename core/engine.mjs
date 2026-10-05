@@ -12,6 +12,7 @@ import { hash, record, DomainError } from './hash.mjs';
 import { prepareTaskContext, answerTaskContext, assumeTaskContext } from './context.mjs';
 import { MergeRequests } from './merge-requests.mjs';
 import { MergeQueue } from './merge-queue.mjs';
+import { NativeState } from './native-state.mjs';
 import { validationPassed } from './evidence.mjs';
 import { readProducerMetadata } from './metadata.mjs';
 const now = () => new Date().toISOString();
@@ -104,6 +105,7 @@ export class Engine {
     this._tail = Promise.resolve();
     this.mr = new MergeRequests(this);
     this.queue = new MergeQueue(this);
+    this.native = new NativeState(this);
   }
 
   // Transports serialize a whole operation here. Delegated helpers do not enqueue
@@ -403,6 +405,13 @@ export class Engine {
       const restored = !!repo.unavailable;
       repo.unavailable = false;
       if (head !== repo.head || restored) {
+        // Native projections must never pair a fresh head with the previous tree.
+        if (this.state.nativeRepositories?.some((registered) => registered.id === repo.id)) {
+          const facts = await this.git.facts(repo, head, head);
+          if (facts.head !== head)
+            throw new DomainError('INVALID_GIT_FACTS', 'Git did not establish the observed canonical tree', 503);
+          repo.tree = facts.tree;
+        }
         const previous = repo.head;
         repo.head = head;
         changed = true;
@@ -796,6 +805,7 @@ export class Engine {
     const presented = decisions.map((c) => ({ ...c, actionable: open.some((d) => d.id === c.id) }));
     return {
       ...this.state,
+      nativeState: this.native.view(),
       discovery,
       mergeRequests: this.mr.list(),
       mergeQueue: this.queue.list(),

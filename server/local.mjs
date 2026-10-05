@@ -3,10 +3,9 @@ import { readFile, writeFile, rename, mkdir, stat } from 'node:fs/promises';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { createServer as createViteServer } from 'vite';
-import { Engine } from '../core/engine.mjs';
+import { Engine, emptyState } from '../core/engine.mjs';
 import { DomainError } from '../core/hash.mjs';
 import { LocalGit } from './git.mjs';
-import { createDemo } from '../scripts/demo.mjs';
 import { handleLocalRequest } from './local-api.mjs';
 import {
   readRequestBody,
@@ -60,9 +59,10 @@ async function loadEngine() {
   } catch (error) {
     if (error.code !== 'ENOENT') throw error;
   }
-  const { engine } = await createDemo(root, save, { pending: true });
-  engine.state.workspace.owner_id = localActor;
-  await save(engine.state);
+  state = emptyState();
+  state.workspace.owner_id = localActor;
+  const engine = new Engine(state, await new LocalGit(root).init(), save);
+  await save(state);
   return engine;
 }
 
@@ -116,13 +116,13 @@ const server = http.createServer(handleRequest);
 const port = Number(process.env.PORT ?? 43187);
 const host = process.env.HOST ?? '127.0.0.1';
 server.listen(port, host, () => {
-  console.log('klocgit local demo: http://localhost:' + server.address().port);
+  console.log('klocgit workspace: http://localhost:' + server.address().port);
   console.log('Canonical repositories: ' + path.join(root, 'repositories'));
   console.log(
     'Owner identity: ' +
       localActor +
       '; ' +
-      (ownerToken ? 'credential required' : 'local demo session'),
+      (ownerToken ? 'credential required' : 'local development session'),
   );
 });
 

@@ -4,18 +4,16 @@ import { apiRequest } from '../../lib/api.js';
 import { getErrorMessage } from '../../lib/errors.js';
 import { asArray } from '../../lib/workspace.js';
 import { Badge } from '../../ui/Badge.jsx';
-import { Dialog } from '../../ui/Dialog.jsx';
+import { Dialog, DialogTitle } from '../../ui/Dialog.jsx';
 import { ErrorMessage } from '../../ui/ErrorMessage.jsx';
 
 function statusLabel(status) {
-  return status.id.toLowerCase() === 'supported'
-    ? 'Supported locally'
-    : (status.label ?? status.id);
+  return status.label ?? status.id;
 }
 
 function CapabilityItem({ capability, status }) {
   const statusId = capability.status.toLowerCase();
-  const tone = statusId === 'supported' ? 'mint' : statusId === 'partial' ? 'amber' : 'neutral';
+  const tone = statusId === 'verified' ? 'mint' : statusId === 'partial' ? 'amber' : 'neutral';
 
   return (
     <article className="capability-item">
@@ -74,11 +72,11 @@ export function CapabilitiesDialog({ onClose }) {
   const selectedStatus = statuses.find((status) => status.id === statusFilter);
 
   return (
-    <Dialog onClose={onClose} className="capabilities-dialog" labelledBy="capabilities-title">
+    <Dialog onClose={onClose} className="capabilities-dialog">
       <div className="dialog-header">
         <div>
           <span className="eyebrow">IMPLEMENTATION SCOPE</span>
-          <h2 id="capabilities-title">Capabilities</h2>
+          <DialogTitle asChild><h2>Capabilities</h2></DialogTitle>
         </div>
         <button className="icon-btn" onClick={onClose} aria-label="Close capabilities">
           <X size={20} />

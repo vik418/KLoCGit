@@ -2,7 +2,7 @@ import { useState } from 'react';
 import { ChevronRight, X, RefreshCw } from 'lucide-react';
 import { Badge } from '../../ui/Badge.jsx';
 import { ErrorMessage } from '../../ui/ErrorMessage.jsx';
-import { Dialog } from '../../ui/Dialog.jsx';
+import { Dialog, DialogTitle } from '../../ui/Dialog.jsx';
 import { useMutation } from '../../hooks/useMutation.js';
 import { GitChanges } from './GitChanges.jsx';
 import { MergeQueue } from '../queue/MergeQueue.jsx';
@@ -236,7 +236,7 @@ export function WorkView({ workspace, onMR, onCreate, onProposal, onDecision, re
           <div className="dialog-header">
             <div>
               <span className="eyebrow">BATCH REVIEW</span>
-              <h2>Review {selectedRequestIds.length} selected requests</h2>
+              <DialogTitle asChild><h2>Review {selectedRequestIds.length} selected requests</h2></DialogTitle>
             </div>
             <button
               className="icon-btn"
