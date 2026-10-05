@@ -6,13 +6,13 @@
   max-width: 840px;
   width: calc(100% - 60px);
   max-height: 90vh;
-  box-shadow: 0 25px 80px #151b3399;
+  box-shadow: 0 25px 80px #00000099;
   color: var(--text);
   background: var(--surface);
 }
 
 .dialog::backdrop {
-  background: #151b33b3;
+  background: #000000b3;
   backdrop-filter: blur(2px);
 }
 
