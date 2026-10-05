@@ -1,7 +1,7 @@
 import { DomainError, hash, record } from './hash.mjs';
 import { validationPassed } from './evidence.mjs';
 
-const oid = /^[a-f0-9]{40}$/;
+const oid = /^(?!0{40}$)[a-f0-9]{40}$/;
 const now = () => new Date().toISOString();
 
 function list(value, label, limit = 100) {
@@ -52,7 +52,10 @@ export class NativePipeline {
     if (commits.some((commit) => !oid.test(commit)))
       throw new DomainError('INVALID_COMMIT', 'Full immutable commit hashes are required');
     if (kind === 'future' && (input.commits !== undefined || input.repo_id !== undefined))
-      throw new DomainError('INVALID_SELECTION', 'Whole-Future selections include all repositories');
+      throw new DomainError(
+        'INVALID_SELECTION',
+        'Whole-Future selections include all repositories',
+      );
     const heads = revision.repository_heads.filter(
       (head) => kind === 'future' || head.repo_id === input.repo_id,
     );
@@ -138,11 +141,17 @@ export class NativePipeline {
       async () => {
         await this.engine.syncHeads();
         if (!(await this.sourceValidity(ids)))
-          throw new DomainError('SELECTION_STALE', 'Observe the updated Future before composing', 409);
+          throw new DomainError(
+            'SELECTION_STALE',
+            'Observe the updated Future before composing',
+            409,
+          );
         const selections = ids.map((id) => this.object('selections', id));
-        const repoIds = [...new Set(selections.flatMap((selection) =>
-          selection.entries.map((entry) => entry.repo_id),
-        ))].sort();
+        const repoIds = [
+          ...new Set(
+            selections.flatMap((selection) => selection.entries.map((entry) => entry.repo_id)),
+          ),
+        ].sort();
         const baseHeads = Object.fromEntries(
           this.state.repositories.map((repo) => [repo.id, repo.head]),
         );
@@ -151,12 +160,14 @@ export class NativePipeline {
           const repo = this.engine.repo(repoId);
           this.engine.requireCanonical(repo);
           const pieces = selections.flatMap((selection) =>
-            selection.entries.filter((entry) => entry.repo_id === repoId).map((entry) => ({
-              ...entry,
-              id: selection.id,
-              future_revision_id: selection.future_revision_id,
-              kind: selection.kind,
-            })),
+            selection.entries
+              .filter((entry) => entry.repo_id === repoId)
+              .map((entry) => ({
+                ...entry,
+                id: selection.id,
+                future_revision_id: selection.future_revision_id,
+                kind: selection.kind,
+              })),
           );
           const result = await this.engine.git.composeSelections(repo, baseHeads[repoId], pieces);
           if (
@@ -165,7 +176,11 @@ export class NativePipeline {
             !oid.test(result.baseTree) ||
             result.canonical_parent !== baseHeads[repoId]
           )
-            throw new DomainError('INVALID_GIT_FACTS', 'The executor returned an invalid candidate', 503);
+            throw new DomainError(
+              'INVALID_GIT_FACTS',
+              'The executor returned an invalid candidate',
+              503,
+            );
           repositories.push({
             repo_id: repoId,
             base_commit: baseHeads[repoId],
@@ -196,11 +211,14 @@ export class NativePipeline {
   }
 
   latestEvidence(candidate, repository) {
-    return this.state.evidence.filter((entry) =>
-      entry.subject_ref === this.subject(candidate, repository) &&
-      entry.type === 'trusted-validation' &&
-      entry.source === 'platform-owned checks',
-    ).at(-1);
+    return this.state.evidence
+      .filter(
+        (entry) =>
+          entry.subject_ref === this.subject(candidate, repository) &&
+          entry.type === 'trusted-validation' &&
+          entry.source === 'platform-owned checks',
+      )
+      .at(-1);
   }
 
   async validateCandidate(id, input, actor) {
@@ -219,14 +237,16 @@ export class NativePipeline {
         };
         const evidence = [];
         for (const repository of candidate.repositories)
-          evidence.push(await this.engine.validate(
-            this.subject(candidate, repository),
-            this.engine.repo(repository.repo_id),
-            repository.tree,
-            repository.commit,
-            candidate.base_heads,
-            evaluationHeads,
-          ));
+          evidence.push(
+            await this.engine.validate(
+              this.subject(candidate, repository),
+              this.engine.repo(repository.repo_id),
+              repository.tree,
+              repository.commit,
+              candidate.base_heads,
+              evaluationHeads,
+            ),
+          );
         await this.engine.native.event('candidate.validated', actor, {
           candidate_id: id,
           evidence_ids: evidence.map((entry) => entry.id),
@@ -243,13 +263,17 @@ export class NativePipeline {
       evidence: candidate.repositories.map((repo) => this.latestEvidence(candidate, repo) ?? null),
       constraints: this.state.constraints.filter((constraint) => constraint.active),
       config_hash: this.engine.git.configHash,
-      canonical_heads: this.state.repositories.map((repo) => ({
-        repo_id: repo.id,
-        head: repo.head,
-        unavailable: !!repo.unavailable,
-      })).sort((a, b) => a.repo_id.localeCompare(b.repo_id)),
+      canonical_heads: this.state.repositories
+        .map((repo) => ({
+          repo_id: repo.id,
+          head: repo.head,
+          unavailable: !!repo.unavailable,
+        }))
+        .sort((a, b) => a.repo_id.localeCompare(b.repo_id)),
       futures: candidate.selection_ids.map((id) => {
-        const revision = this.engine.native.revision(this.object('selections', id).future_revision_id);
+        const revision = this.engine.native.revision(
+          this.object('selections', id).future_revision_id,
+        );
         const future = this.engine.native.future(revision.future_id);
         return { id: future.id, revision_id: future.current_revision_id, status: future.status };
       }),
@@ -275,13 +299,18 @@ export class NativePipeline {
       sources_current: sourcesCurrent,
       heads_current: headsCurrent,
       evidence,
-      validation_passing: evidence.every((entry) =>
-        entry && entry.validity.status === 'current' && validationPassed(entry) &&
-        entry.tree_hash === candidate.repositories.find((repo) =>
-          this.subject(candidate, repo) === entry.subject_ref,
-        )?.tree,
+      validation_passing: evidence.every(
+        (entry) =>
+          entry &&
+          entry.validity.status === 'current' &&
+          validationPassed(entry) &&
+          entry.tree_hash ===
+            candidate.repositories.find(
+              (repo) => this.subject(candidate, repo) === entry.subject_ref,
+            )?.tree,
       ),
-      promotion_supported: candidate.repositories.filter((repo) => repo.tree !== repo.base_tree).length === 1,
+      promotion_supported:
+        candidate.repositories.filter((repo) => repo.tree !== repo.base_tree).length === 1,
     };
   }
 
@@ -289,34 +318,63 @@ export class NativePipeline {
     actorIdentity(actor);
     if (typeof input.request_id !== 'string' || !input.request_id || input.request_id.length > 128)
       throw new DomainError('INVALID_REQUEST', 'A bounded request identity is required');
-    if (typeof input.rationale !== 'string' || !input.rationale.trim() || input.rationale.length > 4000)
+    if (
+      typeof input.rationale !== 'string' ||
+      !input.rationale.trim() ||
+      input.rationale.length > 4000
+    )
       throw new DomainError('INVALID_RESOLUTION', 'Record a brief rationale');
-    const operationId = 'promotion_' + await hash({ actor, request_id: input.request_id });
+    const operationId = 'promotion_' + (await hash({ actor, request_id: input.request_id }));
     const inputHash = await hash({ candidate_id: id, input });
     const previous = this.state.operations.find((operation) => operation.id === operationId);
     if (previous) {
       if (previous.input_hash !== inputHash)
-        throw new DomainError('IDEMPOTENCY_CONFLICT', 'The request identity has different inputs', 409);
+        throw new DomainError(
+          'IDEMPOTENCY_CONFLICT',
+          'The request identity has different inputs',
+          409,
+        );
       if (previous.status === 'applied')
-        return { decision: this.object('nativeDecisions', previous.decision_id), operation: previous };
+        return {
+          decision: this.object('nativeDecisions', previous.decision_id),
+          operation: previous,
+        };
       if (previous.status === 'not-applied')
-        throw new DomainError('PROMOTION_NOT_ISSUED', 'The prior attempt did not issue a Git write; review and submit a new request', 409);
-      throw new DomainError('RECOVERY_REQUIRED', 'Reconcile the recorded promotion before retrying', 409);
+        throw new DomainError(
+          'PROMOTION_NOT_ISSUED',
+          'The prior attempt did not issue a Git write; review and submit a new request',
+          409,
+        );
+      throw new DomainError(
+        'RECOVERY_REQUIRED',
+        'Reconcile the recorded promotion before retrying',
+        409,
+      );
     }
-    if (this.state.operations.some((operation) =>
-      ['prepared', 'recovery-required'].includes(operation.status),
-    ))
-      throw new DomainError('RECOVERY_REQUIRED', 'A prior canonical write needs reconciliation', 409);
+    if (
+      this.state.operations.some((operation) =>
+        ['prepared', 'recovery-required'].includes(operation.status),
+      )
+    )
+      throw new DomainError(
+        'RECOVERY_REQUIRED',
+        'A prior canonical write needs reconciliation',
+        409,
+      );
     const reviewed = await this.review(id);
     if (
       input.decision_basis_hash !== reviewed.decision_basis_hash ||
-      await hash(input.expected_heads) !== await hash(reviewed.expected_heads) ||
+      (await hash(input.expected_heads)) !== (await hash(reviewed.expected_heads)) ||
       !reviewed.sources_current ||
       !reviewed.heads_current
     )
       throw new DomainError('DECISION_STALE', 'Review the changed candidate basis', 409);
     if (!reviewed.validation_passing)
-      throw new DomainError('VALIDATION_REQUIRED', 'Fresh trusted composed-tree validation is required', 409);
+      throw new DomainError(
+        'VALIDATION_REQUIRED',
+        'Fresh trusted composed-tree validation is required',
+        409,
+      );
     if (!reviewed.promotion_supported)
       throw new DomainError(
         'MULTI_REPO_PROMOTION_UNSUPPORTED',
@@ -350,7 +408,10 @@ export class NativePipeline {
       dispatch_state: 'not_started',
     };
     this.state.operations.push(operation);
-    await this.engine.audit('canonical.prepared', actor, { operation_id: operation.id, decision_id: decision.id });
+    await this.engine.audit('canonical.prepared', actor, {
+      operation_id: operation.id,
+      decision_id: decision.id,
+    });
     // Persist intent before issuing the only canonical mutation. Ambiguous replies
     // are observed through recovery, never converted into a second push.
     await this.engine.save(this.state);
@@ -399,14 +460,20 @@ export class NativePipeline {
       target.tree !== operation.target_tree ||
       target.base_commit !== operation.expected_head
     )
-      throw new DomainError('RECOVERY_REQUIRED', 'The journal differs from its immutable candidate', 503);
+      throw new DomainError(
+        'RECOVERY_REQUIRED',
+        'The journal differs from its immutable candidate',
+        503,
+      );
     if (operation.dispatch_state === 'not_started') {
       operation.status = 'not-applied';
-      await this.engine.audit('canonical.not-issued', 'coordinator', { operation_id: operation.id });
+      await this.engine.audit('canonical.not-issued', 'coordinator', {
+        operation_id: operation.id,
+      });
       return;
     }
     const repo = this.engine.repo(operation.repo);
-    if (await this.engine.git.ref(repo, repo.canonical_ref) === operation.target_commit)
+    if ((await this.engine.git.ref(repo, repo.canonical_ref)) === operation.target_commit)
       await this.complete(operation, 'coordinator');
     else operation.status = 'recovery-required';
   }

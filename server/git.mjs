@@ -36,7 +36,7 @@ export const protectedGitArguments = [
   'commit.gpgSign=false',
 ];
 const immutableCommit = (value) => {
-  if (!/^[a-f0-9]{40}$/.test(value ?? ''))
+  if (!/^[a-f0-9]{40}$/.test(value ?? '') || /^0{40}$/.test(value))
     throw new DomainError('INVALID_COMMIT', 'Full immutable commit hashes are required');
   return value;
 };
@@ -329,7 +329,10 @@ export class LocalGit {
         (selection.kind === 'commits' && !selection.commits.length) ||
         (selection.kind === 'future' && selection.commits.length)
       )
-        throw new DomainError('INVALID_SELECTION', 'Select whole histories or bounded commit patches');
+        throw new DomainError(
+          'INVALID_SELECTION',
+          'Select whole histories or bounded commit patches',
+        );
       selection.commits.forEach(immutableCommit);
     }
     const whole = selections.filter((selection) => selection.kind === 'future');
@@ -353,7 +356,11 @@ export class LocalGit {
             throw new DomainError('INVALID_SELECTION', 'The same commit patch was selected twice');
           applied.add(commit);
           if (commit === selection.base_commit)
-            throw new DomainError('COMMIT_OUTSIDE_REVISION', 'The baseline is not a selectable change', 422);
+            throw new DomainError(
+              'COMMIT_OUTSIDE_REVISION',
+              'The baseline is not a selectable change',
+              422,
+            );
           for (const pair of [
             [selection.base_commit, commit],
             [commit, selection.head_commit],
@@ -361,21 +368,36 @@ export class LocalGit {
             try {
               await git(cwd, ['merge-base', '--is-ancestor', ...pair]);
             } catch {
-              throw new DomainError('COMMIT_OUTSIDE_REVISION', 'Commit is outside the pinned revision', 422);
+              throw new DomainError(
+                'COMMIT_OUTSIDE_REVISION',
+                'Commit is outside the pinned revision',
+                422,
+              );
             }
           }
           const parents = (await git(cwd, ['rev-list', '--parents', '-n', '1', commit]))
-            .split(/\s+/).slice(1);
+            .split(/\s+/)
+            .slice(1);
           if (parents.length !== 1)
             throw new DomainError(
               'COMMIT_PARENT_REQUIRED',
               'Commit selection currently supports non-root, non-merge commits',
               422,
             );
-          const patch = await git(cwd, [
-            'diff', '--binary', '--full-index', '--no-ext-diff', '--no-textconv',
-            parents[0], commit,
-          ], undefined, { raw: true });
+          const patch = await git(
+            cwd,
+            [
+              'diff',
+              '--binary',
+              '--full-index',
+              '--no-ext-diff',
+              '--no-textconv',
+              parents[0],
+              commit,
+            ],
+            undefined,
+            { raw: true },
+          );
           try {
             await git(cwd, ['apply', '--cached', '--3way', '--allow-empty'], patch);
           } catch {
@@ -386,12 +408,18 @@ export class LocalGit {
             );
           }
           const result = await git(cwd, ['write-tree']);
-          current = await git(cwd, ['commit-tree', result, '-p', current], [
-            'klocgit: selected immutable commit patch', '',
-            'Selection: ' + selection.id,
-            'Future-Revision: ' + selection.future_revision_id,
-            'Source-Commit: ' + commit, '',
-          ].join('\n'));
+          current = await git(
+            cwd,
+            ['commit-tree', result, '-p', current],
+            [
+              'klocgit: selected immutable commit patch',
+              '',
+              'Selection: ' + selection.id,
+              'Future-Revision: ' + selection.future_revision_id,
+              'Source-Commit: ' + commit,
+              '',
+            ].join('\n'),
+          );
         }
       }
       const tree = await git(cwd, ['rev-parse', current + '^{tree}']);
@@ -399,12 +427,19 @@ export class LocalGit {
         'Selection: ' + selection.id,
         'Future-Revision: ' + selection.future_revision_id,
       ]);
-      const commit = await git(cwd, ['commit-tree', tree, '-p', current], [
-        'klocgit: composed native candidate', '', ...trailers, '',
-      ].join('\n'));
+      const commit = await git(
+        cwd,
+        ['commit-tree', tree, '-p', current],
+        ['klocgit: composed native candidate', '', ...trailers, ''].join('\n'),
+      );
       await git(this.dir(repo), ['fetch', '--quiet', cwd, commit]);
       await git(this.dir(repo), ['update-ref', 'refs/klocgit/candidates/' + commit, commit]);
-      return { tree, commit: tree === initial.baseTree ? head : commit, baseTree: initial.baseTree, canonical_parent: head };
+      return {
+        tree,
+        commit: tree === initial.baseTree ? head : commit,
+        baseTree: initial.baseTree,
+        canonical_parent: head,
+      };
     } finally {
       await rm(temp, { recursive: true, force: true });
     }

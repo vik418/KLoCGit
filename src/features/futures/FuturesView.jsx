@@ -36,14 +36,23 @@ export function FuturesView({ nativeState, onNewFuture, onCompose, reload, messa
           Independent Git work recorded as immutable revisions.
         </p>
         <div className="flex flex-wrap gap-2">
-          <Button type="button" size="sm" variant="outline" onClick={onCompose}
-            disabled={!nativeState.futures.some((future) => future.status === 'active' && future.current_revision_id)}>
+          <Button
+            type="button"
+            size="sm"
+            variant="outline"
+            onClick={onCompose}
+            disabled={
+              !nativeState.futures.some(
+                (future) => future.status === 'active' && future.current_revision_id,
+              )
+            }
+          >
             Compose candidate
           </Button>
-        <Button type="button" size="sm" onClick={() => onNewFuture()} disabled={!ready}>
-          <Plus aria-hidden="true" />
-          Open isolated work
-        </Button>
+          <Button type="button" size="sm" onClick={() => onNewFuture()} disabled={!ready}>
+            <Plus aria-hidden="true" />
+            Open isolated work
+          </Button>
         </div>
       </div>
       {error && (

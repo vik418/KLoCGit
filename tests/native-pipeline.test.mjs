@@ -59,22 +59,49 @@ async function fixture(t) {
   const saved = [];
   const engine = new Engine(state, adapter, async (value) => saved.push(structuredClone(value)));
   return {
-    root, engine, adapter, state, saved, base, baseTree, a, b, revision,
-    setPassing(value) { passing = value; },
+    root,
+    engine,
+    adapter,
+    state,
+    saved,
+    base,
+    baseTree,
+    a,
+    b,
+    revision,
+    setPassing(value) {
+      passing = value;
+    },
     async selection(kind = 'future', commits = [b]) {
-      return (await engine.pipeline.createSelection({
-        future_revision_id: revision.id, kind,
-        ...(kind === 'commits' ? { repo_id: 'app', commits } : {}),
-        request_id: 'selection-' + kind + '-' + commits.join('-'),
-      }, 'owner')).selection;
+      return (
+        await engine.pipeline.createSelection(
+          {
+            future_revision_id: revision.id,
+            kind,
+            ...(kind === 'commits' ? { repo_id: 'app', commits } : {}),
+            request_id: 'selection-' + kind + '-' + commits.join('-'),
+          },
+          'owner',
+        )
+      ).selection;
     },
     async candidate(selection) {
-      return (await engine.pipeline.createCandidate({
-        selection_ids: [selection.id], request_id: 'compose-' + selection.id,
-      }, 'owner')).candidate;
+      return (
+        await engine.pipeline.createCandidate(
+          {
+            selection_ids: [selection.id],
+            request_id: 'compose-' + selection.id,
+          },
+          'owner',
+        )
+      ).candidate;
     },
     async reviewed(candidate) {
-      await engine.pipeline.validateCandidate(candidate.id, { request_id: 'check-' + candidate.id }, 'owner');
+      await engine.pipeline.validateCandidate(
+        candidate.id,
+        { request_id: 'check-' + candidate.id },
+        'owner',
+      );
       const review = await engine.pipeline.review(candidate.id);
       return {
         request_id: 'promote-' + candidate.id,
@@ -99,7 +126,7 @@ test('commit selection applies only the selected patch, retaining ordinary clone
   await git(f.root, ['clone', '--quiet', f.adapter.dir({ id: 'app' }), clone]);
   await git(clone, ['fetch', '--quiet', 'origin', target.commit]);
   assert.equal(await git(clone, ['show', target.commit + ':b.txt']), 'selected change');
-  assert.equal(Object.isFrozen(selection.entries), true);
+  assert.equal(Object.isFrozen(f.state.selections[0].entries), true);
   assert.equal(f.state.proposals.length, 0);
   assert.equal(f.engine.mr.list().length, 0);
 });
@@ -108,8 +135,14 @@ test('whole-Future composition preserves source history and immutable selection 
   const f = await fixture(t);
   const selection = await f.selection();
   const candidate = await f.candidate(selection);
-  assert.equal(await f.adapter.isAncestor({ id: 'app' }, f.b, candidate.repositories[0].commit), true);
-  assert.equal(await f.adapter.file({ id: 'app' }, candidate.repositories[0].commit, 'a.txt'), 'unselected parent change');
+  assert.equal(
+    await f.adapter.isAncestor({ id: 'app' }, f.b, candidate.repositories[0].commit),
+    true,
+  );
+  assert.equal(
+    await f.adapter.file({ id: 'app' }, candidate.repositories[0].commit, 'a.txt'),
+    'unselected parent change',
+  );
   const duplicate = await f.selection();
   assert.deepEqual(duplicate, selection);
   assert.equal(f.state.selections.length, 1);
@@ -121,13 +154,31 @@ test('commit selections reject baseline, outside-revision and merge commits', as
   await assert.rejects(() => f.selection('commits', [f.base]), { code: 'COMMIT_OUTSIDE_REVISION' });
   await assert.rejects(() => f.selection('commits', ['0'.repeat(40)]));
   const merge = await git(f.adapter.dir({ id: 'source' }), [
-    'commit-tree', f.revision.tree_hashes[0].tree, '-p', f.b, '-p', f.base, '-m', 'merge',
+    'commit-tree',
+    f.revision.tree_hashes[0].tree,
+    '-p',
+    f.b,
+    '-p',
+    f.base,
+    '-m',
+    'merge',
   ]);
-  await assert.rejects(() => f.adapter.composeSelections(f.engine.repo('app'), f.base, [{
-    id: 'selection', future_revision_id: 'revision', kind: 'commits',
-    source_repo: 'source', base_commit: f.base, head_commit: merge,
-    tree_hash: f.revision.tree_hashes[0].tree, commits: [merge],
-  }]), { code: 'COMMIT_PARENT_REQUIRED' });
+  await assert.rejects(
+    () =>
+      f.adapter.composeSelections(f.engine.repo('app'), f.base, [
+        {
+          id: 'selection',
+          future_revision_id: 'revision',
+          kind: 'commits',
+          source_repo: 'source',
+          base_commit: f.base,
+          head_commit: merge,
+          tree_hash: f.revision.tree_hashes[0].tree,
+          commits: [merge],
+        },
+      ]),
+    { code: 'COMMIT_PARENT_REQUIRED' },
+  );
 });
 
 test('an unprocessed source push invalidates selection and reviewed promotion', async (t) => {
@@ -137,22 +188,41 @@ test('an unprocessed source push invalidates selection and reviewed promotion', 
   const input = await f.reviewed(candidate);
   await git(f.adapter.dir({ id: 'source' }), ['update-ref', ref, f.a]);
   assert.equal((await f.engine.pipeline.review(candidate.id)).sources_current, false);
-  await assert.rejects(() => f.engine.pipeline.promote(candidate.id, input, 'owner'), { code: 'DECISION_STALE' });
+  await assert.rejects(() => f.engine.pipeline.promote(candidate.id, input, 'owner'), {
+    code: 'DECISION_STALE',
+  });
   assert.equal(f.state.operations.length, 0);
-  await assert.rejects(() => f.engine.pipeline.createCandidate({
-    selection_ids: [selection.id], request_id: 'compose-stale',
-  }, 'owner'), { code: 'SELECTION_STALE' });
+  await assert.rejects(
+    () =>
+      f.engine.pipeline.createCandidate(
+        {
+          selection_ids: [selection.id],
+          request_id: 'compose-stale',
+        },
+        'owner',
+      ),
+    { code: 'SELECTION_STALE' },
+  );
 });
 
 test('constraint/configuration changes invalidate the reviewed basis', async (t) => {
   const f = await fixture(t);
   const candidate = await f.candidate(await f.selection());
   const input = await f.reviewed(candidate);
-  f.state.constraints.push({ id: 'constraint-v1', active: true, kind: 'advisory', statement: 'review policy' });
-  await assert.rejects(() => f.engine.pipeline.promote(candidate.id, input, 'owner'), { code: 'DECISION_STALE' });
+  f.state.constraints.push({
+    id: 'constraint-v1',
+    active: true,
+    kind: 'advisory',
+    statement: 'review policy',
+  });
+  await assert.rejects(() => f.engine.pipeline.promote(candidate.id, input, 'owner'), {
+    code: 'DECISION_STALE',
+  });
   f.state.constraints = [];
   f.adapter.configHash = 'trusted-fixture-v1';
-  await assert.rejects(() => f.engine.pipeline.promote(candidate.id, input, 'owner'), { code: 'DECISION_STALE' });
+  await assert.rejects(() => f.engine.pipeline.promote(candidate.id, input, 'owner'), {
+    code: 'DECISION_STALE',
+  });
   assert.equal(f.state.operations.length, 0);
 });
 
@@ -164,10 +234,20 @@ test('a failed latest run blocks promotion instead of reusing an earlier passing
   await f.engine.pipeline.validateCandidate(candidate.id, { request_id: 'failed-rerun' }, 'owner');
   const review = await f.engine.pipeline.review(candidate.id);
   assert.equal(review.validation_passing, false);
-  await assert.rejects(() => f.engine.pipeline.promote(candidate.id, {
-    request_id: 'failed-promotion', decision_basis_hash: review.decision_basis_hash,
-    expected_heads: review.expected_heads, rationale: 'Review current checks.',
-  }, 'owner'), { code: 'VALIDATION_REQUIRED' });
+  await assert.rejects(
+    () =>
+      f.engine.pipeline.promote(
+        candidate.id,
+        {
+          request_id: 'failed-promotion',
+          decision_basis_hash: review.decision_basis_hash,
+          expected_heads: review.expected_heads,
+          rationale: 'Review current checks.',
+        },
+        'owner',
+      ),
+    { code: 'VALIDATION_REQUIRED' },
+  );
   assert.equal(f.state.operations.length, 0);
 });
 
@@ -180,10 +260,15 @@ test('CAS race fails without replacing the external canonical push', async (t) =
     await git(f.adapter.dir(repo), ['update-ref', ref, f.a]);
     return cas(repo, expected, target);
   };
-  await assert.rejects(() => f.engine.pipeline.promote(candidate.id, input, 'owner'), { code: 'DECISION_STALE' });
+  await assert.rejects(() => f.engine.pipeline.promote(candidate.id, input, 'owner'), {
+    code: 'DECISION_STALE',
+  });
   assert.equal(await f.adapter.ref({ id: 'app' }, ref), f.a);
   assert.equal(f.state.operations[0].status, 'cas-failed');
-  assert.equal(f.saved.some((snapshot) => snapshot.operations[0]?.status === 'prepared'), true);
+  assert.equal(
+    f.saved.some((snapshot) => snapshot.operations[0]?.status === 'prepared'),
+    true,
+  );
 });
 
 test('lost CAS acknowledgement blocks writes and recovers by observation without replay', async (t) => {
@@ -197,9 +282,16 @@ test('lost CAS acknowledgement blocks writes and recovers by observation without
     await cas(...args);
     throw new Error('lost acknowledgement');
   };
-  await assert.rejects(() => f.engine.pipeline.promote(candidate.id, input, 'owner'), /lost acknowledgement/);
+  await assert.rejects(
+    () => f.engine.pipeline.promote(candidate.id, input, 'owner'),
+    /lost acknowledgement/,
+  );
   assert.equal(f.state.operations[0].status, 'recovery-required');
-  await assert.rejects(() => f.engine.pipeline.promote(candidate.id, { ...input, request_id: 'another-write' }, 'owner'), { code: 'RECOVERY_REQUIRED' });
+  await assert.rejects(
+    () =>
+      f.engine.pipeline.promote(candidate.id, { ...input, request_id: 'another-write' }, 'owner'),
+    { code: 'RECOVERY_REQUIRED' },
+  );
   // Restart from persisted metadata, not the former Engine instance.
   const restarted = new Engine(structuredClone(f.saved.at(-1)), f.adapter);
   await restarted.recover();
@@ -214,10 +306,15 @@ test('recovery keeps an unrelated or unchanged head uncertain and never calls CA
   const f = await fixture(t);
   const candidate = await f.candidate(await f.selection());
   const input = await f.reviewed(candidate);
-  f.adapter.cas = async () => { throw new Error('transport failed'); };
+  f.adapter.cas = async () => {
+    throw new Error('transport failed');
+  };
   await assert.rejects(() => f.engine.pipeline.promote(candidate.id, input, 'owner'));
   let writes = 0;
-  f.adapter.cas = async () => { writes++; return true; };
+  f.adapter.cas = async () => {
+    writes++;
+    return true;
+  };
   await f.engine.recover();
   assert.equal(writes, 0);
   assert.equal(f.state.operations[0].status, 'recovery-required');
@@ -226,22 +323,53 @@ test('recovery keeps an unrelated or unchanged head uncertain and never calls CA
 test('native API binds the transport actor and does not accept producer evidence', async (t) => {
   const f = await fixture(t);
   const result = await handleNativeRequest(f.engine, {
-    method: 'POST', url: '/api/selections', actor: 'owner',
-    input: { future_revision_id: f.revision.id, request_id: 'api-selection', actor: 'attacker', evidence: { passed: true } },
+    method: 'POST',
+    url: '/api/selections',
+    actor: 'owner',
+    input: {
+      future_revision_id: f.revision.id,
+      request_id: 'api-selection',
+      actor: 'attacker',
+      evidence: { passed: true },
+    },
   });
   assert.equal(result.selection.kind, 'future');
   assert.equal(f.state.audit.at(-1).actor, 'owner');
   assert.equal(f.state.evidence.length, 0);
-  await assert.rejects(() => handleNativeRequest(f.engine, {
-    method: 'GET', url: '/api/candidates', actor: '',
-  }), { code: 'UNAUTHENTICATED' });
+  await assert.rejects(
+    () =>
+      handleNativeRequest(f.engine, {
+        method: 'GET',
+        url: '/api/candidates',
+        actor: '',
+      }),
+    { code: 'UNAUTHENTICATED' },
+  );
 });
 
 test('composed dependency checks read candidate commits while freshness tracks canonical baselines', async (t) => {
   const f = await fixture(t);
-  await git(f.root, ['clone', '--bare', '--quiet', f.adapter.dir({ id: 'app' }), f.adapter.dir({ id: 'policy' })]);
-  await git(f.root, ['clone', '--bare', '--quiet', f.adapter.dir({ id: 'source' }), f.adapter.dir({ id: 'policy-source' })]);
-  f.state.repositories.push({ id: 'policy', canonical_ref: ref, head: f.base, tree: f.baseTree, baseline: f.base });
+  await git(f.root, [
+    'clone',
+    '--bare',
+    '--quiet',
+    f.adapter.dir({ id: 'app' }),
+    f.adapter.dir({ id: 'policy' }),
+  ]);
+  await git(f.root, [
+    'clone',
+    '--bare',
+    '--quiet',
+    f.adapter.dir({ id: 'source' }),
+    f.adapter.dir({ id: 'policy-source' }),
+  ]);
+  f.state.repositories.push({
+    id: 'policy',
+    canonical_ref: ref,
+    head: f.base,
+    tree: f.baseTree,
+    baseline: f.base,
+  });
   const policyRevision = await record('future-revision', {
     future_id: 'policy-future',
     repository_heads: [{ repo_id: 'policy', source_repo_id: 'policy-source', ref, commit: f.b }],
@@ -249,35 +377,72 @@ test('composed dependency checks read candidate commits while freshness tracks c
     tree_hashes: [{ repo_id: 'policy', tree: f.revision.tree_hashes[0].tree }],
   });
   f.state.futureRevisions.push(policyRevision);
-  f.state.futures.push({ id: 'policy-future', status: 'active', current_revision_id: policyRevision.id });
-  const policy = (await f.engine.pipeline.createSelection({
-    future_revision_id: policyRevision.id, kind: 'future', request_id: 'policy-selection',
-  }, 'owner')).selection;
+  f.state.futures.push({
+    id: 'policy-future',
+    status: 'active',
+    current_revision_id: policyRevision.id,
+  });
+  const policy = (
+    await f.engine.pipeline.createSelection(
+      {
+        future_revision_id: policyRevision.id,
+        kind: 'future',
+        request_id: 'policy-selection',
+      },
+      'owner',
+    )
+  ).selection;
   const app = await f.selection();
-  const candidate = (await f.engine.pipeline.createCandidate({
-    selection_ids: [app.id, policy.id], request_id: 'composed-system',
-  }, 'owner')).candidate;
+  const candidate = (
+    await f.engine.pipeline.createCandidate(
+      {
+        selection_ids: [app.id, policy.id],
+        request_id: 'composed-system',
+      },
+      'owner',
+    )
+  ).candidate;
   const runs = [];
   f.adapter.validate = async (repo, commit, constraints, heads) => {
     runs.push({ repo: repo.id, commit, heads });
     return { passed: true, checks: [{ name: 'exact composed dependencies', passed: true }] };
   };
-  const { evidence } = await f.engine.pipeline.validateCandidate(candidate.id, {
-    request_id: 'composed-checks',
-  }, 'owner');
+  const { evidence } = await f.engine.pipeline.validateCandidate(
+    candidate.id,
+    {
+      request_id: 'composed-checks',
+    },
+    'owner',
+  );
   for (const run of runs) {
-    assert.equal(run.heads.app, candidate.repositories.find((repo) => repo.repo_id === 'app').commit);
-    assert.equal(run.heads.policy, candidate.repositories.find((repo) => repo.repo_id === 'policy').commit);
+    assert.equal(
+      run.heads.app,
+      candidate.repositories.find((repo) => repo.repo_id === 'app').commit,
+    );
+    assert.equal(
+      run.heads.policy,
+      candidate.repositories.find((repo) => repo.repo_id === 'policy').commit,
+    );
   }
   assert.equal(evidence[0].validity_heads.policy, f.base);
   assert.equal(evidence[0].evaluation_heads.policy, runs[0].heads.policy);
   const review = await f.engine.pipeline.review(candidate.id);
   assert.equal(review.validation_passing, true);
   assert.equal(review.promotion_supported, false);
-  await assert.rejects(() => f.engine.pipeline.promote(candidate.id, {
-    request_id: 'multi-repo-promotion', decision_basis_hash: review.decision_basis_hash,
-    expected_heads: review.expected_heads, rationale: 'Both selected roles.',
-  }, 'owner'), { code: 'MULTI_REPO_PROMOTION_UNSUPPORTED' });
+  await assert.rejects(
+    () =>
+      f.engine.pipeline.promote(
+        candidate.id,
+        {
+          request_id: 'multi-repo-promotion',
+          decision_basis_hash: review.decision_basis_hash,
+          expected_heads: review.expected_heads,
+          rationale: 'Both selected roles.',
+        },
+        'owner',
+      ),
+    { code: 'MULTI_REPO_PROMOTION_UNSUPPORTED' },
+  );
   assert.equal(f.state.operations.length, 0);
   assert.equal(await f.adapter.ref({ id: 'app' }, ref), f.base);
   assert.equal(await f.adapter.ref({ id: 'policy' }, ref), f.base);
@@ -324,8 +489,14 @@ test('a crash after preparing but before dispatch is safely settled without Git 
   };
   let writes = 0;
   const cas = f.adapter.cas.bind(f.adapter);
-  f.adapter.cas = async (...args) => { writes++; return cas(...args); };
-  await assert.rejects(() => f.engine.pipeline.promote(candidate.id, input, 'owner'), /crash before dispatch/);
+  f.adapter.cas = async (...args) => {
+    writes++;
+    return cas(...args);
+  };
+  await assert.rejects(
+    () => f.engine.pipeline.promote(candidate.id, input, 'owner'),
+    /crash before dispatch/,
+  );
   const restarted = new Engine(structuredClone(f.saved.at(-1)), f.adapter);
   await restarted.recover();
   assert.equal(restarted.state.operations[0].status, 'not-applied');
@@ -335,8 +506,16 @@ test('a crash after preparing but before dispatch is safely settled without Git 
 
 test('local CAS does not classify an unacknowledged unchanged head as proof of no write', async (t) => {
   const f = await fixture(t);
-  await assert.rejects(() => f.adapter.cas(f.engine.repo('app'), f.base, '0'.repeat(40)), {
+  await assert.rejects(() => f.adapter.cas(f.engine.repo('app'), f.base, '9'.repeat(40)), {
     code: 'CANONICAL_WRITE_UNCERTAIN',
+  });
+  assert.equal(await f.adapter.ref({ id: 'app' }, ref), f.base);
+});
+
+test('canonical targets reject the zero OID rather than deleting the Git ref', async (t) => {
+  const f = await fixture(t);
+  await assert.rejects(() => f.adapter.cas(f.engine.repo('app'), f.base, '0'.repeat(40)), {
+    code: 'INVALID_COMMIT',
   });
   assert.equal(await f.adapter.ref({ id: 'app' }, ref), f.base);
 });

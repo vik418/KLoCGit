@@ -5,7 +5,7 @@ import { LocalGit, git, protectedGitArguments } from './git.mjs';
 import { DomainError } from '../core/hash.mjs';
 const exec = promisify(execFile);
 const commit = (value) => {
-  if (!/^[a-f0-9]{40}$/.test(value ?? ''))
+  if (!/^[a-f0-9]{40}$/.test(value ?? '') || /^0{40}$/.test(value))
     throw new DomainError('INVALID_COMMIT', 'Full immutable Git commit hashes are required');
   return value;
 };
@@ -200,7 +200,11 @@ export class RemoteGit extends LocalGit {
       throw new DomainError('INVALID_SELECTION', 'A bounded selection list is required');
     for (const selection of selections) {
       const source = selection.source_repo;
-      for (const oid of [selection.base_commit, selection.head_commit, ...(selection.commits ?? [])])
+      for (const oid of [
+        selection.base_commit,
+        selection.head_commit,
+        ...(selection.commits ?? []),
+      ])
         await this.ensureCommit(source, oid);
     }
     return this.retainCandidate(

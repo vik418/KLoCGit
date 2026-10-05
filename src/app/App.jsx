@@ -193,13 +193,25 @@ export function App() {
         </main>
       </div>
       {nativeDialog?.type === 'candidate' && (
-        <NewCandidate nativeState={workspace.nativeState} onClose={() => setNativeDialog(null)}
-          reload={reload} message={notify} onCreated={(id) => {
-            setNativeDialog(null); setCandidateId(id); setActiveTab('attention');
-          }} />
+        <NewCandidate
+          nativeState={workspace.nativeState}
+          onClose={() => setNativeDialog(null)}
+          reload={reload}
+          message={notify}
+          onCreated={(id) => {
+            setNativeDialog(null);
+            setCandidateId(id);
+            setActiveTab('attention');
+          }}
+        />
       )}
       {candidateId && (
-        <CandidateDialog id={candidateId} onClose={() => setCandidateId(null)} reload={reload} message={notify} />
+        <CandidateDialog
+          id={candidateId}
+          onClose={() => setCandidateId(null)}
+          reload={reload}
+          message={notify}
+        />
       )}
       {selectedDecisionId &&
         workspace.decisionComponents.some((decision) => decision.id === selectedDecisionId) && (

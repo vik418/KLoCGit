@@ -75,11 +75,11 @@ One serialization boundary protects coordination writes. Git's expected-old-head
 | Objective          | Optional requested outcome, scope and declared or unknown source. Creating a Future can record the request inline.                                |
 | Future             | Mutable workspace identity containing isolated repository copies, exact baselines, producer metadata and a current revision pointer.              |
 | FutureRevision     | Immutable repository-head, tree and baseline vectors, affected scope, producer, context reference and provenance state.                           |
-| Selection          | Immutable whole-Future or ordered non-merge commit selection pinned to a FutureRevision.                                                            |
-| CandidateState     | Immutable repository commits/trees constructed from pinned selections against captured canonical heads.                                              |
+| Selection          | Immutable whole-Future or ordered non-merge commit selection pinned to a FutureRevision.                                                          |
+| CandidateState     | Immutable repository commits/trees constructed from pinned selections against captured canonical heads.                                           |
 | Evidence           | Existing immutable check results pin exact trees, configuration, constraints and dependency versions. Native Git observations are not validation. |
-| Decision           | Immutable native acceptance and reviewed basis; compatibility alternatives remain. General discovery is not delivered.                                              |
-| PromotionOperation | Shared prepared write journal for native and compatibility decisions. Multi-repository promotion is blocked.                                                              |
+| Decision           | Immutable native acceptance and reviewed basis; compatibility alternatives remain. General discovery is not delivered.                            |
+| PromotionOperation | Shared prepared write journal for native and compatibility decisions. Multi-repository promotion is blocked.                                      |
 
 Vectors identify repository roles and exact commit/tree inputs; their stable ordering is part of identity. Observation timestamps do not replace version identity. A changed head, rebase, force-push or rewind creates a new FutureRevision. Prior revisions retain their original baselines and provenance.
 
@@ -136,7 +136,7 @@ npm ci
 LOCAL_ACTOR_ID="$(git config user.email)" npm run dev
 ```
 
-`LOCAL_ACTOR_ID` is required. `LOCAL_OWNER_TOKEN` optionally requires a Bearer credential. The browser keeps that credential in page memory. Configure the token before exposing the development server beyond localhost; this is single-owner authentication.
+`LOCAL_ACTOR_ID` is required. `LOCAL_OWNER_TOKEN` optionally requires a *** The browser keeps that credential in page memory. Configure the token before exposing the development server beyond localhost; this is single-owner authentication.
 
 Startup uses an empty workspace. The optional `npm run demo:reset` command replaces the default disposable workspace with sample repositories; stop the server first. It does not reset a custom `KLOCGIT_ROOT`. Backup and restore metadata together with its repositories. Missing metadata beside intact repositories must not trigger destructive initialization.
 

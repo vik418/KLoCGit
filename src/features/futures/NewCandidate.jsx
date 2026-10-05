@@ -21,13 +21,19 @@ export function NewCandidate({ nativeState, onClose, onCreated, reload, message 
     }));
   }
 
-  const valid = selected.length > 0 && selected.every((future) => {
-    const choice = choices[future.id];
-    return choice.kind === 'future' || (
-      choice.repo_id &&
-      choice.commits.trim().split(/\s+/).every((commit) => /^[a-f0-9]{40}$/.test(commit))
-    );
-  });
+  const valid =
+    selected.length > 0 &&
+    selected.every((future) => {
+      const choice = choices[future.id];
+      return (
+        choice.kind === 'future' ||
+        (choice.repo_id &&
+          choice.commits
+            .trim()
+            .split(/\s+/)
+            .every((commit) => /^[a-f0-9]{40}$/.test(commit)))
+      );
+    });
 
   async function submit(event) {
     event.preventDefault();
@@ -40,15 +46,21 @@ export function NewCandidate({ nativeState, onClose, onCreated, reload, message 
         const result = await mutate('/selections', {
           future_revision_id: future.current_revision_id,
           kind: choice.kind,
-          ...(choice.kind === 'commits' ? {
-            repo_id: choice.repo_id,
-            commits: choice.commits.trim().split(/\s+/),
-          } : {}),
+          ...(choice.kind === 'commits'
+            ? {
+                repo_id: choice.repo_id,
+                commits: choice.commits.trim().split(/\s+/),
+              }
+            : {}),
         });
         if (!result) return;
         selectionIds.push(result.selection.id);
       }
-      const result = await mutate('/candidates', { selection_ids: selectionIds }, 'Candidate created.');
+      const result = await mutate(
+        '/candidates',
+        { selection_ids: selectionIds },
+        'Candidate created.',
+      );
       if (result) onCreated(result.candidate.id);
     } finally {
       setSubmitting(false);
@@ -104,7 +116,9 @@ export function NewCandidate({ nativeState, onClose, onCreated, reload, message 
                         >
                           <option value="">Choose repository</option>
                           {revision.repository_heads.map((head) => (
-                            <option key={head.repo_id} value={head.repo_id}>{head.repo_id}</option>
+                            <option key={head.repo_id} value={head.repo_id}>
+                              {head.repo_id}
+                            </option>
                           ))}
                         </NativeSelect>
                       </label>
@@ -118,19 +132,23 @@ export function NewCandidate({ nativeState, onClose, onCreated, reload, message 
                         />
                       </label>
                       <p className="text-xs leading-6 text-muted-foreground">
-                        Full hashes, one per line. Merge commits and automatic dependency closure are not supported.
+                        Full hashes, one per line. Merge commits and automatic dependency closure
+                        are not supported.
                       </p>
                     </>
                   )}
                   <p className="break-all text-xs text-muted-foreground">
-                    Provenance: {revision.provenance_state}. Validation is required on the combined tree.
+                    Provenance: {revision.provenance_state}. Validation is required on the combined
+                    tree.
                   </p>
                 </>
               )}
             </section>
           );
         })}
-        {!futures.length && <p className="text-sm text-muted-foreground">No active Futures are ready.</p>}
+        {!futures.length && (
+          <p className="text-sm text-muted-foreground">No active Futures are ready.</p>
+        )}
       </div>
     </NativeFormDialog>
   );
