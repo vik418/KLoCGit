@@ -1,18 +1,18 @@
 /* Shared dialogs and progressive decision/proposal detail. */
 .dialog {
   padding: 0;
-  border: 1px solid #dfe9e1;
+  border: 1px solid var(--line);
   border-radius: 10px;
   max-width: 840px;
   width: calc(100% - 60px);
   max-height: 90vh;
-  box-shadow: 0 25px 80px #15332126;
-  color: #546e5c;
-  background: #fff;
+  box-shadow: 0 25px 80px #25264d26;
+  color: var(--text);
+  background: var(--surface);
 }
 
 .dialog::backdrop {
-  background: #162f2566;
+  background: #24253d66;
   backdrop-filter: blur(2px);
 }
 
@@ -29,7 +29,7 @@
   font-size: 0.69rem;
   letter-spacing: 0.7px;
   font-weight: 500;
-  color: #9bad9f;
+  color: var(--muted);
 }
 
 .dialog-header h2 {
@@ -37,7 +37,7 @@
     600 1.375rem 'Manrope',
     sans-serif;
   letter-spacing: -0.5px;
-  color: #526c5b;
+  color: var(--text);
   margin-top: 8px;
   line-height: 1.5;
 }
@@ -60,13 +60,13 @@
 .decision-summary {
   font-size: 0.94rem;
   line-height: 1.7;
-  color: #91a69a;
+  color: var(--muted);
 }
 
 .subheading {
   font-size: 0.875rem;
   font-weight: 500;
-  color: #8ea898;
+  color: var(--muted);
   margin: 22px 0 12px;
 }
 
@@ -76,7 +76,7 @@
 }
 
 .alternative {
-  border: 1px solid #e5eee7;
+  border: 1px solid var(--line);
   padding: 17px;
   display: flex;
   gap: 12px;
@@ -86,12 +86,12 @@
 }
 
 .alternative.chosen {
-  border-color: #b0c9b6;
-  background: #fafdfa;
+  border-color: var(--accent-border);
+  background: var(--accent-soft);
 }
 
 .alternative input {
-  accent-color: #7ea78c;
+  accent-color: var(--accent);
   margin-top: 4px;
 }
 
@@ -107,20 +107,20 @@
 
 .alternative b {
   font-size: 1rem;
-  color: #93af9b;
+  color: var(--muted);
   font-weight: 500;
 }
 
 .alternative p {
   font-size: 0.875rem;
-  color: #adc3b2;
+  color: var(--muted);
   line-height: 1.7;
   margin: 7px 0;
 }
 
 .alternative > div > span {
   font-size: 0.75rem;
-  color: #c3d2c7;
+  color: var(--muted);
   display: block;
   line-height: 1.7;
 }
@@ -133,13 +133,13 @@
   display: flex;
   gap: 8px;
   font-size: 0.875rem;
-  color: #bfd1c5;
+  color: var(--muted);
   line-height: 1.6;
   margin: 9px 0;
 }
 
 .decision-included svg {
-  color: #b1d0bd;
+  color: var(--muted);
   flex-shrink: 0;
   margin-top: 3px;
 }
@@ -148,11 +148,11 @@
 .interaction-callout {
   display: flex;
   gap: 11px;
-  background: #fdfbf5;
-  border: 1px solid #f0eadb;
+  background: var(--warning-soft);
+  border: 1px solid var(--warning-border);
   padding: 15px;
   border-radius: 6px;
-  color: #cab887;
+  color: var(--warning);
   margin: 21px 0;
 }
 
@@ -164,14 +164,14 @@
 .assumption b,
 .interaction-callout b {
   font-size: 0.875rem;
-  color: #bca46d;
+  color: var(--warning);
   font-weight: 500;
 }
 
 .assumption p,
 .interaction-callout p {
   font-size: 0.875rem;
-  color: #caba93;
+  color: var(--warning);
   line-height: 1.7;
   margin-top: 5px;
 }
@@ -179,7 +179,7 @@
 .assumption small {
   display: block;
   font-size: 0.75rem;
-  color: #d0c6a8;
+  color: var(--warning);
   line-height: 1.7;
   margin-top: 8px;
 }
@@ -192,7 +192,7 @@
 .rationale-label {
   display: block;
   font-size: 0.875rem;
-  color: #b0c5b6;
+  color: var(--muted);
   margin-top: 22px;
 }
 
@@ -200,29 +200,29 @@
   display: block;
   width: 100%;
   resize: vertical;
-  border: 1px solid #e1ebe4;
+  border: 1px solid var(--control);
   border-radius: 5px;
   margin-top: 10px;
   padding: 12px;
   font-size: 0.875rem;
-  color: #97b19f;
-  background: #fcfefc;
+  color: var(--muted);
+  background: var(--surface-soft);
 }
 
 .rationale-label textarea::placeholder {
-  color: #c5d6ca;
+  color: var(--muted);
 }
 
 .decision-snapshot {
-  border-top: 1px solid #e8efe9;
+  border-top: 1px solid var(--line);
   padding: 18px 30px;
-  background: #fcfdfc;
+  background: var(--surface-soft);
 }
 
 .decision-snapshot > summary {
   cursor: pointer;
   font-size: 0.81rem;
-  color: #b8cdbf;
+  color: var(--muted);
   list-style-position: inside;
 }
 
@@ -232,14 +232,14 @@
 
 .decision-snapshot > div > span {
   display: block;
-  color: #c2d4c8;
+  color: var(--muted);
   font-size: 0.75rem;
   margin-bottom: 8px;
 }
 
 .decision-snapshot code {
   font-size: 0.875rem;
-  color: #b4cbbb;
+  color: var(--muted);
   display: block;
   word-break: break-all;
 }
@@ -248,18 +248,18 @@
   font-size: 0.875rem;
   font-weight: 500;
   display: block;
-  color: #bfd2c5;
+  color: var(--muted);
   line-height: 1.7;
 }
 
 .decision-snapshot p {
   font-size: 0.75rem;
-  color: #c6d8cc;
+  color: var(--muted);
   line-height: 1.7;
   display: flex;
   gap: 8px;
   padding-top: 18px;
-  border-top: 1px solid #ecf2ed;
+  border-top: 1px solid var(--line);
 }
 
 .decision-snapshot p svg {
@@ -270,7 +270,7 @@
 .decision-snapshot > small {
   display: block;
   font-size: 0.75rem;
-  color: #d1dfd6;
+  color: var(--muted);
   line-height: 1.7;
   margin-top: 18px;
 }
@@ -280,16 +280,16 @@
   justify-content: space-between;
   align-items: center;
   gap: 20px;
-  border-top: 1px solid #e8f0e9;
+  border-top: 1px solid var(--line);
   padding: 18px 30px;
-  background: #fff;
+  background: var(--surface);
   position: sticky;
   bottom: 0;
 }
 
 .dialog-footer > div,
 .dialog-footer > span {
-  color: #b8cfbf;
+  color: var(--muted);
   font-size: 0.75rem;
   line-height: 1.6;
 }
@@ -303,11 +303,11 @@
   align-items: center;
   gap: 10px;
   padding: 14px;
-  border: 1px solid #f0e2be;
-  background: #fefbf1;
+  border: 1px solid var(--warning-border);
+  background: var(--warning-soft);
   border-radius: 6px;
   margin-bottom: 20px;
-  color: #cdb980;
+  color: var(--warning);
 }
 
 .stale-banner b {
@@ -319,7 +319,7 @@
   font-size: 0.75rem;
   line-height: 1.7;
   margin-top: 5px;
-  color: #d2c3a0;
+  color: var(--warning);
 }
 
 .stale-banner > .button {
@@ -329,15 +329,15 @@
 .error-banner {
   padding: 13px;
   font-size: 0.875rem;
-  background: #fff6f3;
-  color: #cf9a8d;
-  border: 1px solid #f4e2dd;
+  background: var(--danger-soft);
+  color: var(--danger);
+  border: 1px solid var(--danger-border);
   border-radius: 6px;
   margin-bottom: 15px;
 }
 
 .composition-evidence {
-  border: 1px solid #e7f0e9;
+  border: 1px solid var(--line);
   border-radius: 6px;
   padding: 17px;
   margin: 10px 0;
@@ -347,9 +347,9 @@
   display: flex;
   align-items: center;
   gap: 8px;
-  color: #bbd5c4;
+  color: var(--muted);
   padding-bottom: 10px;
-  border-bottom: 1px solid #edf4ef;
+  border-bottom: 1px solid var(--line);
 }
 
 .composition-evidence-head b {
@@ -365,14 +365,14 @@
   display: flex;
   gap: 10px;
   font-size: 0.75rem;
-  color: #ccded2;
+  color: var(--muted);
   margin-top: 10px;
 }
 
 .hash-row code {
   font-size: 0.75rem;
   word-break: break-all;
-  color: #c3d9ca;
+  color: var(--muted);
 }
 
 .detail-proposal {
@@ -382,22 +382,22 @@
   gap: 12px;
   text-align: left;
   padding: 16px;
-  border: 1px solid #ecf3ee;
+  border: 1px solid var(--line);
   border-radius: 6px;
-  background: #fdfefd;
+  background: var(--surface-soft);
   margin-bottom: 10px;
-  color: #c5dbcc;
+  color: var(--muted);
 }
 
 .detail-proposal b {
   font-size: 0.875rem;
-  color: #bbd3c4;
+  color: var(--muted);
   font-weight: 500;
 }
 
 .detail-proposal p {
   font-size: 0.75rem;
-  color: #d0e1d6;
+  color: var(--muted);
   margin-top: 6px;
 }
 
@@ -406,6 +406,7 @@
 }
 
 .proposal-info {
+  background: var(--surface-soft);
   padding: 23px 30px;
   display: grid;
   grid-template-columns: 1.4fr 0.8fr 1fr;
@@ -414,20 +415,20 @@
 
 .proposal-info span {
   font-size: 0.75rem;
-  color: #d2e2d8;
+  color: var(--muted);
   display: block;
   margin-bottom: 8px;
 }
 
 .proposal-info p {
   font-size: 0.875rem;
-  color: #c8decf;
+  color: var(--muted);
   line-height: 1.7;
 }
 
 .proposal-info b {
   font-size: 0.875rem;
-  color: #c3ddce;
+  color: var(--muted);
   font-weight: 500;
 }
 
@@ -438,7 +439,7 @@
 
 .proposal-info code {
   font-size: 0.75rem;
-  color: #ccdfd3;
+  color: var(--muted);
 }
 
 .diff-heading {
@@ -446,10 +447,10 @@
   align-items: center;
   gap: 9px;
   padding: 14px 30px;
-  border-block: 1px solid #eaf2ec;
+  border-block: 1px solid var(--line);
   font-size: 0.75rem;
-  color: #c5dacd;
-  background: #fdfefd;
+  color: var(--muted);
+  background: var(--surface-soft);
 }
 
 .diff-heading b {
@@ -464,8 +465,8 @@
   margin: 0;
   padding: 25px 30px;
   font: 0.75rem/1.8 monospace;
-  background: #263d31;
-  color: #c5d9cc;
+  background: #25273e;
+  color: #e1e3f0;
   overflow: auto;
   max-height: 40vh;
 }

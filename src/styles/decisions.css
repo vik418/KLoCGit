@@ -4,8 +4,8 @@
 }
 
 .decision-card {
-  background: #fff;
-  border: 1px solid #e1e8e3;
+  background: var(--surface);
+  border: 1px solid var(--line);
   border-radius: 7px;
   margin-bottom: 18px;
   padding: 22px 24px 0;
@@ -21,7 +21,7 @@
 .card-scope {
   font-size: 0.75rem;
   font-family: monospace;
-  color: #919e94;
+  color: var(--muted);
 }
 
 .card-scope {
@@ -38,34 +38,33 @@
   line-height: 1.3;
   font-weight: 400;
   border-radius: 4px;
-  background: #f1f4f2;
-  color: #7b897f;
+  background: var(--accent-soft);
+  color: var(--accent);
 }
 
 .badge.amber {
-  background: #faf5e7;
-  color: #9a8150;
+  background: var(--warning-soft);
+  color: var(--warning);
 }
 
 .badge.mint {
-  background: #eef5ef;
-  color: #75947d;
+  background: var(--success-soft);
+  color: var(--success);
 }
 
 .badge.red {
-  background: #fcf0ed;
-  color: #ac7a6b;
+  background: var(--danger-soft);
+  color: var(--danger);
 }
 
 .badge.neutral {
-  background: #f0f4f1;
-  color: #7a8b7f;
+  background: var(--surface-soft);
+  color: var(--muted);
 }
 
 .card-meta .badge {
   padding: 0;
   background: transparent;
-  color: #7a8a7e;
 }
 
 .card-meta .badge svg {
@@ -77,19 +76,19 @@
     600 1.25rem 'Manrope',
     sans-serif;
   letter-spacing: -0.35px;
-  color: #2a4031;
+  color: var(--text);
   margin: 14px 0 10px;
 }
 
 .decision-card > p {
   font-size: 0.94rem;
   line-height: 1.65;
-  color: #728279;
+  color: var(--muted);
   margin-bottom: 21px;
 }
 
 .card-footer {
-  border-top: 1px solid #edf2ee;
+  border-top: 1px solid var(--line);
   display: flex;
   justify-content: space-between;
   align-items: center;
@@ -103,12 +102,12 @@
   gap: 6px;
   font-size: 0.75rem;
   line-height: 1.5;
-  color: #7a9181;
+  color: var(--muted);
 }
 
 .meta-dot {
   margin: 0 3px;
-  color: #b7c3ba;
+  color: var(--muted);
 }
 
 .resolved-card {
@@ -116,23 +115,23 @@
   align-items: center;
   gap: 12px;
   padding: 21px;
-  background: #f5f9f6;
-  border: 1px solid #e2eae4;
+  background: var(--success-soft);
+  border: 1px solid var(--success-border);
   border-radius: 7px;
   margin-bottom: 16px;
-  color: #6b9077;
+  color: var(--success);
 }
 
 .resolved-card h3 {
   font-size: 0.875rem;
   font-weight: 500;
-  color: #526d59;
+  color: var(--text);
 }
 
 .resolved-card p {
   font-size: 0.75rem;
   margin-top: 6px;
-  color: #7f9788;
+  color: var(--muted);
 }
 
 .resolved-card > .button {
@@ -142,14 +141,14 @@
 .empty-decisions {
   padding: 22px 0;
   font-size: 1rem;
-  color: #62836d;
+  color: var(--muted);
 }
 
 footer {
   display: flex;
   justify-content: space-between;
   gap: 20px;
-  color: #97a49b;
+  color: var(--muted);
   font-size: 0.75rem;
   padding: 22px 0;
   margin-top: 34px;

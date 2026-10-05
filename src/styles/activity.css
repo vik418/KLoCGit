@@ -2,7 +2,7 @@
 .activity-list {
   margin-top: 22px;
   padding: 0 21px;
-  background: #fff;
+  background: var(--surface);
   border: 1px solid var(--line);
   border-radius: 7px;
 }
@@ -11,7 +11,7 @@
   display: flex;
   gap: 15px;
   padding: 20px 0;
-  border-bottom: 1px solid #edf3ee;
+  border-bottom: 1px solid var(--line);
   align-items: center;
 }
 
@@ -24,22 +24,22 @@
   height: 35px;
   display: grid;
   place-items: center;
-  background: #f7faf7;
-  border: 1px solid #e5eee7;
+  background: var(--surface-soft);
+  border: 1px solid var(--line);
   border-radius: 6px;
-  color: #abc5b3;
+  color: var(--muted);
   flex-shrink: 0;
 }
 
 .activity-item b {
   font-size: 0.875rem;
-  color: #8aa493;
+  color: var(--muted);
   font-weight: 500;
 }
 
 .activity-item p {
   font-size: 0.75rem;
-  color: #b3c5b9;
+  color: var(--muted);
   margin-top: 5px;
 }
 
@@ -49,7 +49,7 @@
 
 .activity-item code {
   font-size: 0.75rem;
-  color: #bfd0c4;
+  color: var(--muted);
   display: block;
   margin-top: 7px;
 }

@@ -7,7 +7,7 @@ select {
 }
 
 select:focus-visible {
-  outline: 3px solid #88b59b;
+  outline: 3px solid var(--accent);
   outline-offset: 3px;
 }
 
@@ -37,13 +37,18 @@ select:focus-visible {
   padding: 8px 10px;
   background: transparent;
   border-radius: 5px;
-  color: #77857b;
+  color: var(--muted);
   font-size: 0.8rem;
 }
 
 .work-switch button.selected {
-  background: #eaf1ec;
-  color: #35553f;
+  background: var(--accent-soft);
+  color: var(--accent);
+}
+
+.work-switch button:hover {
+  background: var(--accent-soft);
+  color: var(--accent);
 }
 
 .work-actions {
@@ -62,25 +67,25 @@ select:focus-visible {
   align-items: center;
   gap: 8px;
   font-size: 0.8rem;
-  color: #748378;
+  color: var(--muted);
 }
 
 .compact-select select {
   padding: 7px 9px;
-  border: 1px solid var(--line);
+  border: 1px solid var(--control);
   border-radius: 5px;
-  background: #fff;
+  background: var(--surface);
 }
 
 .muted {
   font-size: 0.83rem;
-  color: #77897c;
+  color: var(--muted);
   line-height: 1.65;
 }
 
 .empty-state {
   padding: 30px 0;
-  color: #7b8c7e;
+  color: var(--muted);
   text-align: center;
   font-size: 0.88rem;
 }
@@ -91,7 +96,7 @@ select:focus-visible {
 
 .mr-list {
   border: 1px solid var(--line);
-  background: #fff;
+  background: var(--surface);
   border-radius: 7px;
   overflow: hidden;
 }
@@ -116,7 +121,7 @@ select:focus-visible {
 
 .row-checkbox input,
 .checkbox-label input {
-  accent-color: #54795d;
+  accent-color: var(--accent);
 }
 
 .mr-row-main {
@@ -131,13 +136,13 @@ select:focus-visible {
 .mr-row-main h3 {
   font-size: 0.97rem;
   font-weight: 500;
-  color: #3d5746;
+  color: var(--text);
   line-height: 1.55;
 }
 
 .mr-row-main p {
   font-size: 0.8rem;
-  color: #7e8f83;
+  color: var(--muted);
   line-height: 1.6;
   margin-top: 5px;
   overflow-wrap: anywhere;
@@ -146,7 +151,7 @@ select:focus-visible {
 .mr-row-main small {
   display: block;
   font-size: 0.73rem;
-  color: #91a095;
+  color: var(--muted);
   line-height: 1.55;
   margin-top: 4px;
 }
@@ -166,7 +171,7 @@ select:focus-visible {
 .native-description {
   font-size: 0.94rem;
   line-height: 1.75;
-  color: #617467;
+  color: var(--text);
   white-space: pre-wrap;
   margin: 18px 0;
 }
@@ -174,7 +179,7 @@ select:focus-visible {
 .mr-meta {
   justify-content: flex-start;
   flex-wrap: wrap;
-  color: #819386;
+  color: var(--muted);
   font-size: 0.8rem;
 }
 
@@ -196,7 +201,7 @@ select:focus-visible {
 .section-heading > h3 {
   font-size: 0.97rem;
   font-weight: 500;
-  color: #425c4b;
+  color: var(--text);
 }
 
 .native-section > p {
@@ -211,7 +216,7 @@ select:focus-visible {
   display: block;
   margin: 15px 0;
   font-size: 0.83rem;
-  color: #677d6d;
+  color: var(--muted);
   line-height: 1.5;
 }
 
@@ -221,11 +226,11 @@ select:focus-visible {
   display: block;
   width: 100%;
   margin-top: 7px;
-  border: 1px solid #dce5df;
-  background: #fdfefd;
+  border: 1px solid var(--control);
+  background: var(--surface-soft);
   padding: 10px 11px;
   border-radius: 5px;
-  color: #425e4c;
+  color: var(--text);
   font-size: 0.88rem;
   min-width: 0;
 }
@@ -236,7 +241,7 @@ select:focus-visible {
 
 .field input::placeholder,
 .field textarea::placeholder {
-  color: #9cac9f;
+  color: var(--muted);
 }
 
 .form-grid {
@@ -250,7 +255,7 @@ select:focus-visible {
   align-items: flex-start;
   gap: 10px;
   font-size: 0.85rem;
-  color: #627968;
+  color: var(--text);
   margin: 12px 0;
   line-height: 1.55;
 }
@@ -261,7 +266,7 @@ select:focus-visible {
 
 .checkbox-label small {
   display: block;
-  color: #95a498;
+  color: var(--muted);
   font-size: 0.74rem;
 }
 
@@ -275,7 +280,7 @@ select:focus-visible {
 .compact-details > summary {
   font-size: 0.85rem;
   cursor: pointer;
-  color: #6f8977;
+  color: var(--muted);
   line-height: 1.6;
 }
 
@@ -283,7 +288,7 @@ select:focus-visible {
 .compact-details > p {
   font-size: 0.8rem;
   line-height: 1.65;
-  color: #85958a;
+  color: var(--muted);
   margin: 11px 0;
 }
 
@@ -309,10 +314,10 @@ select:focus-visible {
   display: flex;
   align-items: flex-start;
   gap: 12px;
-  border-bottom: 1px solid #edf2ee;
+  border-bottom: 1px solid var(--line);
   padding: 13px 0;
   font-size: 0.82rem;
-  color: #708476;
+  color: var(--muted);
 }
 
 .history-row > div:first-child {
@@ -324,14 +329,14 @@ select:focus-visible {
   display: block;
   font-weight: 500;
   text-transform: capitalize;
-  color: #4a6453;
+  color: var(--text);
 }
 
 .history-row span,
 .history-row small {
   display: block;
   font-size: 0.74rem;
-  color: #91a496;
+  color: var(--muted);
   margin-top: 4px;
 }
 
@@ -359,38 +364,38 @@ select:focus-visible {
 }
 
 .comment-thread.resolved {
-  background: #fbfdfb;
+  background: var(--surface-soft);
 }
 
 .thread-heading b {
   font-size: 0.85rem;
   font-weight: 500;
-  color: #56725d;
+  color: var(--text);
   overflow-wrap: anywhere;
 }
 
 .comment-body {
   padding: 13px 0;
-  border-top: 1px solid #eef3ef;
+  border-top: 1px solid var(--line);
   margin-top: 12px;
 }
 
 .comment-body small {
   font-size: 0.75rem;
-  color: #8ba090;
+  color: var(--muted);
 }
 
 .comment-body p {
   font-size: 0.88rem;
   line-height: 1.7;
-  color: #587260;
+  color: var(--text);
   margin-top: 6px;
   white-space: pre-wrap;
   overflow-wrap: anywhere;
 }
 
 .queue-row {
-  background: #fff;
+  background: var(--surface);
   border: 1px solid var(--line);
   border-radius: 7px;
   padding: 20px;
@@ -405,13 +410,13 @@ select:focus-visible {
   font-size: 0.96rem;
   font-weight: 500;
   line-height: 1.6;
-  color: #4b6653;
+  color: var(--text);
   flex: 1;
 }
 
 .queue-row > p {
   font-size: 0.8rem;
-  color: #85988b;
+  color: var(--muted);
   line-height: 1.7;
   margin: 8px 0;
 }
@@ -425,7 +430,7 @@ select:focus-visible {
 }
 
 .queue-blocker {
-  color: #a08b61 !important;
+  color: var(--warning) !important;
   font-size: 0.81rem;
   line-height: 1.7;
   margin: 9px 0;

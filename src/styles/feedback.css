@@ -13,15 +13,15 @@
   color: #e2f1e7;
   border: 1px solid #7ca089;
   border-radius: 7px;
-  box-shadow: 0 10px 35px #173b2420;
+  box-shadow: 0 10px 35px #25264d20;
   z-index: 100;
   font-size: 0.875rem;
 }
 
 .toast.error {
-  background: #77564a;
-  color: #faf0e6;
-  border-color: #bb9380;
+  background: #823e3d;
+  color: var(--danger-soft);
+  border-color: #bd7771;
 }
 
 .toast svg {
@@ -40,7 +40,7 @@
   flex-direction: column;
   align-items: center;
   justify-content: center;
-  color: #789a80;
+  color: var(--muted);
   gap: 17px;
 }
 
@@ -62,7 +62,7 @@
 
 .auth-form input {
   padding: 14px;
-  border: 1px solid #cfe0d3;
+  border: 1px solid var(--control);
   border-radius: 5px;
   font-size: 0.875rem;
 }

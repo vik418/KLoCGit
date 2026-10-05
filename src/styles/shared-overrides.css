@@ -10,7 +10,7 @@
 .decision-snapshot b,
 .detail-proposal b,
 .proposal-info b {
-  color: #586f60;
+  color: var(--text);
 }
 
 .proposal-card > p,
@@ -30,7 +30,7 @@
 .detail-proposal p,
 .proposal-info span,
 .proposal-info p {
-  color: #788f7e;
+  color: var(--muted);
 }
 
 .alternative > div > span,
@@ -42,44 +42,44 @@
 .dialog-footer > span,
 .hash-row,
 .hash-row code {
-  color: #8aa18f;
+  color: var(--muted);
 }
 
 .rationale-label textarea {
-  color: #5d7f67;
+  color: var(--muted);
 }
 
 .rationale-label textarea::placeholder {
-  color: #9eb3a3;
+  color: var(--muted);
 }
 
 .assumption b,
 .interaction-callout b {
-  color: #9d854e;
+  color: var(--warning);
 }
 
 .assumption p,
 .interaction-callout p,
 .assumption small,
 .stale-banner p {
-  color: #aa986f;
+  color: var(--warning);
 }
 
 .stale-banner b {
-  color: #9c854e;
+  color: var(--warning);
 }
 
 .composition-evidence-head {
-  color: #729a7e;
+  color: var(--muted);
 }
 
 .proposal-info code,
 .diff-heading {
-  color: #8cae96;
+  color: var(--muted);
 }
 
 .error-banner {
-  color: #b48071;
+  color: var(--danger);
 }
 
 @media (max-width: 760px) {

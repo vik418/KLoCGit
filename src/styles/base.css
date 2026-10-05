@@ -1,12 +1,29 @@
 /* Global defaults, shared controls, workspace shell, and navigation. */
 :root {
   font-family: 'DM Sans', sans-serif;
-  color: #304038;
-  background: #fafbfc;
+  color: var(--text);
+  background: var(--canvas);
   font-synthesis: none;
-  --line: #e3e9e5;
-  --muted: #718077;
-  --green: #31513f;
+  --canvas: #f8f8fd;
+  --surface: #fff;
+  --surface-soft: #f3f3fc;
+  --text: #34364d;
+  --muted: #61677f;
+  --line: #dde0ee;
+  --control: #817bab;
+  --accent: #5957c8;
+  --accent-hover: #4846ad;
+  --accent-soft: #ededff;
+  --accent-border: #a8a4e8;
+  --success: #28704b;
+  --success-soft: #edf8f0;
+  --success-border: #c8e3d1;
+  --warning: #8a5c14;
+  --warning-soft: #fff8e8;
+  --warning-border: #ead7ae;
+  --danger: #a4443e;
+  --danger-soft: #fff1ee;
+  --danger-border: #efd0ca;
 }
 
 * {
@@ -43,7 +60,7 @@ a:focus-visible,
 summary:focus-visible,
 input:focus-visible,
 textarea:focus-visible {
-  outline: 3px solid #88b59b;
+  outline: 3px solid var(--accent);
   outline-offset: 3px;
 }
 
@@ -81,11 +98,11 @@ p {
   display: flex;
   align-items: center;
   gap: 9px;
-  color: #22382a;
+  color: var(--text);
 }
 
 .brand svg {
-  color: #4f8266;
+  color: var(--accent);
 }
 
 .breadcrumb {
@@ -94,16 +111,16 @@ p {
   align-items: center;
   flex: 1;
   font-size: 0.81rem;
-  color: #738078;
+  color: var(--muted);
 }
 
 .breadcrumb b {
   font-weight: 400;
-  color: #53645a;
+  color: var(--text);
 }
 
 .breadcrumb > span {
-  color: #bcc6bf;
+  color: var(--muted);
 }
 
 .button {
@@ -125,40 +142,45 @@ p {
 }
 
 .button.dark {
-  background: #2d4938;
-  color: #fff;
+  background: var(--accent);
+  color: var(--surface);
 }
 
 .button.dark:hover {
-  background: #3b5e49;
+  background: var(--accent-hover);
 }
 
 .button.outline {
-  background: #fff;
-  border: 1px solid #d6e1d8;
-  color: #617168;
+  background: var(--surface);
+  border: 1px solid var(--control);
+  color: var(--text);
 }
 
 .button.outline:hover {
-  background: #f3f7f4;
+  background: var(--accent-soft);
 }
 
 .button.ghost {
   background: transparent;
-  color: #738279;
+  color: var(--muted);
+}
+
+.button.ghost:hover {
+  background: var(--accent-soft);
+  color: var(--accent);
 }
 
 .icon-btn {
   display: grid;
   place-items: center;
   background: transparent;
-  color: #8b9a90;
+  color: var(--muted);
   padding: 5px;
   border-radius: 4px;
 }
 
 .icon-btn:hover {
-  background: #edf3ee;
+  background: var(--surface-soft);
 }
 
 .menu-anchor {
@@ -170,12 +192,12 @@ p {
   right: 0;
   top: 38px;
   width: 295px;
-  background: #fff;
+  background: var(--surface);
   border: 1px solid var(--line);
   padding: 7px;
   border-radius: 7px;
   z-index: 20;
-  box-shadow: 0 10px 25px #19332512;
+  box-shadow: 0 10px 25px #25264d12;
 }
 
 .dropdown button {
@@ -187,12 +209,12 @@ p {
   background: transparent;
   text-align: left;
   font-size: 0.875rem;
-  color: #5d7064;
+  color: var(--text);
   border-radius: 4px;
 }
 
 .dropdown button:hover {
-  background: #f1f6f2;
+  background: var(--surface-soft);
 }
 
 main {
@@ -206,12 +228,12 @@ main {
     600 1.81rem 'Manrope',
     sans-serif;
   letter-spacing: -0.8px;
-  color: #293d30;
+  color: var(--text);
 }
 
 .page-heading > p {
   font-size: 0.94rem;
-  color: #718077;
+  color: var(--muted);
   margin-top: 9px;
   line-height: 1.6;
 }
@@ -228,7 +250,7 @@ main {
 .content-tabs button,
 .dialog-tabs button {
   background: transparent;
-  color: #7e8b82;
+  color: var(--muted);
   font-size: 0.875rem;
   padding: 0;
   display: flex;
@@ -239,7 +261,12 @@ main {
 
 .content-tabs button.selected,
 .dialog-tabs button.selected {
-  color: #304b38;
-  border-color: #6c937a;
+  color: var(--accent);
+  border-color: var(--accent);
   font-weight: 500;
+}
+
+.content-tabs button:hover,
+.dialog-tabs button:hover {
+  color: var(--accent);
 }

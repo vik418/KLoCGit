@@ -4,13 +4,13 @@
   align-items: center;
   gap: 12px;
   padding: 23px 0;
-  color: #9cb1a4;
+  color: var(--muted);
 }
 
 .evidence-explainer p {
   font-size: 0.875rem;
   line-height: 1.7;
-  color: #839d8d;
+  color: var(--muted);
 }
 
 .evidence-explainer > .badge {
@@ -18,7 +18,7 @@
 }
 
 .evidence-table {
-  background: #fff;
+  background: var(--surface);
   border: 1px solid var(--line);
   border-radius: 7px;
   overflow: hidden;
@@ -33,15 +33,15 @@
 }
 
 .table-head {
-  background: #fafcfb;
+  background: var(--surface-soft);
   padding: 15px 18px;
   font-size: 0.75rem;
-  color: #a6b5ac;
+  color: var(--muted);
   border-bottom: 1px solid var(--line);
 }
 
 .evidence-row {
-  border-bottom: 1px solid #edf3ee;
+  border-bottom: 1px solid var(--line);
 }
 
 .evidence-row:last-child {
@@ -62,7 +62,7 @@
   display: flex;
   gap: 10px;
   align-items: center;
-  color: #9bb8a4;
+  color: var(--muted);
 }
 
 .evidence-row summary > span:first-child > svg {
@@ -72,13 +72,13 @@
 .evidence-row b {
   font-size: 0.875rem;
   font-weight: 500;
-  color: #7d9988;
+  color: var(--muted);
 }
 
 .evidence-row small {
   font-size: 0.75rem;
   display: block;
-  color: #a2b6a8;
+  color: var(--muted);
   margin-top: 5px;
   line-height: 1.5;
 }
@@ -89,12 +89,12 @@
 
 .evidence-row summary code {
   font-size: 0.75rem;
-  color: #a3b8a9;
+  color: var(--muted);
 }
 
 .evidence-detail {
-  border-top: 1px solid #edf3ee;
-  background: #fbfdfb;
+  border-top: 1px solid var(--line);
+  background: var(--surface-soft);
   padding: 17px 40px;
 }
 
@@ -103,7 +103,7 @@
   gap: 9px;
   align-items: flex-start;
   padding: 10px 0;
-  color: #94b49c;
+  color: var(--success);
 }
 
 .check-line > svg {
@@ -112,32 +112,32 @@
 
 .check-line b {
   font-size: 0.875rem;
-  color: #7d9787;
+  color: var(--muted);
   font-weight: 500;
 }
 
 .check-line p {
   font-size: 0.75rem;
-  color: #a4b8aa;
+  color: var(--muted);
   margin-top: 5px;
   line-height: 1.7;
 }
 
 .check-line.failed {
-  color: #bf9b83;
+  color: var(--danger);
 }
 
 .bounded-claim {
   font-size: 0.75rem;
-  color: #9fb6a5;
+  color: var(--muted);
   line-height: 1.7;
-  border-top: 1px solid #e8f0e9;
+  border-top: 1px solid var(--line);
   padding-top: 13px;
   margin-top: 10px;
 }
 
 .stale-text {
   font-size: 0.75rem;
-  color: #b4a170;
+  color: var(--warning);
   margin-top: 10px;
 }
