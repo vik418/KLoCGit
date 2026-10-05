@@ -1,7 +1,7 @@
 import { DomainError } from '../core/hash.mjs';
 
 const validName = /^[a-zA-Z0-9][a-zA-Z0-9._-]{0,99}$/;
-const supportedProfiles = ['checkout-effects-v2', 'context-document-v1'];
+const supportedProfiles = ['checkout-effects-v0', 'context-document-v0'];
 
 async function createRepository(engine, env, input, actor) {
   const created = await env.ARTIFACTS.create(input.name, {

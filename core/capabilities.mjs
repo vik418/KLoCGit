@@ -1,7 +1,7 @@
 // Read-only product scope, shared by the authenticated API and capability dialog.
 // Test-file links locate automated coverage; they do not report execution or success.
 const registry = {
-  version: 1,
+  version: 0,
   verification_scope:
     'Support describes bounded local behavior. Finite validation does not prove global correctness, production security or a working live Cloudflare deployment.',
   statuses: [
@@ -104,7 +104,7 @@ const registry = {
       status: 'SUPPORTED',
       tests: ['tests/context.test.mjs'],
       scope:
-        'The retry-response-v1 task retrieves immutable cross-repo policy and prior decisions, asks one material question and binds the answer to code.',
+        'The retry-response-v0 task retrieves immutable cross-repo policy and prior decisions, asks one material question and binds the answer to code.',
       limits:
         'One task schema. Unanswered questions become explicit assumptions; no general context compiler or automatic user answers.',
     },

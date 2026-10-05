@@ -3,7 +3,7 @@ import { hash, record, DomainError } from './hash.mjs';
 // Deliberately small and deterministic. This is one explicit task schema, not a
 // semantic interpreter: it cannot manufacture questions from arbitrary prose.
 const PARAMETER = 'retry_failed_response';
-const SCHEMA = 'retry-response-v1';
+const SCHEMA = 'retry-response-v0';
 const timestamp = (value) => value ?? new Date().toISOString();
 const own = (object, key) => Object.prototype.hasOwnProperty.call(object ?? {}, key);
 // Advice can inform a choice; it cannot remove a choice or force an answer.
@@ -55,7 +55,7 @@ function requireTaskInput(input) {
   if (!input || input.schema !== SCHEMA) {
     throw new DomainError(
       'CONTEXT_SCHEMA_UNSUPPORTED',
-      'Only the explicit retry-response-v1 task schema can ask a context question',
+      'Only the explicit retry-response-v0 task schema can ask a context question',
     );
   }
   if (
@@ -242,7 +242,7 @@ async function createResolvedPreparation(preparation, resolution, createdAt) {
  * The coordinator must recheck source freshness before using an authorization.
  *
  * @param {object} input
- * @param {{schema: 'retry-response-v1', statement: string, target_repo: string,
+ * @param {{schema: 'retry-response-v0', statement: string, target_repo: string,
  *   scope: string[], context_source: {repo: string, ref?: string, path: string},
  *   parameters?: {retry_failed_response?: boolean}}} input.task
  * @param {object[]} input.repositories Registered repository descriptors.
@@ -291,7 +291,7 @@ export async function prepareTaskContext({ task: input, repositories, git, actor
     commit,
     path: requested.path,
     content_hash: await hash(content),
-    hash_format: 'sha256-stable-json-v1',
+    hash_format: 'sha256-stable-json-v0',
   });
   const constraint = await record('retrieved_constraint', { value: parsed, source_ref: source.id });
   const task = await record('context_task', {
@@ -508,7 +508,7 @@ export async function contextProvenance(preparation) {
     },
     git_trailers: gitTrailers,
     artifact: {
-      version: 1,
+      version: 0,
       task_id: task.id,
       context_version: snapshot.id,
       context_snapshot_id: snapshot.id,

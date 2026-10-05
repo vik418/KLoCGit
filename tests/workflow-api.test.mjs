@@ -324,6 +324,7 @@ test('Worker routes queue processing through the serialization boundary and conf
         blockConcurrencyWhile: (fn) => fn(),
       },
       {
+        WORKSPACE_ID: 'klocgit',
         ACTOR_ID: 'owner',
         ANALYSIS_QUEUE: { send: async (body) => calls.push({ analysis: body }) },
       },

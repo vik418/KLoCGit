@@ -365,11 +365,11 @@ test('applied and deferred decisions survive canonical movement, but changed imm
     assert.equal(result.components[0].resolution_id, 'historical-decision');
     const updated = state.revisions[0];
     const oldId = updated.id;
-    updated.id += '-v2';
-    updated.head_commit += '-v2';
+    updated.id += '-updated';
+    updated.head_commit += '-updated';
     state.refVersions['service:refs/heads/alpha'] = updated.head_commit;
     state.relationships[0].from_revision = updated.id;
-    state.relationships[0].id += '-v2';
+    state.relationships[0].id += '-updated';
     result = await deriveDecisionComponents(state);
     assert.equal(result.components[0].id, component.id);
     assert.equal(result.components[0].status, 'open');

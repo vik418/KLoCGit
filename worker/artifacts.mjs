@@ -11,7 +11,7 @@ import { DomainError } from '../core/hash.mjs';
 export class ArtifactsGit {
   constructor(env) {
     this.env = env;
-    this.configHash = env.VALIDATION_CONFIG_HASH ?? 'unconfigured';
+    this.configHash = env.VALIDATION_CONFIG_HASH;
   }
   async withRepo(repo, fn) {
     const capability = await this.env.ARTIFACTS.get(repo.id);
@@ -93,7 +93,7 @@ export class ArtifactsGit {
     return values.map((t) => `${t.key}: ${t.value}`).join('\n');
   }
   suitesForScope(repo, scope) {
-    return repo.validation_profile === 'checkout-effects-v2' &&
+    return repo.validation_profile === 'checkout-effects-v0' &&
       scope.some((p) => ['client/retry.mjs', 'server/charge.mjs', 'app.mjs'].includes(p))
       ? ['checkout-effects']
       : [];
@@ -111,7 +111,12 @@ export class ArtifactsGit {
    * @throws {Error} Service transport or response JSON parsing fails.
    */
   async execute(operation, payload) {
-    if (!this.env.GIT_EXECUTOR || !this.env.GIT_BRIDGE_TOKEN || this.configHash === 'unconfigured')
+    if (
+      !this.env.GIT_EXECUTOR ||
+      !this.env.GIT_BRIDGE_TOKEN ||
+      typeof this.configHash !== 'string' ||
+      !this.configHash.trim()
+    )
       throw new DomainError(
         'GIT_EXECUTOR_UNAVAILABLE',
         'A trusted Git executor and versioned validation configuration must be configured. Git ingestion remains available.',

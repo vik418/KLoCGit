@@ -6,13 +6,13 @@
   max-width: 840px;
   width: calc(100% - 60px);
   max-height: 90vh;
-  box-shadow: 0 25px 80px #25264d26;
+  box-shadow: 0 25px 80px #0b0d1099;
   color: var(--text);
   background: var(--surface);
 }
 
 .dialog::backdrop {
-  background: #24253d66;
+  background: #0b0d10b3;
   backdrop-filter: blur(2px);
 }
 
@@ -207,10 +207,6 @@
   font-size: 0.875rem;
   color: var(--muted);
   background: var(--surface-soft);
-}
-
-.rationale-label textarea::placeholder {
-  color: var(--muted);
 }
 
 .decision-snapshot {
@@ -465,16 +461,16 @@
   margin: 0;
   padding: 25px 30px;
   font: 0.75rem/1.8 monospace;
-  background: #25273e;
-  color: #e1e3f0;
+  background: var(--canvas);
+  color: var(--text);
   overflow: auto;
   max-height: 40vh;
 }
 
 .diff .added {
-  color: #c2e3cc;
+  color: var(--success);
 }
 
 .diff .removed {
-  color: #e3bdb1;
+  color: var(--danger);
 }

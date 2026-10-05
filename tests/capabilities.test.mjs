@@ -26,7 +26,7 @@ const inaccessibleEngine = new Proxy(
 
 test('current capability registry keeps bounded trust and deployment limits visible', () => {
   const registry = getCapabilities();
-  assert.equal(registry.version, 1);
+  assert.equal(registry.version, 0);
   const statuses = new Set(registry.statuses.map((status) => status.id));
   assert.deepEqual(statuses, new Set(['SUPPORTED', 'PARTIAL', 'EXPERIMENTAL', 'UNSUPPORTED']));
   const entries = new Map(registry.capabilities.map((capability) => [capability.id, capability]));

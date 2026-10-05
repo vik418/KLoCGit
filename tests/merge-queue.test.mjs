@@ -563,7 +563,7 @@ test('retained revert candidates use exact immutable Git facts instead of produc
   const { queue, engine, state, input } = await workspace();
   state.revisions[0].source_kind = 'retained-candidate';
   state.revisions[0].base_commit = 'repo-a-baseline';
-  state.proposals[0].ref = 'refs/converge/candidates/source-a';
+  state.proposals[0].ref = 'refs/klocgit/candidates/source-a';
   const entry = await queue.enqueue(input('a'), 'reviewer');
   assert.equal(entry.status, 'queued');
   engine.git.facts = async () => ({ head: 'source-a', tree: 'a-different-object' });

@@ -8,7 +8,7 @@ import { RemoteGit } from '../server/remote-git.mjs';
 import { ArtifactsGit } from '../worker/artifacts.mjs';
 
 async function fixture(t) {
-  const root = await mkdtemp(path.join(os.tmpdir(), 'decision-revert-'));
+  const root = await mkdtemp(path.join(os.tmpdir(), 'klocgit-revert-'));
   t.after(() => rm(root, { recursive: true, force: true }));
   const work = path.join(root, 'work');
   await mkdir(work);
@@ -60,10 +60,10 @@ test('inverse candidate reverts selected code on the current head, preserves lat
   assert.equal(result.retention_ref, `refs/klocgit/candidates/${result.commit}`);
   assert.equal(
     await git(f.adapter.dir(f.repo), ['show', '-s', '--format=%an|%cn', result.commit]),
-    'KLoCGit|KLoCGit',
+    'klocgit|klocgit',
   );
   const message = await f.adapter.message(f.repo, result.commit);
-  assert.match(message, /^KLoCGit: reviewed inverse candidate/);
+  assert.match(message, /^klocgit: reviewed inverse candidate/);
   assert.match(message, new RegExp(`Reverts-Commit: ${selected}`));
   assert.match(message, new RegExp(`Revert-Base: ${later}`));
   assert.equal(result.baseTree, await git(f.adapter.dir(f.repo), ['rev-parse', `${later}^{tree}`]));
@@ -100,7 +100,6 @@ test('inverse overlap conflict escalates without canonical movement or retaining
       'for-each-ref',
       '--format=%(refname)',
       'refs/klocgit/candidates',
-      'refs/converge/candidates',
     ]),
     '',
   );
@@ -232,7 +231,7 @@ test('true stacked fork histories compose once, preserve every proposal trailer,
   assert.equal(await f.adapter.isAncestor(f.repo, b, result.commit), true);
   assert.equal(await f.adapter.mergeBase(f.repo, b, result.commit), b);
   const message = await f.adapter.message(f.repo, result.commit);
-  assert.match(message, /^KLoCGit: immutable reviewed candidate/);
+  assert.match(message, /^klocgit: immutable reviewed candidate/);
   assert.match(message, /Proposal-Revision: revision-a/);
   assert.match(message, /Proposal-Revision: revision-b/);
   assert.equal(
@@ -283,7 +282,7 @@ test('Artifacts delegates immutable ancestry, base and inverse candidates with t
     descendant = 'b'.repeat(40),
     candidate = 'c'.repeat(40);
   const adapter = new ArtifactsGit({
-    VALIDATION_CONFIG_HASH: 'validation-v1',
+    VALIDATION_CONFIG_HASH: 'validation-v0',
     GIT_BRIDGE_TOKEN: 'scoped-test-service',
     GIT_EXECUTOR: {
       async fetch(request) {
@@ -307,7 +306,7 @@ test('Artifacts delegates immutable ancestry, base and inverse candidates with t
   const repo = {
     id: 'application',
     canonical_repo: 'canonical',
-    validation_profile: 'checkout-effects-v2',
+    validation_profile: 'checkout-effects-v0',
     context_repo: 'payment-policy',
   };
   assert.equal(await adapter.isAncestor(repo, ancestor, descendant), true);
@@ -321,7 +320,7 @@ test('Artifacts delegates immutable ancestry, base and inverse candidates with t
     assert.equal(input.validation_profile, repo.validation_profile);
     assert.equal(input.context_repo, repo.context_repo);
     assert.equal(input.canonical_repo, 'canonical');
-    assert.equal(input.configHash, 'validation-v1');
+    assert.equal(input.configHash, 'validation-v0');
   }
   assert.equal(calls[2].input.mainline, 1);
   await assert.rejects(

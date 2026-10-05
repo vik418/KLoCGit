@@ -13,7 +13,7 @@ import { DomainError } from '../core/hash.mjs';
 class TestRemote extends RemoteGit {
   entry(id) {
     if (id !== 'app') throw new Error('Unknown test repository');
-    return { remote: this.testRemote, validation_profile: 'checkout-effects-v2' };
+    return { remote: this.testRemote, validation_profile: 'checkout-effects-v0' };
   }
   async remote(id, args) {
     try {
@@ -31,7 +31,7 @@ class TestRemote extends RemoteGit {
   }
 }
 async function fixture(t) {
-  const root = await mkdtemp(path.join(os.tmpdir(), 'decision-remote-test-'));
+  const root = await mkdtemp(path.join(os.tmpdir(), 'klocgit-remote-test-'));
   t.after(() => rm(root, { recursive: true, force: true }));
   const source = path.join(root, 'source'),
     remote = path.join(root, 'remote.git'),
@@ -104,7 +104,7 @@ test('a lost reply after real successful Git lease remains an uncertain outcome 
   assert.equal(await git(f.remote, ['rev-parse', 'refs/heads/main']), candidate.commit);
 });
 test('bridge health is authenticated and reports bounded sandbox readiness and exact configuration', async (t) => {
-  const root = await mkdtemp(path.join(os.tmpdir(), 'decision-bridge-test-'));
+  const root = await mkdtemp(path.join(os.tmpdir(), 'klocgit-bridge-test-'));
   t.after(() => rm(root, { recursive: true, force: true }));
   const previous = process.env.BRIDGE_TEST_GIT_TOKEN;
   process.env.BRIDGE_TEST_GIT_TOKEN = 'inert-test';
@@ -119,7 +119,7 @@ test('bridge health is authenticated and reports bounded sandbox readiness and e
         app: {
           remote: 'https://test.artifacts.cloudflare.net/git/test/app.git',
           tokenEnv: 'BRIDGE_TEST_GIT_TOKEN',
-          validation_profile: 'checkout-effects-v2',
+          validation_profile: 'checkout-effects-v0',
         },
       },
     },
@@ -149,7 +149,7 @@ test('bridge health is authenticated and reports bounded sandbox readiness and e
     body: JSON.stringify({
       configHash: adapter.configHash,
       repo: 'app',
-      validation_profile: 'context-document-v1',
+      validation_profile: 'context-document-v0',
     }),
   });
   assert.equal(profile.status, 409);

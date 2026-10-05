@@ -16,17 +16,17 @@ import { createDemo, produceWork } from '../scripts/demo.mjs';
 const CREATED = '2026-10-02T12:00:00.000Z';
 const ANSWERED = '2026-10-02T12:01:00.000Z';
 const policy = {
-  id: 'checkout-policy-v1',
+  id: 'checkout-policy-v0',
   version: 1,
   statement: 'A lost processed response must cause exactly one charge and confirmation.',
   parameter: 'retry_failed_response',
   kind: 'checkable',
-  check_ref: 'platform:lost-response-exactly-once-v1',
+  check_ref: 'platform:lost-response-exactly-once-v0',
   allowed_values: [false, true],
   validity_scope: ['client/retry.mjs'],
 };
 const task = {
-  schema: 'retry-response-v1',
+  schema: 'retry-response-v0',
   statement: 'Make checkout resilient to transient failed responses.',
   target_repo: 'checkout-api',
   scope: ['client/retry.mjs'],
@@ -34,7 +34,7 @@ const task = {
 };
 
 async function fixture(t, overrides = {}) {
-  const root = await mkdtemp(path.join(os.tmpdir(), 'decision-context-'));
+  const root = await mkdtemp(path.join(os.tmpdir(), 'klocgit-context-'));
   t.after(() => rm(root, { recursive: true, force: true }));
   await mkdir(path.join(root, 'repositories'));
   const repositories = [];
@@ -76,7 +76,7 @@ async function fixture(t, overrides = {}) {
 }
 
 async function workspaceFixture(t) {
-  const root = await mkdtemp(path.join(os.tmpdir(), 'decision-context-integration-'));
+  const root = await mkdtemp(path.join(os.tmpdir(), 'klocgit-context-integration-'));
   t.after(() => rm(root, { recursive: true, force: true }));
   return { root, ...(await createDemo(root, async () => {}, { pending: true })) };
 }
@@ -84,22 +84,15 @@ async function workspaceFixture(t) {
 async function publishContext(
   { root, engine, adapter },
   resolved,
-  {
-    key = 'context-work',
-    repo = 'checkout-api',
-    message,
-    artifact,
-    metadataDirectory = '.klocgit',
-    files = {},
-  } = {},
+  { key = 'context-work', repo = 'checkout-api', message, artifact, files = {} } = {},
 ) {
   const provenance = await contextProvenance(resolved);
   const cwd = path.join(root, key);
   await git(root, ['clone', '--quiet', adapter.dir(engine.repo(repo)), cwd]);
   await git(cwd, ['checkout', '--quiet', '-b', key]);
-  await mkdir(path.join(cwd, metadataDirectory), { recursive: true });
+  await mkdir(path.join(cwd, '.klocgit'), { recursive: true });
   await writeFile(
-    path.join(cwd, metadataDirectory, 'context.json'),
+    path.join(cwd, '.klocgit/context.json'),
     JSON.stringify(artifact ?? provenance.artifact) + '\n',
   );
   for (const [filename, content] of Object.entries(files)) {
@@ -385,7 +378,7 @@ test('advisory constraints neither force an answer nor automatically reject anot
 });
 
 test('real workspace starts with one unanswered cross-repo question and starts zero coordinated producers', async (t) => {
-  const root = await mkdtemp(path.join(os.tmpdir(), 'decision-context-workspace-'));
+  const root = await mkdtemp(path.join(os.tmpdir(), 'klocgit-context-workspace-'));
   t.after(() => rm(root, { recursive: true, force: true }));
   const { engine, state, adapter, specs } = await createDemo(root, async () => {}, {
     pending: true,
@@ -413,7 +406,7 @@ test('real workspace starts with one unanswered cross-repo question and starts z
 });
 
 test('ordinary untagged Git work remains ingestible while the coordinated task waits for an answer', async (t) => {
-  const root = await mkdtemp(path.join(os.tmpdir(), 'decision-context-arbitrary-'));
+  const root = await mkdtemp(path.join(os.tmpdir(), 'klocgit-context-arbitrary-'));
   t.after(() => rm(root, { recursive: true, force: true }));
   const { engine, state, adapter } = await createDemo(root, async () => {}, { pending: true });
   const cwd = path.join(root, 'ordinary-client');
@@ -440,7 +433,7 @@ test('ordinary untagged Git work remains ingestible while the coordinated task w
 });
 
 test('producer Git artifact and trailers bind the stored immutable answer to the ingested revision', async (t) => {
-  const root = await mkdtemp(path.join(os.tmpdir(), 'decision-context-ingestion-'));
+  const root = await mkdtemp(path.join(os.tmpdir(), 'klocgit-context-ingestion-'));
   t.after(() => rm(root, { recursive: true, force: true }));
   const { engine, state, adapter } = await createDemo(root, async () => {}, { pending: true });
   const resolved = await engine.resolveTask(
@@ -484,20 +477,19 @@ test('producer Git artifact and trailers bind the stored immutable answer to the
   );
 });
 
-test('legacy producer context and declarations retain their immutable answer references after the rename', async (t) => {
+test('producer metadata binds declarations to immutable answer references without modifying the snapshot', async (t) => {
   const workspace = await workspaceFixture(t);
   const resolved = await workspace.engine.resolveTask(
     workspace.state.tasks[0].task.id,
     { value: true },
-    'legacy-context-reviewer',
+    'context-reviewer',
   );
   const snapshotBefore = JSON.stringify(resolved.snapshot);
   const result = await publishContext(workspace, resolved, {
-    key: 'legacy-producer',
-    metadataDirectory: '.converge',
+    key: 'declared-producer',
     files: {
-      '.converge/proposal.json': JSON.stringify({
-        title: 'Existing producer declaration',
+      '.klocgit/proposal.json': JSON.stringify({
+        title: 'Producer declaration',
         decision_key: 'retry timing',
         choice: 'fixed',
       }),
@@ -512,32 +504,21 @@ test('legacy producer context and declarations retain their immutable answer ref
   assert.equal(revision.declared_choice, 'fixed');
   assert.equal(
     workspace.state.proposals.find((proposal) => proposal.id === revision.proposal_id).title,
-    'Existing producer declaration',
+    'Producer declaration',
   );
   assert.equal(JSON.stringify(resolved.snapshot), snapshotBefore);
 });
 
-test('current metadata wins over legacy metadata and malformed current files never fall back', async (t) => {
+test('malformed, empty and oversized producer metadata cannot declare a valid context or choice', async (t) => {
   const workspace = await workspaceFixture(t);
   const resolved = await workspace.engine.resolveTask(
     workspace.state.tasks[0].task.id,
     { value: true },
     'current-context-reviewer',
   );
-  const provenance = await contextProvenance(resolved);
-  const legacyFiles = {
-    '.converge/context.json': JSON.stringify(provenance.artifact),
-    '.converge/proposal.json': JSON.stringify({
-      title: 'Legacy declaration',
-      decision_key: 'legacy choice',
-      choice: 'legacy',
-    }),
-  };
   const current = await publishContext(workspace, resolved, {
     key: 'current-producer',
     files: {
-      ...legacyFiles,
-      '.converge/context.json': JSON.stringify({ task_id: 'unknown-legacy-task' }),
       '.klocgit/proposal.json': JSON.stringify({
         title: 'Current declaration',
         decision_key: 'current choice',
@@ -553,11 +534,11 @@ test('current metadata wins over legacy metadata and malformed current files nev
   for (const [key, raw] of [
     ['malformed', '{'],
     ['empty', ''],
+    ['oversized', 'x'.repeat(32769)],
   ]) {
     const result = await publishContext(workspace, resolved, {
       key: `${key}-producer`,
       files: {
-        ...legacyFiles,
         '.klocgit/context.json': raw,
         '.klocgit/proposal.json': raw,
       },
@@ -735,7 +716,7 @@ test('source repository moves without changed policy content retain the original
 });
 
 test('declining retries changes eight proposals into one derived decision and preserves the false answer through canonical code', async (t) => {
-  const root = await mkdtemp(path.join(os.tmpdir(), 'decision-context-no-retry-'));
+  const root = await mkdtemp(path.join(os.tmpdir(), 'klocgit-context-no-retry-'));
   t.after(() => rm(root, { recursive: true, force: true }));
   const { engine, state, adapter } = await createDemo(root, async () => {}, {
     retry: false,

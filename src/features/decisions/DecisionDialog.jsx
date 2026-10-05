@@ -211,7 +211,6 @@ export function DecisionDialog({ id, workspace, onClose, reload, message, onProp
                   <textarea
                     value={rationale}
                     onChange={(e) => setRationale(e.target.value)}
-                    placeholder="Why is this the right outcome for the team?"
                     rows={3}
                   />
                 </label>

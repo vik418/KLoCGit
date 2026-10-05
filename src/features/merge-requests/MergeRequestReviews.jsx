@@ -70,12 +70,7 @@ export function MergeRequestReviews({
           </label>
           <label className="field">
             Review rationale
-            <textarea
-              value={form.body}
-              onChange={(e) => form.setBody(e.target.value)}
-              rows={2}
-              placeholder="Describe the reason for your review."
-            />
+            <textarea value={form.body} onChange={(e) => form.setBody(e.target.value)} rows={2} />
           </label>
           <button
             className="button outline small"

@@ -1,4 +1,5 @@
 import { hash } from '../core/hash.mjs';
+import { configuredWorkspace } from './config.mjs';
 
 const MAX_REQUEST_BYTES = 1_000_000;
 
@@ -54,6 +55,13 @@ export async function handlePublicRequest(request, env) {
     );
   }
 
+  let workspace;
+  try {
+    workspace = configuredWorkspace(env);
+  } catch (error) {
+    return jsonResponse({ error: error.code, message: error.message }, error.status);
+  }
+
   const origin = request.headers.get('Origin');
   if (request.method !== 'GET' && origin && new URL(origin).origin !== url.origin) {
     return jsonResponse({ error: 'FORBIDDEN_ORIGIN' }, 403);
@@ -69,6 +77,6 @@ export async function handlePublicRequest(request, env) {
     request = new Request(request, { body: raw });
   }
 
-  const id = env.COORDINATOR.idFromName(env.WORKSPACE_ID ?? 'default');
+  const id = env.COORDINATOR.idFromName(workspace);
   return env.COORDINATOR.get(id).fetch(request);
 }

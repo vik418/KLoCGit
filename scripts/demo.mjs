@@ -7,7 +7,7 @@ import { applyApplicationChange } from '../fixtures/application.mjs';
 import { contextProvenance } from '../core/context.mjs';
 import { DomainError } from '../core/hash.mjs';
 import { PRODUCER_METADATA_DIRECTORY } from '../core/metadata.mjs';
-const defaultRoot = fileURLToPath(new URL('../.demo-v2/', import.meta.url));
+const defaultRoot = fileURLToPath(new URL('../.klocgit-workspace/', import.meta.url));
 export async function produceWork(engine, root, { ingestionOrder, renameBranches = false } = {}) {
   const state = engine.state,
     task = state.tasks[0];

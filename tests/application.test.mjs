@@ -12,7 +12,7 @@ import {
 } from '../fixtures/application.mjs';
 
 async function fixture(t) {
-  const root = await mkdtemp(path.join(os.tmpdir(), 'decision-application-test-'));
+  const root = await mkdtemp(path.join(os.tmpdir(), 'klocgit-application-test-'));
   t.after(() => rm(root, { recursive: true, force: true }));
   const application = path.join(root, 'checkout-api');
   const policy = path.join(root, 'payment-policy');

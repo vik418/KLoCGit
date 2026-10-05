@@ -35,7 +35,7 @@ const now = () => new Date().toISOString();
 /** Create coordination metadata; repository code is stored only in Git. */
 export function emptyState() {
   return {
-    version: 3,
+    version: 0,
     refEvents: [],
     tasks: [],
     contextPreparations: [],
@@ -43,10 +43,10 @@ export function emptyState() {
     discovery: { ungrouped_revision_ids: [], conventional_review_ids: [], diagnostics: [] },
     analysisCache: {},
     workspace: {
-      id: 'northstar',
-      name: 'Northstar',
-      description: 'Checkout reliability',
-      mode: 'local-demo',
+      id: 'klocgit',
+      name: 'klocgit',
+      description: 'Concurrent Git work and integration decisions',
+      mode: 'local',
       producers: [],
     },
     repositories: [],
@@ -74,7 +74,7 @@ export function emptyState() {
       duplicateClassifications: 0,
       automaticReversals: 0,
     },
-    analysis: { status: 'deterministic', analyzer: 'git-tree-v1', semantic: 'unavailable' },
+    analysis: { status: 'deterministic', analyzer: 'git-tree-v0', semantic: 'unavailable' },
   };
 }
 
@@ -92,23 +92,16 @@ export class Engine {
    * @param {(state: object) => Promise<void>} save Persist the complete current metadata state.
    */
   constructor(state, git, save = async () => {}) {
-    state.tasks ??= [];
-    state.contextPreparations ??= [];
-    state.dispositions ??= [];
-    state.analysisCache ??= {};
-    state.discovery ??= {
-      ungrouped_revision_ids: [],
-      conventional_review_ids: [],
-      diagnostics: [],
-    };
-    state.forks ??= [];
-    state.operations ??= [];
-    state.implementations ??= [];
+    if (state.version !== 0)
+      throw new DomainError(
+        'UNSUPPORTED_STATE_VERSION',
+        'klocgit requires v0 workspace metadata',
+        503,
+      );
     this.state = state;
     this.git = git;
     this.save = save;
     this._tail = Promise.resolve();
-    state.refEvents ??= [];
     this.mr = new MergeRequests(this);
     this.queue = new MergeQueue(this);
   }
@@ -158,13 +151,12 @@ export class Engine {
     const sourceRepo = event.source_repo
       ? { ...repo, id: event.source_repo, canonical_repo: repo.id }
       : repo;
-    // Trusted compositions retain Git objects under these namespaces. Their push
+    // Trusted compositions retain Git objects under this namespace. Their push
     // events are persistence receipts, not new producer work. Canonical tracking
     // still takes precedence if the registered canonical ref uses this prefix.
     if (
       typeof event.ref === 'string' &&
-      (event.ref.startsWith('refs/klocgit/candidates/') ||
-        event.ref.startsWith('refs/converge/candidates/')) &&
+      event.ref.startsWith('refs/klocgit/candidates/') &&
       !(sourceRepo.id === repo.id && event.ref === repo.canonical_ref)
     )
       return { ignored: true, reason: 'INTERNAL_CANDIDATE_REF' };
@@ -313,7 +305,7 @@ export class Engine {
         type: identical ? 'implementation_equivalent' : alternative ? 'alternative' : 'unknown',
         confidence: identical ? 1 : null,
         basis: alternative ? 'declared' : 'observed',
-        analyzer_version: alternative ? 'declared-choice-v1' : 'git-tree-v1',
+        analyzer_version: alternative ? 'declared-choice-v0' : 'git-tree-v0',
         evidence_refs: [],
         observation: identical
           ? 'Identical complete Git tree; proposal histories remain separate.'

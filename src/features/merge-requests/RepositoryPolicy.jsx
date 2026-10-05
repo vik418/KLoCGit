@@ -72,11 +72,7 @@ export function RepositoryPolicy({ repo, reload, message }) {
               </label>
               <label className="field">
                 Required platform checks
-                <input
-                  value={checks}
-                  onChange={(e) => setChecks(e.target.value)}
-                  placeholder="trusted-validation"
-                />
+                <input value={checks} onChange={(e) => setChecks(e.target.value)} />
               </label>
             </div>
             <label className="checkbox-label">

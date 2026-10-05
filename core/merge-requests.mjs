@@ -215,10 +215,10 @@ export class MergeRequests {
     const repo = this.engine.repo(typeof repoId === 'string' ? repoId : repoId.id);
     const latest = this.state.mrPolicies.filter((policy) => policy.repo === repo.id).at(-1);
     return {
-      ...normalizePolicy(latest?.policy ?? repo.merge_request_policy ?? repo.mr_policy),
+      ...normalizePolicy(latest?.policy ?? repo.merge_request_policy),
       version: latest?.version ?? 0,
       event_id: latest?.id ?? null,
-      owner_id: repo.owner_id ?? this.state.workspace?.owner_id ?? 'demo-owner',
+      owner_id: repo.owner_id ?? this.state.workspace.owner_id ?? null,
     };
   }
   _trustedEvidence(revision, compositionId = null) {

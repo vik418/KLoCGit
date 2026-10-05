@@ -1,5 +1,6 @@
 import { DurableObject } from 'cloudflare:workers';
 import { hash } from '../core/hash.mjs';
+import { configuredWorkspace } from './config.mjs';
 
 const json = (data, status = 200) =>
   new Response(JSON.stringify(data), {
@@ -104,12 +105,25 @@ export class GitExecutorContainer extends DurableObject {
   async fetch(request) {
     return this.serial(async () => {
       const url = new URL(request.url);
-      if (url.pathname.startsWith('/control/')) {
+      const control = url.pathname.startsWith('/control/');
+      if (control) {
         if (
           this.env.LIVE_TEST_ENABLED !== 'true' ||
           !(await authorized(request, this.env.LIVE_TEST_TOKEN))
         )
           return json({ error: 'UNAUTHENTICATED' }, 401);
+      } else if (
+        !operations.has(url.pathname) ||
+        !(await authorized(request, this.env.GIT_BRIDGE_TOKEN))
+      ) {
+        return json({ error: 'UNAUTHENTICATED' }, 401);
+      }
+      try {
+        configuredWorkspace(this.env);
+      } catch (error) {
+        return json({ error: error.code, message: error.message }, error.status);
+      }
+      if (control) {
         if (url.pathname === '/control/arm' && request.method === 'POST') {
           const input = await request.json();
           if (input.kind !== 'drop-cas-response-once' || !input.repo || !input.expected)
@@ -136,8 +150,6 @@ export class GitExecutorContainer extends DurableObject {
         }
         return json({ error: 'NOT_FOUND' }, 404);
       }
-      if (!operations.has(url.pathname) || !(await authorized(request, this.env.GIT_BRIDGE_TOKEN)))
-        return json({ error: 'UNAUTHENTICATED' }, 401);
       if (request.method !== (url.pathname === '/health' ? 'GET' : 'POST'))
         return json({ error: 'METHOD_NOT_ALLOWED' }, 405);
       const body = request.method === 'GET' ? undefined : await request.text();
@@ -206,6 +218,12 @@ export default {
       return json({ error: 'UNAUTHENTICATED' }, 401);
     if (!control && !(await authorized(request, env.GIT_BRIDGE_TOKEN)))
       return json({ error: 'UNAUTHENTICATED' }, 401);
-    return env.EXECUTOR.get(env.EXECUTOR.idFromName(env.WORKSPACE_ID ?? 'default')).fetch(request);
+    let workspace;
+    try {
+      workspace = configuredWorkspace(env);
+    } catch (error) {
+      return json({ error: error.code, message: error.message }, error.status);
+    }
+    return env.EXECUTOR.get(env.EXECUTOR.idFromName(workspace)).fetch(request);
   },
 };

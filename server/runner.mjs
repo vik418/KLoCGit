@@ -32,7 +32,7 @@ async function git(repository, args, binary = false) {
 
 export async function applicationValidationConfigHash() {
   return hash({
-    runner: 'sandboxed-checkout-http-v1',
+    runner: 'sandboxed-checkout-http-v0',
     sources: await Promise.all([
       readFile(fileURLToPath(import.meta.url), 'utf8'),
       readFile(supervisor, 'utf8'),
@@ -231,7 +231,7 @@ export class ApplicationRunner {
     return this;
   }
   async validate(commit, { policyCommit = this.policyCommit } = {}) {
-    const temporary = await mkdtemp(path.join(os.tmpdir(), 'decision-http-validation-'));
+    const temporary = await mkdtemp(path.join(os.tmpdir(), 'klocgit-http-validation-'));
     try {
       const candidate = path.join(temporary, 'candidate');
       const facts = await materializeGitTree(this.repositoryPath, commit, candidate);
@@ -246,7 +246,7 @@ export class ApplicationRunner {
           await readFile(path.join(temporary, 'policy/checkout-policy.json'), 'utf8'),
         );
         if (
-          contract.check_ref !== 'platform:lost-response-exactly-once-v1' ||
+          contract.check_ref !== 'platform:lost-response-exactly-once-v0' ||
           contract.maxChargesPerOrder !== 1 ||
           contract.maxConfirmationsPerOrder !== 1
         ) {

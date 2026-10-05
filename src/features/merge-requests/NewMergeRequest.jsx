@@ -82,7 +82,6 @@ export function NewMergeRequest({ workspace, onClose, onCreated, reload, message
               list="native-source-refs"
               value={sourceRef}
               onChange={(e) => setSourceRef(e.target.value)}
-              placeholder="feature/payment-recovery"
               required
             />
             <datalist id="native-source-refs">

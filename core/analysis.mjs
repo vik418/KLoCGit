@@ -173,10 +173,10 @@ export async function analyzeWork(engine, { actor = 'coordinator', refresh = fal
           from_revision: versions[0],
           to_revision: versions[1],
           type: 'conflicts_with',
-          version_key: await hash({ versions, analyzer: 'trusted-pair-v2' }),
+          version_key: await hash({ versions, analyzer: 'trusted-pair-v0' }),
           confidence: 1,
           basis: 'observed',
-          analyzer_version: 'trusted-pair-v2',
+          analyzer_version: 'trusted-pair-v0',
           evidence_refs: [proof.id],
           observation: proof.result.checks
             .filter((c) => !c.passed)

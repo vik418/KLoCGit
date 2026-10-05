@@ -1,7 +1,6 @@
 node_modules/
 dist/
-.demo/
-.demo-v2/
+.klocgit-workspace/
 .wrangler/
 playwright-report/
 coverage/

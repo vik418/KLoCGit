@@ -11,9 +11,9 @@ export function WorkspaceHeader({ workspace, isBusy, onDemoAction }) {
 
   return (
     <header className="topbar">
-      <a className="brand" href="/" aria-label="KLoCGit home">
+      <a className="brand" href="/" aria-label="klocgit home">
         <GitFork size={22} />
-        KLoCGit
+        klocgit
       </a>
       <div className="breadcrumb">
         {workspace.workspace.name}

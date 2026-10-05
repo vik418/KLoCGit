@@ -21,7 +21,6 @@ export function OwnerConnection({ authenticate, notification }) {
           autoComplete="off"
           value={credential}
           onChange={(event) => setCredential(event.target.value)}
-          placeholder="Owner credential"
           required
         />
         <button className="button dark">Connect</button>

@@ -1,6 +1,0 @@
-# Provision through `wrangler secret put`; never commit real values.
-AUTH_TOKEN=replace-with-owner-credential
-ACTOR_ID=authenticated-owner-id
-INGEST_TOKEN=separate-ingress-credential
-GIT_BRIDGE_TOKEN=separate-service-credential
-VALIDATION_CONFIG_HASH=exact-platform-executor-config-sha256

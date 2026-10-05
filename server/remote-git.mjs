@@ -102,9 +102,8 @@ export class RemoteGit extends LocalGit {
     }
   }
   /**
-   * Refresh the cache from its configured remote. Both candidate-ref namespaces
-   * are fetched because prepared operations may predate the rename, and recovery
-   * must not depend on the previous Container's disk.
+   * Refresh heads and retained candidate refs from the configured remote.
+   * Prepared-operation recovery must not depend on the previous Container's disk.
    *
    * @param {string} id Bounded repository ID present in the trusted manifest.
    * @returns {Promise<void>} Local heads and retained objects have been fetched.
@@ -124,8 +123,6 @@ export class RemoteGit extends LocalGit {
       '--quiet',
       entry.remote,
       '+refs/heads/*:refs/heads/*',
-      // Existing immutable candidates remain recoverable across the runtime rename.
-      '+refs/converge/candidates/*:refs/converge/candidates/*',
       '+refs/klocgit/candidates/*:refs/klocgit/candidates/*',
     ]);
   }

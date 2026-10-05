@@ -1,5 +1,5 @@
 {
-  "id": "confirmation-decision-v1",
+  "id": "confirmation-decision-v0",
   "statement": "Successful checkout sends one confirmation; unsuccessful transport does not authorize another confirmation.",
   "resolution": "one-confirmation-per-order",
   "rationale": "The customer must not receive duplicate purchase confirmations after a lost response.",

@@ -49,10 +49,6 @@
   color: var(--muted);
 }
 
-.rationale-label textarea::placeholder {
-  color: var(--muted);
-}
-
 .assumption b,
 .interaction-callout b {
   color: var(--warning);

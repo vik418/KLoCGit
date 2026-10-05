@@ -425,7 +425,7 @@ export async function deriveDecisionComponents(state, options = {}) {
       id,
       graph_hash: graphHash,
       derived: true,
-      derivation_version: 'blocking-components-v1',
+      derivation_version: 'blocking-components-v0',
       title: onlyTextual
         ? 'Which changes should advance before resolving the merge conflict?'
         : hasInteraction

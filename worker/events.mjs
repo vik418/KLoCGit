@@ -1,9 +1,13 @@
+import { DomainError } from '../core/hash.mjs';
+import { configuredWorkspace } from './config.mjs';
+
 export async function scheduleAnalysis(env, trigger) {
+  const workspace = configuredWorkspace(env);
   try {
     if (!env.ANALYSIS_QUEUE) return 'not-enqueued';
     await env.ANALYSIS_QUEUE.send({
       kind: 'analyze',
-      workspace: env.WORKSPACE_ID ?? 'default',
+      workspace,
       trigger,
     });
     return 'enqueued';
@@ -54,11 +58,12 @@ async function ingestPush(event, stub, env, workspace) {
   });
 }
 
-async function handleEvent(event, env) {
-  const workspace = env.WORKSPACE_ID ?? 'default';
-  const stub = env.COORDINATOR.get(env.COORDINATOR.idFromName(workspace));
-
-  if (event?.kind === 'process_merge_queue' && event.workspace === workspace) {
+async function handleEvent(event, env, workspace) {
+  const internal = event?.kind === 'process_merge_queue' || event?.kind === 'analyze';
+  if (internal && event.workspace !== workspace) {
+    throw new DomainError('WORKSPACE_MISMATCH', 'The queued job names a different workspace', 409);
+  }
+  if (event?.kind === 'process_merge_queue') {
     // Malformed jobs cannot name a replayable operation. Retrying cannot repair
     // the payload, so discard it before entering coordination.
     if (
@@ -67,6 +72,7 @@ async function handleEvent(event, env) {
       event.request_id.length > 200
     )
       return;
+    const stub = env.COORDINATOR.get(env.COORDINATOR.idFromName(workspace));
     await postInternal(
       stub,
       '/internal/merge-queue',
@@ -77,7 +83,8 @@ async function handleEvent(event, env) {
     );
     return;
   }
-  if (event?.kind === 'analyze' && event.workspace === workspace) {
+  if (event?.kind === 'analyze') {
+    const stub = env.COORDINATOR.get(env.COORDINATOR.idFromName(workspace));
     await postInternal(
       stub,
       '/internal/analysis',
@@ -93,13 +100,16 @@ async function handleEvent(event, env) {
     event.source?.namespace !== env.ARTIFACTS_NAMESPACE
   )
     return;
+  const stub = env.COORDINATOR.get(env.COORDINATOR.idFromName(workspace));
   await ingestPush(event, stub, env, workspace);
 }
 
 export async function consumeEvents(batch, env) {
+  // Configuration failures reject the batch before any message is processed or acknowledged.
+  const workspace = configuredWorkspace(env);
   for (const message of batch.messages) {
     try {
-      await handleEvent(message.body, env);
+      await handleEvent(message.body, env, workspace);
       message.ack();
     } catch {
       message.retry();

@@ -1,6 +1,6 @@
 # Design
 
-KLoCGit, pronounced “clock it,” coordinates concurrent Git work through intent, proposal, decision, implementation and evidence. Git owns code; the platform owns coordination metadata. The interface starts with decisions and exposes code, reviews and infrastructure details when needed.
+klocgit v0 coordinates concurrent Git work through intent, proposal, decision, implementation and evidence. Git owns code; the platform owns coordination metadata. The interface starts with decisions and exposes code, reviews and infrastructure details when needed.
 
 ## Architecture
 
@@ -72,9 +72,9 @@ The local Node.js server uses the same engine with bare Git repositories and a J
 
 A proposal is a logical work history. Each source update creates a content-addressed ProposalRevision with exact base/head commits, tree, affected paths, context and provenance. Rebase and force-push create new revisions. Missing provenance remains valid and visible. Identical trees can share an Implementation reference while keeping separate intent and rationale histories.
 
-Context snapshots, relationships, compositions, evidence and decisions retain immutable input references. Mutable branch pointers, MR lifecycle and evidence eligibility are separate from those records. Producer declarations use `.klocgit/`; `.converge/` remains readable when the current file is absent. Invalid current metadata cannot silently fall back to an older declaration.
+Context snapshots, relationships, compositions, evidence and decisions retain immutable input references. Mutable branch pointers, MR lifecycle and evidence eligibility are separate from those records. Producer declarations use `.klocgit/` at the exact source commit.
 
-Context items distinguish declared, retrieved, observed and inferred information. Checkable constraints may block automation; advisory statements cannot. The current context compiler supports the explicit `retry-response-v1` task, retrieving policy from another repository at a pinned commit. A material answer or explicit assumption creates a snapshot. Waiting for that answer does not block unrelated Git work.
+Context items distinguish declared, retrieved, observed and inferred information. Checkable constraints may block automation; advisory statements cannot. The current context compiler supports the explicit `retry-response-v0` task, retrieving policy from another repository at a pinned commit. A material answer or explicit assumption creates a snapshot. Waiting for that answer does not block unrelated Git work.
 
 Relationship analysis filters by exact tree identity, affected paths, declared choices and configured validation footprints. Declared alternatives and observed interactions form review groups. It does not discover arbitrary semantic equivalence. Missing relationships do not prove compatibility; a clean textual merge produces a candidate requiring composed-tree validation. There is no LLM integration.
 
@@ -82,7 +82,7 @@ Evidence pins the exact subject/tree, configuration, constraints and dependency 
 
 Canonical advancement follows [`core/canonical.mjs`](../core/canonical.mjs): authenticate the actor; recheck source refs, MR/dependency policy, current composed-tree evidence and decision basis; persist the decision and prepared operation; then compare-and-set Git against the reviewed head. Local Git uses `update-ref` with the expected old object ID; remote Git uses an explicit `--force-with-lease`. A changed basis or head returns `409 DECISION_STALE`, requiring renewed review.
 
-Candidate commits are retained under `refs/klocgit/candidates/` before remote preparation. Legacy `refs/converge/candidates/` remains readable for recovery. Both namespaces are excluded from producer ingestion. An uncertain write blocks subsequent canonical updates. Recovery accepts only an authoritative ref equal to the exact prepared target; the old base, another commit or a later descendant remains `RECOVERY_REQUIRED`. Recovery never guesses by repeating the Git write.
+Candidate commits are retained under `refs/klocgit/candidates/` before remote preparation. This namespace is excluded from producer ingestion. An uncertain write blocks subsequent canonical updates. Recovery accepts only an authoritative ref equal to the exact prepared target; the reviewed base, another commit or a later descendant remains `RECOVERY_REQUIRED`. Recovery never guesses by repeating the Git write.
 
 One operation advances one repository. Other repositories can supply pinned validation dependencies but are not locked against outside pushes; this is not a distributed transaction. Git remains cloneable and usable if coordination fails. Metadata repair must not delete or recreate intact repositories. Record immutability and hash-linked audit history are application-managed, without independently enforced append-only storage or external audit anchoring.
 
@@ -122,12 +122,12 @@ Use Node.js 24, `npm ci`, Git and Linux/WSL. Node Git adapters invoke `/usr/bin/
 ```sh
 sudo apt-get install git bubblewrap util-linux
 npm ci
-npm run dev
+LOCAL_ACTOR_ID="$(git config user.email)" npm run dev
 ```
 
-Open <http://localhost:43187>. `HOST` defaults to `127.0.0.1`, `PORT` to `43187`, `DECISION_GIT_ROOT` to `.demo-v2/`, and `LOCAL_ACTOR_ID` to `demo-owner`. `LOCAL_OWNER_TOKEN` optionally requires a Bearer credential. If exposing `HOST=0.0.0.0`, configure that token and use a trusted network; the development server is not organizational authentication. The interface keeps its owner credential in page memory.
+Open <http://localhost:43187>. `HOST` defaults to `127.0.0.1`, `PORT` to `43187`, and `KLOCGIT_ROOT` to `.klocgit-workspace/`. `LOCAL_ACTOR_ID` is required; the command uses your configured Git email. `LOCAL_OWNER_TOKEN` optionally requires a Bearer credential. If exposing `HOST=0.0.0.0`, configure that token and use a trusted network; the development server is not organizational authentication. The interface keeps its owner credential in page memory.
 
-The workspace contains metadata, bare repositories, baseline copies and producer clones. Use a disposable directory for experiments. The UI reset deletes and recreates that workspace. With the server stopped, `npm run demo:reset` deletes and recreates default `.demo-v2/`; it does not reset a custom `DECISION_GIT_ROOT`. Stop the server before backup/restore and preserve metadata together with repositories. Missing metadata beside existing repositories stops startup rather than overwriting code.
+The workspace contains metadata, bare repositories, baseline copies and producer clones. Use a disposable directory for experiments. The UI reset deletes and recreates that workspace. With the server stopped, `npm run demo:reset` deletes and recreates default `.klocgit-workspace/`; it does not reset a custom `KLOCGIT_ROOT`. Stop the server before backup/restore and preserve metadata together with repositories. Missing metadata beside existing repositories stops startup rather than overwriting code.
 
 The two sample repositories contain a payment HTTP application and a separate policy contract. Run a cloned checkout with `node app.mjs`; it exposes `/checkout`, `/charge` and `/state`. All effects are simulated. Retrying a lost processed response and sending confirmation before replay detection pass separately, but their clean composition produces duplicate confirmation. The platform supervisor observes effects at a simulated provider; candidate logs or producer tests cannot substitute for those observations.
 
@@ -149,7 +149,7 @@ Common errors: `validation-unavailable` requires checking the complete sandbox, 
 
 The owner, ingress, private service and repository credentials serve separate trust boundaries. The API authenticates an actor before accepting decisions. The executor receives its repository manifest and scoped tokens through encrypted bindings; candidate code receives neither. Evidence must match the configured trusted validation hash.
 
-A new Worker name creates separate Durable Object storage. Renaming source does not move an existing workspace, Git repository, Queue or subscription. Populated resources require an explicit migration; retained candidate refs and prepared operation history must survive it. Local checks and bundle dry runs do not establish live event delivery, remote CAS, Container recovery or sandbox support.
+Workspace coordination state is stored in its Durable Object. Retained candidate refs and prepared operation history must persist alongside the Git repositories. Local checks and bundle dry runs do not establish live event delivery, remote CAS, Container recovery or sandbox support.
 
 ## Maintenance and security
 

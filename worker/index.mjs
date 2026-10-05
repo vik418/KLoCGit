@@ -3,6 +3,7 @@ import { ArtifactsGit } from './artifacts.mjs';
 import { handlePublicRequest, jsonResponse } from './http.mjs';
 import { handleCoordinatorRequest } from './routes.mjs';
 import { consumeEvents } from './events.mjs';
+import { configuredWorkspace } from './config.mjs';
 
 /**
  * Workspace metadata and operation serialization live in one Durable Object.
@@ -21,6 +22,8 @@ export class WorkspaceCoordinator {
 
   async initialize() {
     const state = (await this.ctx.storage.get('state')) ?? emptyState();
+    state.workspace.id = configuredWorkspace(this.env);
+    state.workspace.name = state.workspace.id;
     state.workspace.mode = 'artifacts';
     state.workspace.producers ??= [];
     if (typeof this.env.ACTOR_ID === 'string' && this.env.ACTOR_ID.trim()) {

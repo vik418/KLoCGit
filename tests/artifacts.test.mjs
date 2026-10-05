@@ -3,6 +3,7 @@ import assert from 'node:assert/strict';
 import { ArtifactsGit } from '../worker/artifacts.mjs';
 import worker, { WorkspaceCoordinator } from '../worker/index.mjs';
 import { emptyState } from '../core/engine.mjs';
+import { scheduleAnalysis } from '../worker/events.mjs';
 test('untrusted __proto__ filenames remain visible in observed affected scope', async () => {
   const binding = {
     get: async () => ({
@@ -56,6 +57,7 @@ test('production authentication distinguishes incomplete runtime configuration f
     }),
   };
   const configured = {
+    WORKSPACE_ID: 'klocgit',
     AUTH_TOKEN: ownerToken,
     ACTOR_ID: 'configured-owner',
     INGEST_TOKEN: ingressToken,
@@ -124,7 +126,7 @@ test('production ingress authentication depends only on its own configured token
         headers: { Authorization: 'Bearer ' + token },
         body: '{}',
       }),
-      { ...env, COORDINATOR: coordinator },
+      { WORKSPACE_ID: 'klocgit', ...env, COORDINATOR: coordinator },
     );
   for (const value of [undefined, ' \t', 123]) {
     const response = await call(
@@ -160,6 +162,157 @@ test('production ingress authentication depends only on its own configured token
   );
   assert.equal(forwarded, 2);
 });
+
+test('authenticated production requests require an explicit workspace before selecting a coordinator', async () => {
+  const selected = [],
+    forwarded = [];
+  const env = {
+    AUTH_TOKEN: 'owner-token',
+    ACTOR_ID: 'owner',
+    INGEST_TOKEN: 'ingress-token',
+    COORDINATOR: {
+      idFromName: (name) => {
+        selected.push(name);
+        return name;
+      },
+      get: () => ({
+        fetch: async (request) => {
+          forwarded.push(new URL(request.url).pathname);
+          return Response.json({ forwarded: true });
+        },
+      }),
+    },
+  };
+  const call = (path, token, workspace) =>
+    worker.fetch(
+      new Request('https://example' + path, {
+        method: 'POST',
+        headers: { Authorization: 'Bearer ' + token },
+        body: '{}',
+      }),
+      { ...env, WORKSPACE_ID: workspace },
+    );
+  for (const workspace of [undefined, null, '', ' \t', 123, {}]) {
+    for (const [path, token] of [
+      ['/api/analysis', 'owner-token'],
+      ['/api/events', 'ingress-token'],
+    ]) {
+      assert.equal((await call(path, 'wrong-token', workspace)).status, 401);
+      const response = await call(path, token, workspace);
+      assert.equal(response.status, 503);
+      assert.equal((await response.json()).error, 'WORKSPACE_NOT_CONFIGURED');
+    }
+  }
+  assert.deepEqual(selected, []);
+  assert.deepEqual(forwarded, []);
+  assert.equal((await call('/api/analysis', 'owner-token', 'klocgit')).status, 200);
+  assert.deepEqual(selected, ['klocgit']);
+  assert.deepEqual(forwarded, ['/api/analysis']);
+});
+
+test('queue configuration failures do not process or acknowledge messages and cannot schedule analysis', async () => {
+  let selected = 0,
+    sent = 0,
+    acknowledged = 0,
+    retried = 0;
+  const env = {
+    ARTIFACTS_NAMESPACE: 'test',
+    COORDINATOR: {
+      idFromName: () => {
+        selected++;
+        throw new Error('Unexpected selection');
+      },
+    },
+    ANALYSIS_QUEUE: {
+      send: async () => {
+        sent++;
+      },
+    },
+  };
+  const batch = {
+    messages: [
+      {
+        body: { kind: 'analyze', workspace: 'klocgit' },
+        ack: () => {
+          acknowledged++;
+        },
+        retry: () => {
+          retried++;
+        },
+      },
+    ],
+  };
+  for (const workspace of [undefined, null, '', ' \t', 123]) {
+    const configured = { ...env, WORKSPACE_ID: workspace };
+    const unconfigured = (error) =>
+      error.code === 'WORKSPACE_NOT_CONFIGURED' && error.status === 503;
+    await assert.rejects(() => worker.queue(batch, configured), unconfigured);
+    await assert.rejects(() => scheduleAnalysis(configured, { repo: 'app' }), unconfigured);
+  }
+  assert.deepEqual(
+    { selected, sent, acknowledged, retried },
+    { selected: 0, sent: 0, acknowledged: 0, retried: 0 },
+  );
+});
+
+test('internal queue jobs cannot target a missing or different workspace', async () => {
+  const paths = [],
+    selected = [];
+  let acknowledged = 0,
+    retried = 0;
+  const env = {
+    WORKSPACE_ID: 'klocgit',
+    COORDINATOR: {
+      idFromName: (name) => {
+        selected.push(name);
+        return name;
+      },
+      get: () => ({
+        fetch: async (request) => {
+          paths.push(new URL(request.url).pathname);
+          return Response.json({});
+        },
+      }),
+    },
+  };
+  const messages = ['analyze', 'process_merge_queue'].flatMap((kind) =>
+    [undefined, 'another-workspace'].map((workspace) => ({
+      body: { kind, workspace, request_id: 'approved-job' },
+      ack: () => {
+        acknowledged++;
+      },
+      retry: () => {
+        retried++;
+      },
+    })),
+  );
+  await worker.queue({ messages }, env);
+  assert.equal(acknowledged, 0);
+  assert.equal(retried, 4);
+  assert.deepEqual(selected, []);
+  assert.deepEqual(paths, []);
+  await worker.queue(
+    {
+      messages: [
+        {
+          body: { kind: 'process_merge_queue', workspace: 'klocgit', request_id: 'approved-job' },
+          ack: () => {
+            acknowledged++;
+          },
+          retry: () => {
+            retried++;
+          },
+        },
+      ],
+    },
+    env,
+  );
+  assert.equal(acknowledged, 1);
+  assert.equal(retried, 4);
+  assert.deepEqual(selected, ['klocgit']);
+  assert.deepEqual(paths, ['/internal/merge-queue']);
+});
+
 test('Artifacts context reads decode exact immutable Blob contents and retain the full message', async () => {
   const commit = 'a'.repeat(40),
     reads = [];
@@ -180,7 +333,7 @@ test('Artifacts context reads decode exact immutable Blob contents and retain th
   assert.match(await adapter.message({ id: 'policy' }, commit), /Decision-Task: task_immutable/);
   assert.equal(await adapter.file({ id: 'policy' }, commit, 'missing.json'), null);
   assert.deepEqual(
-    adapter.suitesForScope({ validation_profile: 'checkout-effects-v2' }, ['client/retry.mjs']),
+    adapter.suitesForScope({ validation_profile: 'checkout-effects-v0' }, ['client/retry.mjs']),
     ['checkout-effects'],
   );
   assert.deepEqual(adapter.suitesForScope({}, ['client/retry.mjs']), []);
@@ -191,7 +344,7 @@ test('native push ingestion is acknowledged only after separate analysis is queu
   let acknowledged = 0,
     retried = 0;
   const env = {
-    WORKSPACE_ID: 'live',
+    WORKSPACE_ID: 'klocgit',
     ARTIFACTS_NAMESPACE: 'test',
     COORDINATOR: {
       idFromName: (name) => name,
@@ -222,6 +375,7 @@ test('native push ingestion is acknowledged only after separate analysis is queu
   assert.equal(acknowledged, 1);
   assert.equal(retried, 0);
   assert.equal(analysis[0].kind, 'analyze');
+  assert.equal(analysis[0].workspace, 'klocgit');
   assert.equal(analysis[0].trigger.head, 'a'.repeat(40));
   env.ANALYSIS_QUEUE.send = async () => {
     throw new Error('Queue unavailable');
@@ -234,7 +388,7 @@ test('queued analysis uses generic discovery rather than an owner-supplied compo
   const paths = [];
   let ack = 0;
   const env = {
-    WORKSPACE_ID: 'live',
+    WORKSPACE_ID: 'klocgit',
     COORDINATOR: {
       idFromName: (n) => n,
       get: () => ({
@@ -249,7 +403,7 @@ test('queued analysis uses generic discovery rather than an owner-supplied compo
     {
       messages: [
         {
-          body: { kind: 'analyze', workspace: 'live' },
+          body: { kind: 'analyze', workspace: 'klocgit' },
           ack() {
             ack++;
           },
@@ -273,12 +427,13 @@ test('authenticated repository registration preserves the selected trusted valid
     blockConcurrencyWhile: (fn) => fn(),
   };
   const env = {
+    WORKSPACE_ID: 'klocgit',
     ACTOR_ID: 'owner',
     VALIDATION_CONFIG_HASH: 'test-config',
     GIT_BRIDGE_TOKEN: 'test-bridge',
     GIT_EXECUTOR: {
       fetch: async () =>
-        Response.json({ validation_profile: 'checkout-effects-v2', context_repo: 'policy' }),
+        Response.json({ validation_profile: 'checkout-effects-v0', context_repo: 'policy' }),
     },
     ARTIFACTS: {
       get: async () => ({
@@ -298,19 +453,19 @@ test('authenticated repository registration preserves the selected trusted valid
       method: 'POST',
       body: JSON.stringify({
         name: 'app',
-        validation_profile: 'checkout-effects-v2',
+        validation_profile: 'checkout-effects-v0',
         context_repo: 'policy',
       }),
     }),
   );
   assert.equal(response.status, 201);
   const registered = await response.json();
-  assert.equal(registered.validation_profile, 'checkout-effects-v2');
+  assert.equal(registered.validation_profile, 'checkout-effects-v0');
   assert.equal(registered.context_repo, 'policy');
   const mismatched = await coordinator.fetch(
     new Request('https://coordinator/api/repositories', {
       method: 'POST',
-      body: JSON.stringify({ name: 'app-two', validation_profile: 'context-document-v1' }),
+      body: JSON.stringify({ name: 'app-two', validation_profile: 'context-document-v0' }),
     }),
   );
   assert.equal(mismatched.status, 409);
@@ -328,6 +483,7 @@ test('authenticated repository registration preserves the selected trusted valid
 test('production middleware isolates ingress credentials, enforces origin and bounds actual UTF-8 request bytes', async () => {
   const forwarded = [];
   const env = {
+    WORKSPACE_ID: 'klocgit',
     AUTH_TOKEN: 'test-owner-token',
     INGEST_TOKEN: 'test-ingress-token',
     ACTOR_ID: 'configured-owner',
@@ -416,6 +572,7 @@ test('fork transport disposes Artifacts capabilities, withholds minted tokens an
   state.repositories.push({ id: 'app', head, baseline: head, canonical_ref: 'refs/heads/main' });
   let disposed = 0;
   const env = {
+    WORKSPACE_ID: 'klocgit',
     ACTOR_ID: 'owner',
     ARTIFACTS: {
       get: async () => ({
@@ -490,6 +647,7 @@ test('canonical resolution reports durable success after enqueue failure and pre
       blockConcurrencyWhile: (fn) => fn(),
     },
     {
+      WORKSPACE_ID: 'klocgit',
       ACTOR_ID: 'configured-owner',
       ANALYSIS_QUEUE: {
         send: async () => {

@@ -13,6 +13,7 @@
     },
   ],
   "durable_objects": { "bindings": [{ "name": "EXECUTOR", "class_name": "GitExecutorContainer" }] },
+  // Cloudflare's applied migration cursor is independent of the klocgit v0 release.
   "migrations": [{ "tag": "v1", "new_sqlite_classes": ["GitExecutorContainer"] }],
-  "vars": { "WORKSPACE_ID": "northstar", "LIVE_TEST_ENABLED": "false" },
+  "vars": { "WORKSPACE_ID": "klocgit", "LIVE_TEST_ENABLED": "false" },
 }

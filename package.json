@@ -1,12 +1,12 @@
 {
   "name": "klocgit",
-  "version": "0.1.0",
+  "version": "0.0.0",
   "private": true,
   "type": "module",
   "description": "Decision coordination for concurrent Git work",
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/vik418/KLoCGit.git"
+    "url": "git+https://github.com/vik418/klocgit.git"
   },
   "engines": {
     "node": "24.x",
@@ -15,7 +15,7 @@
   "scripts": {
     "dev": "node server/local.mjs",
     "build": "vite build",
-    "test": "node --test tests/*.test.mjs",
+    "test": "node --test --test-concurrency=2 tests/*.test.mjs",
     "demo:reset": "node scripts/demo.mjs",
     "lint": "eslint . --max-warnings=0",
     "lint:fix": "eslint . --fix",

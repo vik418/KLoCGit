@@ -7,14 +7,6 @@ import { prepareTaskContext } from '../core/context.mjs';
 export async function bootstrapWorkspace(root, save = async () => {}) {
   await mkdir(path.join(root, 'repositories'), { recursive: true });
   const state = emptyState();
-  state.version = 2;
-  state.tasks = [];
-  state.contextPreparations = [];
-  state.discovery = {
-    components: [],
-    ungrouped_revision_ids: [],
-    explanation: 'No work has been analyzed.',
-  };
   const adapter = await new LocalGit(root).init();
   const engine = new Engine(state, adapter, save);
   for (const id of ['checkout-api', 'payment-policy']) {
@@ -39,7 +31,7 @@ export async function bootstrapWorkspace(root, save = async () => {}) {
       baseline: head,
       provider: 'local-git',
       remote: adapter.dir({ id }),
-      validation_profile: id === 'checkout-api' ? 'checkout-effects-v2' : 'context-document-v1',
+      validation_profile: id === 'checkout-api' ? 'checkout-effects-v0' : 'context-document-v0',
       ...(id === 'checkout-api' ? { context_repo: 'payment-policy' } : {}),
       description:
         id === 'checkout-api'
@@ -49,7 +41,7 @@ export async function bootstrapWorkspace(root, save = async () => {}) {
   }
   const task = await prepareTaskContext({
     task: {
-      schema: 'retry-response-v1',
+      schema: 'retry-response-v0',
       statement: 'Recover checkout when a processed payment response is lost.',
       target_repo: 'checkout-api',
       scope: ['client/retry.mjs'],

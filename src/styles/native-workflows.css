@@ -239,11 +239,6 @@ select:focus-visible {
   resize: vertical;
 }
 
-.field input::placeholder,
-.field textarea::placeholder {
-  color: var(--muted);
-}
-
 .form-grid {
   display: grid;
   grid-template-columns: 1fr 1fr;

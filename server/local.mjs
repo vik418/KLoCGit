@@ -16,11 +16,17 @@ import {
 } from './local-http.mjs';
 
 const project = fileURLToPath(new URL('../', import.meta.url));
-const root = process.env.DECISION_GIT_ROOT
-  ? path.resolve(process.env.DECISION_GIT_ROOT)
-  : path.join(project, '.demo-v2');
+const root = process.env.KLOCGIT_ROOT
+  ? path.resolve(process.env.KLOCGIT_ROOT)
+  : path.join(project, '.klocgit-workspace');
 const stateFile = path.join(root, 'state.json');
-const localActor = process.env.LOCAL_ACTOR_ID ?? 'demo-owner';
+const localActor = process.env.LOCAL_ACTOR_ID;
+if (typeof localActor !== 'string' || !localActor.trim())
+  throw new DomainError(
+    'ACTOR_NOT_CONFIGURED',
+    'Set LOCAL_ACTOR_ID to your development identity',
+    503,
+  );
 const ownerToken = process.env.LOCAL_OWNER_TOKEN;
 
 async function save(state) {
@@ -110,7 +116,7 @@ const server = http.createServer(handleRequest);
 const port = Number(process.env.PORT ?? 43187);
 const host = process.env.HOST ?? '127.0.0.1';
 server.listen(port, host, () => {
-  console.log('KLoCGit local demo: http://localhost:' + server.address().port);
+  console.log('klocgit local demo: http://localhost:' + server.address().port);
   console.log('Canonical repositories: ' + path.join(root, 'repositories'));
   console.log(
     'Owner identity: ' +

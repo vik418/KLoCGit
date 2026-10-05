@@ -1,1 +1,12 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 32 32"><rect width="32" height="32" rx="8" fill="#0d1620"/><path d="M8 8v5c0 4 8 2 8 7v4M24 8v5c0 4-8 2-8 7" fill="none" stroke="#89ddbd" stroke-width="2.5"/><circle cx="8" cy="8" r="2.5" fill="#89ddbd"/><circle cx="24" cy="8" r="2.5" fill="#89ddbd"/><circle cx="16" cy="24" r="2.5" fill="#89ddbd"/></svg>
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 32 32">
+  <rect width="32" height="32" rx="8" fill="#0B0D10" />
+  <path
+    d="M8 8v5c0 4 8 2 8 7v4M24 8v5c0 4-8 2-8 7"
+    fill="none"
+    stroke="#B5E61D"
+    stroke-width="2.5"
+  />
+  <circle cx="8" cy="8" r="2.5" fill="#C2410C" />
+  <circle cx="24" cy="8" r="2.5" fill="#D4AF37" />
+  <circle cx="16" cy="24" r="2.5" fill="#B5E61D" />
+</svg>

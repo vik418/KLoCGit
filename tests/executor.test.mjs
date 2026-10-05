@@ -13,7 +13,7 @@ const runtime = registerHooks({
     return nextResolve(specifier, context);
   },
 });
-const { GitExecutorContainer } = await import('../worker/executor.mjs');
+const { GitExecutorContainer, default: executor } = await import('../worker/executor.mjs');
 runtime.deregister();
 
 function fixture({ tests = false, uncertain = false } = {}) {
@@ -43,6 +43,7 @@ function fixture({ tests = false, uncertain = false } = {}) {
     }),
   };
   const env = {
+    WORKSPACE_ID: 'klocgit',
     GIT_BRIDGE_TOKEN: 'bridge-test',
     LIVE_TEST_TOKEN: 'fault-test',
     LIVE_TEST_ENABLED: tests ? 'true' : 'false',
@@ -51,6 +52,7 @@ function fixture({ tests = false, uncertain = false } = {}) {
     gateway: new GitExecutorContainer({ storage, container, waitUntil() {} }, env),
     data,
     calls,
+    env,
     get destroyed() {
       return destroyed;
     },
@@ -63,6 +65,76 @@ function request(route, token, body) {
     body: body === undefined ? undefined : JSON.stringify(body),
   });
 }
+
+test('private executor requires configured workspace after authentication and before forwarding', async () => {
+  const selected = [],
+    forwarded = [];
+  const env = {
+    GIT_BRIDGE_TOKEN: 'bridge-test',
+    LIVE_TEST_ENABLED: 'true',
+    LIVE_TEST_TOKEN: 'fault-test',
+    EXECUTOR: {
+      idFromName: (name) => {
+        selected.push(name);
+        return name;
+      },
+      get: () => ({
+        fetch: async (input) => {
+          forwarded.push(new URL(input.url).pathname);
+          return Response.json({ forwarded: true });
+        },
+      }),
+    },
+  };
+  for (const workspace of [undefined, null, '', ' \t', 123]) {
+    const configured = { ...env, WORKSPACE_ID: workspace };
+    for (const [route, token] of [
+      ['/health', 'bridge-test'],
+      ['/control/status', 'fault-test'],
+    ]) {
+      assert.equal(
+        (await executor.fetch(request(route, 'wrong-test-token'), configured)).status,
+        401,
+      );
+      const response = await executor.fetch(request(route, token), configured);
+      assert.equal(response.status, 503);
+      assert.equal((await response.json()).error, 'WORKSPACE_NOT_CONFIGURED');
+    }
+  }
+  assert.deepEqual(selected, []);
+  assert.deepEqual(forwarded, []);
+  assert.equal(
+    (await executor.fetch(request('/health', 'bridge-test'), { ...env, WORKSPACE_ID: 'klocgit' }))
+      .status,
+    200,
+  );
+  assert.deepEqual(selected, ['klocgit']);
+  assert.deepEqual(forwarded, ['/health']);
+});
+
+test('unconfigured executor object cannot start a container, execute Git or mutate fault controls', async () => {
+  for (const workspace of [undefined, '', ' \t', 123]) {
+    const f = fixture({ tests: true });
+    f.env.WORKSPACE_ID = workspace;
+    assert.equal((await f.gateway.fetch(request('/cas', 'wrong-test-token', {}))).status, 401);
+    for (const input of [
+      request('/cas', 'bridge-test', { repo: 'app', expected: 'old', commit: 'target' }),
+      request('/control/arm', 'fault-test', {
+        kind: 'drop-cas-response-once',
+        repo: 'app',
+        expected: 'old',
+      }),
+    ]) {
+      const response = await f.gateway.fetch(input);
+      assert.equal(response.status, 503);
+      assert.equal((await response.json()).error, 'WORKSPACE_NOT_CONFIGURED');
+    }
+    assert.deepEqual(f.calls, []);
+    assert.equal(f.data.size, 0);
+    assert.equal(f.destroyed, 0);
+  }
+});
+
 test('executor fault controls require both opt-in and a separate credential', async () => {
   const disabled = fixture();
   assert.equal(

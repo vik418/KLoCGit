@@ -91,11 +91,7 @@ export function MergeRequestDiscussion({
               <div className="form-grid">
                 <label className="field">
                   File path
-                  <input
-                    value={form.file}
-                    onChange={(e) => form.setFile(e.target.value)}
-                    placeholder="client/retry.mjs"
-                  />
+                  <input value={form.file} onChange={(e) => form.setFile(e.target.value)} />
                 </label>
                 <label className="field">
                   Line

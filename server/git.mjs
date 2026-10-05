@@ -12,10 +12,10 @@ const gitEnvironment = {
   GIT_CONFIG_NOSYSTEM: '1',
   GIT_CONFIG_GLOBAL: '/dev/null',
   GIT_TERMINAL_PROMPT: '0',
-  GIT_AUTHOR_NAME: 'KLoCGit',
-  GIT_AUTHOR_EMAIL: 'platform@local',
-  GIT_COMMITTER_NAME: 'KLoCGit',
-  GIT_COMMITTER_EMAIL: 'platform@local',
+  GIT_AUTHOR_NAME: 'klocgit',
+  GIT_AUTHOR_EMAIL: 'klocgit@localhost',
+  GIT_COMMITTER_NAME: 'klocgit',
+  GIT_COMMITTER_EMAIL: 'klocgit@localhost',
 };
 export const protectedGitArguments = [
   '-c',
@@ -67,7 +67,7 @@ export class LocalGit {
     return this;
   }
   suitesForScope(repo, scope) {
-    return repo.validation_profile === 'checkout-effects-v2' &&
+    return repo.validation_profile === 'checkout-effects-v0' &&
       scope.some((p) => ['client/retry.mjs', 'server/charge.mjs', 'app.mjs'].includes(p))
       ? ['checkout-effects']
       : [];
@@ -258,7 +258,7 @@ export class LocalGit {
           '-p',
           selected,
           '-m',
-          'KLoCGit: internal immutable Git composition',
+          'klocgit: internal immutable Git composition',
         ]);
       }
       const trailers = [
@@ -276,7 +276,7 @@ export class LocalGit {
       const commit = await git(
         cwd,
         ['commit-tree', tree, ...[head, ...maximal].flatMap((parent) => ['-p', parent])],
-        ['KLoCGit: immutable reviewed candidate', '', ...trailers, ''].join('\n'),
+        ['klocgit: immutable reviewed candidate', '', ...trailers, ''].join('\n'),
       );
       await git(this.dir(repo), ['fetch', '--quiet', cwd, commit]);
       await git(this.dir(repo), ['update-ref', `refs/klocgit/candidates/${commit}`, commit]);
@@ -334,7 +334,7 @@ export class LocalGit {
       const tree = await git(cwd, ['write-tree']),
         baseTree = await git(cwd, ['rev-parse', `${currentHead}^{tree}`]);
       const message = [
-        'KLoCGit: reviewed inverse candidate',
+        'klocgit: reviewed inverse candidate',
         '',
         `Reverts-Commit: ${targetCommit}`,
         `Revert-Base: ${currentHead}`,
@@ -359,8 +359,7 @@ export class LocalGit {
   }
   /**
    * Read a literal path at the caller's immutable commit. Only an observed missing
-   * entry means absence: treating read failures as absence could incorrectly
-   * authorize fallback to older producer metadata.
+   * entry means absence: failed reads must not be mistaken for missing provenance.
    *
    * @param {{id: string}} repo Repository descriptor.
    * @param {string} commit Immutable commit ID to read, rather than a moving ref.
@@ -384,7 +383,7 @@ export class LocalGit {
     return git(directory, ['show', `${commit}:${name}`]);
   }
   async validate(repo, commit, constraints, validityHeads = {}) {
-    if (repo.validation_profile === 'checkout-effects-v2') {
+    if (repo.validation_profile === 'checkout-effects-v0') {
       const policyRepo = repo.context_repo ?? 'payment-policy';
       const policyCommit = validityHeads[policyRepo];
       const runner = await createApplicationRunner({
@@ -394,7 +393,7 @@ export class LocalGit {
       });
       return runner.validate(commit);
     }
-    if (repo.validation_profile === 'context-document-v1') {
+    if (repo.validation_profile === 'context-document-v0') {
       let value;
       try {
         value = JSON.parse(await this.file(repo, commit, 'checkout-policy.json'));

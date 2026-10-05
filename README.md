@@ -1,21 +1,19 @@
-# KLoCGit
+# klocgit
 
-Pronounced **“clock it.”**
-
-When several people or tools change the same project, KLoCGit brings related work together. You compare the choices, see the checks, and decide what to keep. Git stores the code. KLoCGit records the reasons and decisions.
+When several people or tools change the same project, klocgit v0 brings related work together. You compare the choices, see the checks, and decide what to keep. Git stores the code. klocgit records the reasons and decisions.
 
 ## Run locally
 
 Install Node.js 24 and Git:
 
 ```sh
-git clone https://github.com/vik418/KLoCGit.git
-cd KLoCGit
+git clone https://github.com/vik418/klocgit.git
+cd klocgit
 npm ci
-npm run dev
+LOCAL_ACTOR_ID="$(git config user.email)" npm run dev
 ```
 
-Open <http://localhost:43187>. Use `PORT=43188 npm run dev` to change the port.
+Open <http://localhost:43187>. The command uses your configured Git email as the local development identity. `PORT` changes the port.
 
 The demo has two sample repositories. Answer the setup question, then start the sample producers. Code validation needs Linux or WSL with bubblewrap and util-linux. See [local setup](docs/design.md#local-development).
 

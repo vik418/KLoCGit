@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from 'react';
 import { useMutation } from '../../hooks/useMutation.js';
 import { apiRequest } from '../../lib/api.js';
-import { asArray, getMergeRequests, getPreparedDecisionId } from '../../lib/workspace.js';
+import { getMergeRequests, getPreparedDecisionId } from '../../lib/workspace.js';
 import { getErrorReasons } from '../../lib/errors.js';
 
 // Keep form state here so switching tabs never discards an unfinished review or comment.
@@ -30,7 +30,7 @@ export function useMergeRequestDialog({ id, workspace, onDecision, reload, messa
     let alive = true;
     apiRequest('/merge-requests/' + encodeURIComponent(id))
       .then((request) => {
-        if (alive) setLoaded(request.merge_request ?? request);
+        if (alive) setLoaded(request);
       })
       .catch((error) => message(error.message, 'error'));
     return () => {
@@ -46,17 +46,8 @@ export function useMergeRequestDialog({ id, workspace, onDecision, reload, messa
     expected_revision_id: mergeRequest.revision_id,
   };
   const endpoint = '/merge-requests/' + id;
-  const reviews = asArray(
-    mergeRequest.reviews ?? workspace.reviews?.filter((review) => review.mr_id === id),
-  );
-  const comments = asArray(
-    mergeRequest.comments ?? workspace.comments?.filter((comment) => comment.mr_id === id),
-  );
-  const threads = asArray(mergeRequest.threads);
-  const checkRuns = asArray(
-    mergeRequest.check_runs ?? workspace.checkRuns?.filter((check) => check.mr_id === id),
-  );
-  const selectedDependencies = dependencyIds ?? mergeRequest.dependency_ids ?? [];
+  const { reviews, comments, threads, check_runs: checkRuns } = mergeRequest;
+  const selectedDependencies = dependencyIds ?? mergeRequest.dependency_ids;
   const dependencyChoices = getMergeRequests(workspace).filter(
     (request) => request.id !== id && request.status !== 'closed',
   );
@@ -70,18 +61,9 @@ export function useMergeRequestDialog({ id, workspace, onDecision, reload, messa
         evidence.validity?.status === 'current',
     )
     .at(-1);
-  const currentApprovalCount = Array.isArray(mergeRequest.review_state?.approvals)
-    ? mergeRequest.review_state.approvals.length
-    : Number(mergeRequest.review_state?.approvals ?? 0);
-  const missingChecks = getErrorReasons(mergeRequest.checks_state?.missing);
-  const mergedDecisionId =
-    mergeRequest.resolution_decision_id ??
-    mergeRequest.merged_decision_id ??
-    mergeRequest.merge_decision_id ??
-    mergeRequest.decision_id ??
-    [...workspace.decisions]
-      .reverse()
-      .find((decision) => decision.proposal_revision_ids?.includes(mergeRequest.revision_id))?.id;
+  const currentApprovalCount = mergeRequest.review_state.approvals;
+  const missingChecks = getErrorReasons(mergeRequest.checks_state.missing);
+  const mergedDecisionId = mergeRequest.resolution_decision_id;
   const mergedDecision = workspace.decisions.find((decision) => decision.id === mergedDecisionId);
   const mergedOperation = workspace.operations.find(
     (operation) => operation.decision_id === mergedDecisionId && operation.status === 'applied',
@@ -114,7 +96,7 @@ export function useMergeRequestDialog({ id, workspace, onDecision, reload, messa
   }
 
   async function prepareRevert() {
-    const target = mergedOperation?.target_commit ?? mergeRequest.merge_commit;
+    const target = mergeRequest.merge_commit;
     if (!target) {
       message('The merged Git commit is unavailable.', 'error');
       return;
@@ -254,7 +236,7 @@ export function useMergeRequestDialog({ id, workspace, onDecision, reload, messa
     dismissReview,
     detailsForm: {
       title: editTitle ?? mergeRequest.title,
-      description: editDescription ?? mergeRequest.description ?? '',
+      description: editDescription ?? mergeRequest.description,
       setTitle: setEditTitle,
       setDescription: setEditDescription,
       onSubmit: saveDetails,

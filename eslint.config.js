@@ -8,8 +8,7 @@ export default [
     ignores: [
       'node_modules/**',
       'dist/**',
-      '.demo/**',
-      '.demo-v2/**',
+      '.klocgit-workspace/**',
       '.wrangler/**',
       'coverage/**',
       'test-results/**',

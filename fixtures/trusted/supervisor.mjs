@@ -2,7 +2,7 @@
 import http from 'node:http';
 import { spawn } from 'node:child_process';
 
-const CHECK_ID = 'platform:lost-response-exactly-once-v1';
+const CHECK_ID = 'platform:lost-response-exactly-once-v0';
 const limitations = [
   'Two finite black-box HTTP scenarios establish only the observed charge and confirmation counts.',
   'The fixture ledger simulates payment and email effects; no real money or email is involved.',
@@ -256,7 +256,7 @@ async function run() {
     checks,
     suite: {
       id: CHECK_ID,
-      version: 1,
+      version: 0,
       footprint: ['client/retry.mjs', 'server/charge.mjs'],
       ownership: 'platform',
     },
@@ -286,7 +286,7 @@ try {
     ],
     suite: {
       id: CHECK_ID,
-      version: 1,
+      version: 0,
       footprint: ['client/retry.mjs', 'server/charge.mjs'],
       ownership: 'platform',
     },

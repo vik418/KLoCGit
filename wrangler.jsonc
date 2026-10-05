@@ -14,6 +14,7 @@
   "durable_objects": {
     "bindings": [{ "name": "COORDINATOR", "class_name": "WorkspaceCoordinator" }],
   },
+  // Cloudflare's applied migration cursor is independent of the klocgit v0 release.
   "migrations": [{ "tag": "v1", "new_sqlite_classes": ["WorkspaceCoordinator"] }],
   "artifacts": [{ "binding": "ARTIFACTS", "namespace": "klocgit" }],
   "services": [{ "binding": "GIT_EXECUTOR", "service": "klocgit-git-executor" }],
@@ -21,5 +22,5 @@
     "producers": [{ "binding": "ANALYSIS_QUEUE", "queue": "klocgit-git-events" }],
     "consumers": [{ "queue": "klocgit-git-events", "max_batch_size": 1, "max_batch_timeout": 5 }],
   },
-  "vars": { "WORKSPACE_ID": "northstar", "ARTIFACTS_NAMESPACE": "klocgit" },
+  "vars": { "WORKSPACE_ID": "klocgit", "ARTIFACTS_NAMESPACE": "klocgit" },
 }

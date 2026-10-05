@@ -11,6 +11,7 @@ const REVIEWER = 'authenticated-reviewer';
 
 function fixture() {
   const state = emptyState();
+  state.workspace.owner_id = OWNER;
   state.repositories.push({
     id: 'service',
     head: BASE,
@@ -24,7 +25,7 @@ function fixture() {
   let nextCommit = 2;
   let saveCount = 0;
   const git = {
-    configHash: 'trusted-config-v1',
+    configHash: 'trusted-config-initial',
     async ref(repo, ref) {
       return heads.get(`${repo.id}:${ref}`) ?? null;
     },
@@ -145,7 +146,7 @@ async function trustedComposition(
     source: 'platform-owned checks',
     result: {
       passed: true,
-      checks: [{ check_ref: 'platform:composed-contract-v1', passed: true }],
+      checks: [{ check_ref: 'platform:composed-contract-v0', passed: true }],
     },
     validity_heads: Object.fromEntries(f.state.repositories.map((repo) => [repo.id, repo.head])),
     constraint_versions: [],
@@ -400,10 +401,10 @@ test('canonical, configuration and constraint advances invalidate earlier merge-
       f.heads.set('service:refs/heads/main', commit(808));
     },
     (f) => {
-      f.git.configHash = 'trusted-config-v2';
+      f.git.configHash = 'trusted-config-changed';
     },
     (f) => {
-      f.state.constraints.push({ id: 'new-constraint-v2', active: true, kind: 'checkable' });
+      f.state.constraints.push({ id: 'new-constraint-added', active: true, kind: 'checkable' });
     },
   ]) {
     const f = fixture();
@@ -456,7 +457,7 @@ test('requested changes block a passing revision until the request is dismissed 
       expected_version: mr.version,
       expected_revision_id: mr.revision_id,
     },
-    'demo-owner',
+    OWNER,
   );
   assert.equal((await f.requests.guardRevisionIds([mr.revision_id])).allowed, true);
   assert.ok(mr.reviews.some((review) => review.action === 'request_changes'));
@@ -468,7 +469,7 @@ test('repository-owner policy changes enforce a minimum count and named platform
   const policy = {
     minApprovals: 2,
     allowSelfApproval: false,
-    requiredChecks: ['platform:api-contract-v1'],
+    requiredChecks: ['platform:api-contract-v0'],
   };
   await assert.rejects(
     () =>
@@ -482,7 +483,7 @@ test('repository-owner policy changes enforce a minimum count and named platform
   mr = await f.requests.transition(
     mr.id,
     { action: 'policy', policy, expected_version: mr.version },
-    'demo-owner',
+    OWNER,
   );
   mr = await f.requests.review(
     mr.id,
@@ -496,7 +497,7 @@ test('repository-owner policy changes enforce a minimum count and named platform
   );
   const revision = f.engine.revision(mr.revision_id);
   await trustedEvidence(f, revision, {
-    result: { passed: true, checks: [{ name: 'platform:api-contract-v1', passed: true }] },
+    result: { passed: true, checks: [{ name: 'platform:api-contract-v0', passed: true }] },
   });
   await f.expectError(() => f.requests.guardRevisionIds([mr.revision_id]), 'MR_BLOCKED');
   mr = await f.requests.review(
@@ -506,7 +507,7 @@ test('repository-owner policy changes enforce a minimum count and named platform
   );
   await f.expectError(() => f.requests.guardRevisionIds([mr.revision_id]), 'MR_BLOCKED');
   await trustedEvidence(f, revision, {
-    result: { passed: true, checks: [{ check_ref: 'platform:api-contract-v1', passed: true }] },
+    result: { passed: true, checks: [{ check_ref: 'platform:api-contract-v0', passed: true }] },
   });
   assert.equal((await f.requests.guardRevisionIds([mr.revision_id])).allowed, true);
   assert.equal(mr.policy.minApprovals, 2);
@@ -1088,7 +1089,7 @@ test('exact trusted composition evidence can satisfy selected checks without inv
   const f = fixture();
   f.state.repositories[0].merge_request_policy = {
     minApprovals: 0,
-    requiredChecks: ['platform:composed-contract-v1'],
+    requiredChecks: ['platform:composed-contract-v0'],
   };
   const first = await f.open('composed-first');
   const second = await f.open('composed-second');
@@ -1152,7 +1153,7 @@ test('composed proof rejects producer claims, mismatched subjects or trees, stal
     {
       result: {
         passed: false,
-        checks: [{ check_ref: 'platform:composed-contract-v1', passed: true }],
+        checks: [{ check_ref: 'platform:composed-contract-v0', passed: true }],
       },
     },
   ]) {
@@ -1214,7 +1215,7 @@ async function retainedRevision(f) {
     id: 'internal-revert-proposal',
     repo: 'service',
     source_repo: 'service',
-    ref: `refs/converge/candidates/${head}`,
+    ref: `refs/klocgit/candidates/${head}`,
     title: 'Revert a reviewed implementation',
   };
   const revision = await record('rev', {
@@ -1294,7 +1295,7 @@ test('failed selected composition blocks convergence even when each individual r
         passed: false,
         checks: [
           {
-            check_ref: 'platform:composed-contract-v1',
+            check_ref: 'platform:composed-contract-v0',
             passed: false,
             detail: 'The textually merged candidate repeats a non-idempotent side effect.',
           },
@@ -1664,7 +1665,7 @@ async function platformRerun(f, previous, result, overrides = {}) {
 }
 
 test('latest current platform failure, pending or cancellation supersedes an old pass and fresh success changes the reviewed MR basis', async () => {
-  for (const required of ['trusted-validation', 'platform:finite-contract-v1'])
+  for (const required of ['trusted-validation', 'platform:finite-contract-v0'])
     for (const [status, passed] of [
       ['failed', false],
       ['pending', true],
@@ -1678,7 +1679,7 @@ test('latest current platform failure, pending or cancellation supersedes an old
       const first = await trustedEvidence(f, revision, {
         result: {
           passed: true,
-          checks: [{ check_ref: 'platform:finite-contract-v1', passed: true }],
+          checks: [{ check_ref: 'platform:finite-contract-v0', passed: true }],
         },
       });
       const firstBasis = await f.requests.basisFor([revision.id]);
@@ -1686,7 +1687,7 @@ test('latest current platform failure, pending or cancellation supersedes an old
       const stopped = await platformRerun(f, first, {
         passed,
         status,
-        checks: [{ check_ref: 'platform:finite-contract-v1', passed: status !== 'failed' }],
+        checks: [{ check_ref: 'platform:finite-contract-v0', passed: status !== 'failed' }],
       });
       const current = f.requests.get(mr.id).checks_state;
       assert.deepEqual(current.passed, []);
@@ -1704,7 +1705,7 @@ test('latest current platform failure, pending or cancellation supersedes an old
         {
           passed: true,
           status: 'passed',
-          checks: [{ check_ref: 'platform:finite-contract-v1', passed: true }],
+          checks: [{ check_ref: 'platform:finite-contract-v0', passed: true }],
         },
         { created_at: '2019-01-01T00:00:00.000Z' },
       );
@@ -1741,7 +1742,7 @@ test('latest exact composition outcome controls selected checks rather than any 
     const stopped = await platformRerun(f, evidence, {
       passed,
       status,
-      checks: [{ check_ref: 'platform:composed-contract-v1', passed: true }],
+      checks: [{ check_ref: 'platform:composed-contract-v0', passed: true }],
     });
     await f.expectError(
       () => f.requests.guardRevisionIds(ids, OWNER, { composition_id: composition.id }),
@@ -1754,7 +1755,7 @@ test('latest exact composition outcome controls selected checks rather than any 
       {
         passed: true,
         status: 'passed',
-        checks: [{ check_ref: 'platform:composed-contract-v1', passed: true }],
+        checks: [{ check_ref: 'platform:composed-contract-v0', passed: true }],
       },
       { created_at: '2019-01-01T00:00:00.000Z' },
     );
@@ -1849,19 +1850,19 @@ test('latest pending or cancelled individual checks cannot inherit a stale aggre
   for (const status of ['pending', 'running', 'failed', 'cancelled']) {
     const f = fixture();
     f.state.repositories[0].merge_request_policy = {
-      requiredChecks: ['platform:finite-contract-v1'],
+      requiredChecks: ['platform:finite-contract-v0'],
     };
     const mr = await f.open('partial-platform-check');
     const revision = f.engine.revision(mr.revision_id);
     const first = await trustedEvidence(f, revision, {
       result: {
         passed: true,
-        checks: [{ check_ref: 'platform:finite-contract-v1', passed: true }],
+        checks: [{ check_ref: 'platform:finite-contract-v0', passed: true }],
       },
     });
     const latest = await platformRerun(f, first, {
       passed: true,
-      checks: [{ check_ref: 'platform:finite-contract-v1', passed: true, status }],
+      checks: [{ check_ref: 'platform:finite-contract-v0', passed: true, status }],
     });
     await f.expectError(() => f.requests.guardRevisionIds([revision.id], OWNER), 'MR_BLOCKED');
     assert.deepEqual(f.requests.get(mr.id).checks_state.evidence_ids, [latest.id]);

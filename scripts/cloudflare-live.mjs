@@ -1,4 +1,4 @@
-// Real-account helpers. No mocks, direct-ingress fallback, or synthetic passing reports.
+// Exercise native Git events and canonical transitions against a real account.
 // Run `node scripts/cloudflare-live.mjs preflight` before any provisioning.
 import { execFile } from 'node:child_process';
 import { promisify } from 'node:util';
@@ -18,7 +18,7 @@ const required = (name) => {
   return process.env[name];
 };
 const report = {
-  version: 1,
+  version: 0,
   mode,
   started_at: new Date().toISOString(),
   live: true,
@@ -26,7 +26,8 @@ const report = {
   resources: [],
 };
 const reportPath =
-  process.env.LIVE_REPORT_PATH ?? path.join(root, '.demo', 'live-cloudflare-report.json');
+  process.env.LIVE_REPORT_PATH ??
+  path.join(root, '.klocgit-workspace', 'live-cloudflare-report.json');
 const emit = (entry) => {
   report.checks.push(entry);
   console.log(JSON.stringify(entry));
@@ -132,7 +133,7 @@ async function provisionEvents(m) {
       info = await cf(m, `${ns}/repos`, 'POST', {
         name: repo.name,
         default_branch: 'main',
-        description: 'KLoCGit live acceptance repository',
+        description: 'klocgit live acceptance repository',
       });
     }
     // Create returns a token. Deliberately retain only the public remote and name.

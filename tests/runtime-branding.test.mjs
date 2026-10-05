@@ -44,26 +44,26 @@ async function fixture(t) {
   const baseTree = await git(work, ['rev-parse', `${base}^{tree}`]);
   await git(root, ['clone', '--quiet', '--bare', work, origin]);
 
-  // Seed an existing historical object exactly as stored before the rename.
-  const historicalBody = [
+  // Seed a retained candidate whose only advertised ref is outside branch heads.
+  const retainedBody = [
     `tree ${baseTree}`,
     `parent ${base}`,
-    'author Converge <platform@local> 1700000000 +0000',
-    'committer Converge <platform@local> 1700000000 +0000',
+    'author klocgit <klocgit@localhost> 1700000000 +0000',
+    'committer klocgit <klocgit@localhost> 1700000000 +0000',
     '',
-    'Converge: immutable reviewed candidate',
+    'klocgit: immutable reviewed candidate',
     '',
-    'Proposal-Revision: historical-revision',
-    'Decision-Context: historical-context',
+    'Proposal-Revision: retained-revision',
+    'Decision-Context: retained-context',
     '',
   ].join('\n');
-  const historicalCommit = await git(
+  const retainedCommit = await git(
     origin,
     ['hash-object', '-t', 'commit', '-w', '--stdin'],
-    historicalBody,
+    retainedBody,
   );
-  const historicalRef = `refs/converge/candidates/${historicalCommit}`;
-  await git(origin, ['update-ref', historicalRef, historicalCommit]);
+  const retainedRef = `refs/klocgit/candidates/${retainedCommit}`;
+  await git(origin, ['update-ref', retainedRef, retainedCommit]);
 
   await git(work, ['checkout', '--quiet', '-b', 'producer']);
   await writeFile(path.join(work, 'app.txt'), 'producer change\n');
@@ -91,31 +91,32 @@ async function fixture(t) {
     repo,
     manifest,
     revision,
-    historicalCommit,
-    historicalRef,
-    historicalBody,
+    retainedCommit,
+    retainedRef,
+    retainedBody,
   };
 }
 
-test('KLoCGit writes new retained refs while cold-cache recovery preserves both candidate namespaces and exact historical Git objects', async (t) => {
+test('klocgit retains candidates outside branch heads and cold-cache recovery preserves their exact Git objects', async (t) => {
   const f = await fixture(t);
   const firstCache = path.join(f.root, 'executor-one');
   const first = new LocalTransport(firstCache, f.manifest);
   const candidate = await first.compose(f.repo, f.base, [f.revision]);
   assert.equal(candidate.retention_ref, `refs/klocgit/candidates/${candidate.commit}`);
   assert.equal(await git(f.origin, ['rev-parse', candidate.retention_ref]), candidate.commit);
-  assert.equal(await git(f.origin, ['rev-parse', f.historicalRef]), f.historicalCommit);
-  assert.equal(
-    await git(f.origin, ['for-each-ref', '--format=%(refname)', 'refs/converge/candidates']),
-    f.historicalRef,
-    'New retention must not create additional refs in the old namespace',
+  assert.equal(await git(f.origin, ['rev-parse', f.retainedRef]), f.retainedCommit);
+  assert.deepEqual(
+    (
+      await git(f.origin, ['for-each-ref', '--format=%(refname)', 'refs/klocgit/candidates/'])
+    ).split('\n'),
+    [f.retainedRef, candidate.retention_ref].sort(),
   );
   assert.equal(
-    await git(f.origin, ['show', '-s', '--format=%an|%cn', candidate.commit]),
-    'KLoCGit|KLoCGit',
+    await git(f.origin, ['show', '-s', '--format=%an|%ae|%cn|%ce', candidate.commit]),
+    'klocgit|klocgit@localhost|klocgit|klocgit@localhost',
   );
   const message = await first.message(f.repo, candidate.commit);
-  assert.match(message, /^KLoCGit: immutable reviewed candidate/);
+  assert.match(message, /^klocgit: immutable reviewed candidate/);
   assert.match(message, /Proposal-Revision: new-revision/);
   assert.match(message, /Decision-Task: new-task/);
   assert.match(message, /Decision-Context: new-context/);
@@ -126,28 +127,30 @@ test('KLoCGit writes new retained refs while cold-cache recovery preserves both 
 
   await rm(firstCache, { recursive: true, force: true });
   const recovered = new LocalTransport(path.join(f.root, 'executor-two'), f.manifest);
-  await recovered.ensureCommit(f.repo.id, f.historicalCommit);
+  await recovered.ensureCommit(f.repo.id, f.retainedCommit);
   await recovered.ensureCommit(f.repo.id, candidate.commit);
   const fetches = recovered.calls.filter((args) => args[0] === 'fetch');
   assert.ok(fetches.length > 0);
   for (const args of fetches) {
-    assert.ok(args.includes('+refs/converge/candidates/*:refs/converge/candidates/*'));
-    assert.ok(args.includes('+refs/klocgit/candidates/*:refs/klocgit/candidates/*'));
+    assert.deepEqual(args, [
+      'fetch',
+      '--quiet',
+      f.origin,
+      '+refs/heads/*:refs/heads/*',
+      '+refs/klocgit/candidates/*:refs/klocgit/candidates/*',
+    ]);
   }
-  assert.equal(
-    await git(recovered.dir(f.repo), ['rev-parse', f.historicalRef]),
-    f.historicalCommit,
-  );
+  assert.equal(await git(recovered.dir(f.repo), ['rev-parse', f.retainedRef]), f.retainedCommit);
   assert.equal(
     await git(recovered.dir(f.repo), ['rev-parse', candidate.retention_ref]),
     candidate.commit,
   );
   assert.equal(
-    await git(recovered.dir(f.repo), ['cat-file', '-p', f.historicalCommit], undefined, {
+    await git(recovered.dir(f.repo), ['cat-file', '-p', f.retainedCommit], undefined, {
       raw: true,
     }),
-    f.historicalBody,
-    'Historical author, message, trailers and commit bytes remain unchanged',
+    f.retainedBody,
+    'Retained author, message, trailers and commit bytes remain unchanged',
   );
   assert.equal(
     await git(recovered.dir(f.repo), ['rev-parse', `${candidate.commit}^{tree}`]),

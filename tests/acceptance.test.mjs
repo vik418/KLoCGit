@@ -9,7 +9,7 @@ import { git } from '../server/git.mjs';
 import { record, DomainError } from '../core/hash.mjs';
 
 async function fixture(t, options = {}) {
-  const root = await mkdtemp(path.join(os.tmpdir(), 'klocgit-test-v2-'));
+  const root = await mkdtemp(path.join(os.tmpdir(), 'klocgit-test-'));
   t.after(() => rm(root, { recursive: true, force: true }));
   return {
     ...(await createDemo(root, async () => {}, {
@@ -458,7 +458,7 @@ test('a merge failure cannot become passing composition evidence', async (t) => 
   const { engine } = await fixture(t);
   engine.git.compose = async () => ({
     conflict: true,
-    commit: 'unsafe-fallback',
+    commit: 'unsafe-candidate',
     tree: 'baseline',
   });
   await assert.rejects(
