@@ -99,6 +99,7 @@ export function NewCandidate({ nativeState, onClose, onCreated, reload, message 
                   <label className="grid gap-2 text-sm">
                     Selection for {future.name}
                     <NativeSelect
+                      aria-label={'Selection for ' + future.name}
                       value={choice.kind}
                       onChange={(event) => change(future.id, { kind: event.target.value })}
                     >
@@ -111,6 +112,7 @@ export function NewCandidate({ nativeState, onClose, onCreated, reload, message 
                       <label className="grid gap-2 text-sm">
                         Repository for {future.name}
                         <NativeSelect
+                          aria-label={'Repository for ' + future.name}
                           value={choice.repo_id ?? ''}
                           onChange={(event) => change(future.id, { repo_id: event.target.value })}
                         >

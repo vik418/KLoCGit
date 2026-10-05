@@ -851,10 +851,7 @@
                   },
                   "kind": {
                     "type": "string",
-                    "enum": [
-                      "future",
-                      "commits"
-                    ],
+                    "enum": ["future", "commits"],
                     "default": "future"
                   },
                   "repo_id": {
@@ -876,10 +873,7 @@
                     "maxLength": 128
                   }
                 },
-                "required": [
-                  "future_revision_id",
-                  "request_id"
-                ]
+                "required": ["future_revision_id", "request_id"]
               }
             }
           }
@@ -940,10 +934,7 @@
                     "maxLength": 128
                   }
                 },
-                "required": [
-                  "selection_ids",
-                  "request_id"
-                ]
+                "required": ["selection_ids", "request_id"]
               }
             }
           }
@@ -1017,9 +1008,7 @@
                     "maxLength": 128
                   }
                 },
-                "required": [
-                  "request_id"
-                ]
+                "required": ["request_id"]
               }
             }
           }
@@ -1086,12 +1075,7 @@
                     "maxLength": 128
                   }
                 },
-                "required": [
-                  "decision_basis_hash",
-                  "expected_heads",
-                  "rationale",
-                  "request_id"
-                ]
+                "required": ["decision_basis_hash", "expected_heads", "rationale", "request_id"]
               }
             }
           }
@@ -1135,13 +1119,7 @@
               "schema": {
                 "type": "object",
                 "additionalProperties": false,
-                "required": [
-                  "request_id",
-                  "expected_head",
-                  "outcome",
-                  "confirmed",
-                  "rationale"
-                ],
+                "required": ["request_id", "expected_head", "outcome", "confirmed", "rationale"],
                 "properties": {
                   "request_id": {
                     "type": "string",
@@ -1154,16 +1132,11 @@
                   },
                   "outcome": {
                     "type": "string",
-                    "enum": [
-                      "not_applied",
-                      "applied_then_moved"
-                    ]
+                    "enum": ["not_applied", "applied_then_moved"]
                   },
                   "confirmed": {
                     "type": "boolean",
-                    "enum": [
-                      true
-                    ]
+                    "enum": [true]
                   },
                   "rationale": {
                     "type": "string",
@@ -1355,9 +1328,7 @@
             "minLength": 1
           }
         },
-        "required": [
-          "kind"
-        ]
+        "required": ["kind"]
       },
       "ImportSource": {
         "type": "object",
@@ -1381,9 +1352,7 @@
             "default": 100
           }
         },
-        "required": [
-          "url"
-        ]
+        "required": ["url"]
       },
       "RepositoryCreate": {
         "type": "object",
@@ -1405,11 +1374,7 @@
           },
           "mode": {
             "type": "string",
-            "enum": [
-              "create",
-              "import",
-              "adopt"
-            ],
+            "enum": ["create", "import", "adopt"],
             "default": "create"
           },
           "description": {
@@ -1421,10 +1386,7 @@
             "$ref": "#/components/schemas/ImportSource"
           }
         },
-        "required": [
-          "request_id",
-          "id"
-        ],
+        "required": ["request_id", "id"],
         "allOf": [
           {
             "if": {
@@ -1433,14 +1395,10 @@
                   "const": "import"
                 }
               },
-              "required": [
-                "mode"
-              ]
+              "required": ["mode"]
             },
             "then": {
-              "required": [
-                "source"
-              ]
+              "required": ["source"]
             }
           }
         ]
@@ -1457,9 +1415,7 @@
             "description": "Stable identity for one operation and its unchanged inputs. Retain it across lost-response retries; changing input requires a new identity."
           }
         },
-        "required": [
-          "request_id"
-        ]
+        "required": ["request_id"]
       },
       "VersionedRequest": {
         "type": "object",
@@ -1477,10 +1433,7 @@
             "minimum": 1
           }
         },
-        "required": [
-          "request_id",
-          "expected_version"
-        ]
+        "required": ["request_id", "expected_version"]
       },
       "SystemCreate": {
         "type": "object",
@@ -1514,11 +1467,7 @@
             }
           }
         },
-        "required": [
-          "request_id",
-          "name",
-          "repository_ids"
-        ]
+        "required": ["request_id", "name", "repository_ids"]
       },
       "ObjectiveCreate": {
         "type": "object",
@@ -1553,11 +1502,7 @@
             "default": []
           }
         },
-        "required": [
-          "request_id",
-          "system_id",
-          "statement"
-        ]
+        "required": ["request_id", "system_id", "statement"]
       },
       "FutureCreate": {
         "type": "object",
@@ -1602,14 +1547,10 @@
             "$ref": "#/components/schemas/Producer"
           }
         },
-        "required": [
-          "request_id"
-        ],
+        "required": ["request_id"],
         "anyOf": [
           {
-            "required": [
-              "system_id"
-            ],
+            "required": ["system_id"],
             "properties": {
               "system_id": {
                 "minLength": 1
@@ -1617,9 +1558,7 @@
             }
           },
           {
-            "required": [
-              "objective_id"
-            ],
+            "required": ["objective_id"],
             "properties": {
               "objective_id": {
                 "minLength": 1
@@ -1627,9 +1566,7 @@
             }
           },
           {
-            "required": [
-              "repository_ids"
-            ],
+            "required": ["repository_ids"],
             "properties": {
               "repository_ids": {
                 "minItems": 1
@@ -1666,17 +1603,11 @@
             "$ref": "#/components/schemas/Producer"
           }
         },
-        "required": [
-          "request_id"
-        ]
+        "required": ["request_id"]
       },
       "Repository": {
         "type": "object",
-        "required": [
-          "id",
-          "canonical_ref",
-          "status"
-        ],
+        "required": ["id", "canonical_ref", "status"],
         "properties": {
           "id": {
             "$ref": "#/components/schemas/RepositoryId"
@@ -1694,20 +1625,11 @@
             "type": "string"
           },
           "remote": {
-            "type": [
-              "string",
-              "null"
-            ]
+            "type": ["string", "null"]
           },
           "status": {
             "type": "string",
-            "enum": [
-              "empty",
-              "ready",
-              "importing",
-              "forking",
-              "unavailable"
-            ]
+            "enum": ["empty", "ready", "importing", "forking", "unavailable"]
           },
           "head": {
             "anyOf": [
@@ -1744,22 +1666,13 @@
             "minimum": 1
           },
           "operation_id": {
-            "type": [
-              "string",
-              "null"
-            ]
+            "type": ["string", "null"]
           },
           "validation_profile": {
-            "type": [
-              "string",
-              "null"
-            ]
+            "type": ["string", "null"]
           },
           "context_repo": {
-            "type": [
-              "string",
-              "null"
-            ]
+            "type": ["string", "null"]
           },
           "unavailable": {
             "type": "boolean"
@@ -1779,25 +1692,13 @@
           },
           "status": {
             "type": "string",
-            "enum": [
-              "empty",
-              "ready",
-              "importing",
-              "forking",
-              "unavailable"
-            ]
+            "enum": ["empty", "ready", "importing", "forking", "unavailable"]
           },
           "remote": {
-            "type": [
-              "string",
-              "null"
-            ]
+            "type": ["string", "null"]
           }
         },
-        "required": [
-          "repo_id",
-          "ref"
-        ]
+        "required": ["repo_id", "ref"]
       },
       "System": {
         "type": "object",
@@ -1852,10 +1753,7 @@
         "properties": {
           "basis": {
             "type": "string",
-            "enum": [
-              "declared",
-              "unknown"
-            ]
+            "enum": ["declared", "unknown"]
           },
           "actor": {
             "type": "string"
@@ -1864,9 +1762,7 @@
             "type": "string"
           }
         },
-        "required": [
-          "basis"
-        ]
+        "required": ["basis"]
       },
       "Objective": {
         "type": "object",
@@ -1879,10 +1775,7 @@
             "$ref": "#/components/schemas/Identifier"
           },
           "statement": {
-            "type": [
-              "string",
-              "null"
-            ]
+            "type": ["string", "null"]
           },
           "scope": {
             "type": "array",
@@ -1895,9 +1788,7 @@
           },
           "status": {
             "type": "string",
-            "enum": [
-              "open"
-            ]
+            "enum": ["open"]
           },
           "created_by": {
             "type": "string"
@@ -1935,12 +1826,7 @@
             "$ref": "#/components/schemas/GitObjectId"
           }
         },
-        "required": [
-          "repo_id",
-          "ref",
-          "commit",
-          "tree"
-        ]
+        "required": ["repo_id", "ref", "commit", "tree"]
       },
       "FutureRepository": {
         "type": "object",
@@ -1956,30 +1842,14 @@
             "$ref": "#/components/schemas/BranchRef"
           },
           "remote": {
-            "type": [
-              "string",
-              "null"
-            ]
+            "type": ["string", "null"]
           },
           "status": {
             "type": "string",
-            "enum": [
-              "prepared",
-              "empty",
-              "ready",
-              "importing",
-              "forking",
-              "unavailable"
-            ]
+            "enum": ["prepared", "empty", "ready", "importing", "forking", "unavailable"]
           }
         },
-        "required": [
-          "canonical_repo_id",
-          "repo_id",
-          "ref",
-          "remote",
-          "status"
-        ]
+        "required": ["canonical_repo_id", "repo_id", "ref", "remote", "status"]
       },
       "Future": {
         "type": "object",
@@ -2002,10 +1872,7 @@
           },
           "provenance_state": {
             "type": "string",
-            "enum": [
-              "declared",
-              "unknown"
-            ]
+            "enum": ["declared", "unknown"]
           },
           "baseline_refs": {
             "type": "array",
@@ -2034,10 +1901,7 @@
             "$ref": "#/components/schemas/Identifier"
           },
           "current_revision_id": {
-            "type": [
-              "string",
-              "null"
-            ]
+            "type": ["string", "null"]
           },
           "version": {
             "type": "integer",
@@ -2085,12 +1949,7 @@
             "$ref": "#/components/schemas/GitObjectId"
           }
         },
-        "required": [
-          "repo_id",
-          "source_repo_id",
-          "ref",
-          "commit"
-        ]
+        "required": ["repo_id", "source_repo_id", "ref", "commit"]
       },
       "TreeHash": {
         "type": "object",
@@ -2103,10 +1962,7 @@
             "$ref": "#/components/schemas/GitObjectId"
           }
         },
-        "required": [
-          "repo_id",
-          "tree"
-        ]
+        "required": ["repo_id", "tree"]
       },
       "AffectedScope": {
         "type": "object",
@@ -2122,10 +1978,7 @@
             }
           }
         },
-        "required": [
-          "repo_id",
-          "paths"
-        ]
+        "required": ["repo_id", "paths"]
       },
       "FutureRevision": {
         "type": "object",
@@ -2138,10 +1991,7 @@
             "$ref": "#/components/schemas/Identifier"
           },
           "previous_revision_id": {
-            "type": [
-              "string",
-              "null"
-            ]
+            "type": ["string", "null"]
           },
           "repository_heads": {
             "type": "array",
@@ -2175,10 +2025,7 @@
           },
           "provenance_state": {
             "type": "string",
-            "enum": [
-              "declared",
-              "unknown"
-            ]
+            "enum": ["declared", "unknown"]
           },
           "created_at": {
             "type": "string",
@@ -2213,11 +2060,7 @@
             "type": "integer"
           }
         },
-        "required": [
-          "code",
-          "message",
-          "status"
-        ]
+        "required": ["code", "message", "status"]
       },
       "RequestReceipt": {
         "type": "object",
@@ -2228,19 +2071,13 @@
           },
           "status": {
             "type": "string",
-            "enum": [
-              "applied",
-              "failed"
-            ]
+            "enum": ["applied", "failed"]
           },
           "retryable": {
             "type": "boolean"
           }
         },
-        "required": [
-          "id",
-          "status"
-        ]
+        "required": ["id", "status"]
       },
       "RepositoryResult": {
         "type": "object",
@@ -2253,9 +2090,7 @@
             "$ref": "#/components/schemas/RequestReceipt"
           }
         },
-        "required": [
-          "repository"
-        ]
+        "required": ["repository"]
       },
       "FutureResult": {
         "type": "object",
@@ -2278,9 +2113,7 @@
             "type": "boolean"
           }
         },
-        "required": [
-          "future"
-        ]
+        "required": ["future"]
       },
       "SystemResult": {
         "type": "object",
@@ -2290,9 +2123,7 @@
             "$ref": "#/components/schemas/System"
           }
         },
-        "required": [
-          "system"
-        ]
+        "required": ["system"]
       },
       "ObjectiveResult": {
         "type": "object",
@@ -2302,9 +2133,7 @@
             "$ref": "#/components/schemas/Objective"
           }
         },
-        "required": [
-          "objective"
-        ]
+        "required": ["objective"]
       },
       "RevisionsResult": {
         "type": "object",
@@ -2317,9 +2146,7 @@
             }
           }
         },
-        "required": [
-          "revisions"
-        ]
+        "required": ["revisions"]
       },
       "FutureDetail": {
         "type": "object",
@@ -2335,22 +2162,11 @@
             }
           }
         },
-        "required": [
-          "future",
-          "revisions"
-        ]
+        "required": ["future", "revisions"]
       },
       "Request": {
         "type": "object",
-        "required": [
-          "id",
-          "request_id",
-          "operation",
-          "actor",
-          "status",
-          "created_at",
-          "attempts"
-        ],
+        "required": ["id", "request_id", "operation", "actor", "status", "created_at", "attempts"],
         "properties": {
           "id": {
             "$ref": "#/components/schemas/Identifier"
@@ -2383,12 +2199,7 @@
           },
           "status": {
             "type": "string",
-            "enum": [
-              "prepared",
-              "applied",
-              "failed",
-              "recovery_required"
-            ]
+            "enum": ["prepared", "applied", "failed", "recovery_required"]
           },
           "future_id": {
             "$ref": "#/components/schemas/Identifier"
@@ -2415,9 +2226,7 @@
             "$ref": "#/components/schemas/Request"
           }
         },
-        "required": [
-          "request"
-        ]
+        "required": ["request"]
       },
       "InterruptedRead": {
         "type": "object",
@@ -2431,10 +2240,7 @@
             "const": "no_repository_effect"
           }
         },
-        "required": [
-          "request",
-          "outcome"
-        ]
+        "required": ["request", "outcome"]
       },
       "RecoveryResult": {
         "oneOf": [
@@ -2501,20 +2307,14 @@
             "properties": {
               "kind": {
                 "type": "string",
-                "enum": [
-                  "nothing",
-                  "recovery"
-                ]
+                "enum": ["nothing", "recovery"]
               },
               "count": {
                 "type": "integer",
                 "minimum": 0
               }
             },
-            "required": [
-              "kind",
-              "count"
-            ]
+            "required": ["kind", "count"]
           }
         },
         "required": [
@@ -2529,9 +2329,7 @@
       },
       "Error": {
         "type": "object",
-        "required": [
-          "error"
-        ],
+        "required": ["error"],
         "properties": {
           "error": {
             "type": "string"
@@ -2557,9 +2355,7 @@
             }
           }
         },
-        "required": [
-          "repositories"
-        ]
+        "required": ["repositories"]
       },
       "Systems": {
         "type": "object",
@@ -2572,9 +2368,7 @@
             }
           }
         },
-        "required": [
-          "systems"
-        ]
+        "required": ["systems"]
       },
       "Objectives": {
         "type": "object",
@@ -2587,9 +2381,7 @@
             }
           }
         },
-        "required": [
-          "objectives"
-        ]
+        "required": ["objectives"]
       },
       "Futures": {
         "type": "object",
@@ -2602,9 +2394,7 @@
             }
           }
         },
-        "required": [
-          "futures"
-        ]
+        "required": ["futures"]
       }
     }
   }

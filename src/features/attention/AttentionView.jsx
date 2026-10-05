@@ -44,23 +44,41 @@ export function AttentionView({
             </CardDescription>
           </CardHeader>
           <CardContent className="space-y-3">
-            {error && <p className="error-banner" role="alert">{error}</p>}
+            {error && (
+              <p className="error-banner" role="alert">
+                {error}
+              </p>
+            )}
             <Button
               type="button"
               variant="outline"
               disabled={busy}
               onClick={() =>
-                mutate('/recover', {}, 'Canonical reconciliation completed. Inspect remaining recovery state.')
+                mutate(
+                  '/recover',
+                  {},
+                  'Canonical reconciliation completed. Inspect remaining recovery state.',
+                )
               }
             >
               {busy ? 'Reconciling…' : 'Reconcile promotion'}
             </Button>
-            {promotions.filter((operation) => operation.status === 'recovery-required' && operation.dispatch_state === 'issued').map((operation) => (
-              <Button key={operation.id} type="button" variant="outline" disabled={busy}
-                onClick={() => onSettlement(operation.id)}>
-                Inspect outcome for {operation.repo}
-              </Button>
-            ))}
+            {promotions
+              .filter(
+                (operation) =>
+                  operation.status === 'recovery-required' && operation.dispatch_state === 'issued',
+              )
+              .map((operation) => (
+                <Button
+                  key={operation.id}
+                  type="button"
+                  variant="outline"
+                  disabled={busy}
+                  onClick={() => onSettlement(operation.id)}
+                >
+                  Inspect outcome for {operation.repo}
+                </Button>
+              ))}
           </CardContent>
         </Card>
       )}

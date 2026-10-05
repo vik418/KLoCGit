@@ -208,15 +208,23 @@ export function App() {
           }}
         />
       )}
-      {settlementId && workspace.nativeState.promotions.some((operation) => operation.id === settlementId) && (
-        <SettlementDialog
-          operation={workspace.nativeState.promotions.find((operation) => operation.id === settlementId)}
-          repository={workspace.repositories.find((repo) =>
-            repo.id === workspace.nativeState.promotions.find((operation) => operation.id === settlementId).repo
-          )}
-          onClose={() => setSettlementId(null)} reload={reload} message={notify}
-        />
-      )}
+      {settlementId &&
+        workspace.nativeState.promotions.some((operation) => operation.id === settlementId) && (
+          <SettlementDialog
+            operation={workspace.nativeState.promotions.find(
+              (operation) => operation.id === settlementId,
+            )}
+            repository={workspace.repositories.find(
+              (repo) =>
+                repo.id ===
+                workspace.nativeState.promotions.find((operation) => operation.id === settlementId)
+                  .repo,
+            )}
+            onClose={() => setSettlementId(null)}
+            reload={reload}
+            message={notify}
+          />
+        )}
       {candidateId && (
         <CandidateDialog
           id={candidateId}
