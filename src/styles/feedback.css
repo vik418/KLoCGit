@@ -13,7 +13,7 @@
   color: var(--text);
   border: 1px solid var(--success-border);
   border-radius: 7px;
-  box-shadow: 0 10px 35px #0b0d1066;
+  box-shadow: 0 10px 35px #151b3366;
   z-index: 100;
   font-size: 0.875rem;
 }
