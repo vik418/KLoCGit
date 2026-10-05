@@ -157,6 +157,12 @@ The demo contains a payment application and a separate policy contract. Retrying
 
 `wrangler.jsonc` defines the `klocgit` API Worker, assets, workspace Durable Object, Artifacts binding and Queue. `wrangler.executor.jsonc` defines `klocgit-git-executor` and its Container. Deploy the executor before the API Worker that binds it.
 
+Wrangler builds the UI before deployment through `build.command`. Workers Builds already installs dependencies, so leave its build command empty. Use `npx wrangler deploy` for production and `npx wrangler preview` for branch previews.
+
+Previews use a new coordinator namespace and the separate `klocgit-preview` Artifacts namespace. Branch previews share that test Git namespace, not production repositories. Configure `AUTH_TOKEN` and `ACTOR_ID` as separate **Previews Base secrets**; production credentials are not inherited. Base secret changes apply to new previews, so update an existing preview's secrets separately.
+
+The Preview lifecycle supports repository creation, import, Futures and manual refresh/observation. It has no Queue consumer or executor binding: automatic push processing, composed checks and promotion are unavailable there. Use a separately deployed staging Worker, Queue, Artifacts namespace and executor to test the complete path. These boundaries follow [Cloudflare's Preview limitations](https://developers.cloudflare.com/workers/previews/resources/#limitations).
+
 The executor uses an operator-owned repository manifest, scoped Git credentials and trusted validation configuration. Observing a new repository does not authorize executing its build scripts or promoting its code. Owner, ingress, executor and per-repository credentials serve separate boundaries.
 
 Public imports accept restricted HTTPS sources. Reject embedded credentials, unsafe URLs and internal addresses. The local importer pins public DNS results, disables redirects, removes inherited secrets and bounds execution. Provider-side import and deployed isolation still require live verification.

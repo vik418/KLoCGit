@@ -21,7 +21,7 @@
     "lint:fix": "eslint . --fix",
     "format": "prettier . --write",
     "format:check": "prettier . --check",
-    "deploy": "npm run build && wrangler deploy",
+    "deploy": "wrangler deploy",
     "check:worker": "wrangler deploy --config wrangler.jsonc --dry-run",
     "check:executor": "wrangler deploy --config wrangler.executor.jsonc --dry-run --containers-rollout=none",
     "check": "npm run format:check && npm run lint && npm test && npm run build && npm run check:worker && npm run check:executor",
