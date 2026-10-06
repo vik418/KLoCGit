@@ -216,17 +216,22 @@ try {
   assert.equal(ready.tree, baselineTree);
   assert.equal(ready.status, 'ready');
 
-  await page.getByRole('button', { name: 'Open isolated work', exact: true }).first().click();
-  dialog = page.getByRole('dialog', { name: 'Open isolated work', exact: true });
+  await page.getByRole('button', { name: 'Fork repository', exact: true }).click();
+  dialog = page.getByRole('dialog', { name: 'Fork repositories', exact: true });
   await dialog.waitFor();
   const choice = dialog.getByRole('checkbox', { name: 'app', exact: true });
-  if (!(await choice.isChecked())) await choice.check();
+  assert.equal(await choice.isChecked(), true, 'Repository fork action must preselect its source');
   const futureCreated = waitForMutation(page, '/futures');
-  await dialog.getByRole('button', { name: 'Create future', exact: true }).click();
+  await dialog.getByRole('button', { name: 'Fork repositories', exact: true }).click();
   const futureResponse = await futureCreated;
   assert.equal(futureResponse.status(), 200);
   const { future } = await futureResponse.json();
   assert.equal(future.repositories.length, 1);
+  assert.notEqual(
+    future.repositories[0].remote,
+    repository.remote,
+    'Fork must have its own Git remote',
+  );
   assert.equal(future.baseline_refs[0].commit, baselineCommit);
   assert.equal(future.status, 'active');
   await dialog.waitFor({ state: 'hidden' });
@@ -240,6 +245,9 @@ try {
   assert.equal(firstRevision.provenance_state, 'unknown');
   assert.equal(firstRevision.repository_heads[0].commit, baselineCommit);
 
+  const forkRemote = page.getByLabel('Git remote', { exact: true });
+  await forkRemote.waitFor();
+  assert.equal(await forkRemote.inputValue(), future.repositories[0].remote);
   const futureCheckout = path.join(root, 'future-client');
   await exec('git', ['clone', future.repositories[0].remote, futureCheckout], { timeout: 15000 });
   await git(futureCheckout, 'config', 'user.name', 'independent Git producer');
@@ -353,15 +361,15 @@ try {
   const systemCard = page.locator('[data-slot="card"]').filter({
     has: page.getByRole('heading', { name: 'Mixed readiness', exact: true }),
   });
-  const systemWork = systemCard.getByRole('button', { name: 'Open isolated work', exact: true });
+  const systemWork = systemCard.getByRole('button', { name: 'Fork repositories', exact: true });
   await systemWork.click();
-  dialog = page.getByRole('dialog', { name: 'Open isolated work', exact: true });
+  dialog = page.getByRole('dialog', { name: 'Fork repositories', exact: true });
   assert.equal(await dialog.getByRole('checkbox', { name: 'app', exact: true }).isChecked(), true);
   const unready = dialog.getByRole('checkbox', { name: /empty-member/ });
   assert.equal(await unready.isChecked(), false);
   assert.equal(await unready.isDisabled(), true);
   assert.equal(
-    await dialog.getByRole('button', { name: 'Create future', exact: true }).isEnabled(),
+    await dialog.getByRole('button', { name: 'Fork repositories', exact: true }).isEnabled(),
     true,
   );
   await page.keyboard.press('Escape');

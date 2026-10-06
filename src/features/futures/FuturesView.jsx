@@ -51,7 +51,7 @@ export function FuturesView({ nativeState, onNewFuture, onCompose, reload, messa
           </Button>
           <Button type="button" size="sm" onClick={() => onNewFuture()} disabled={!ready}>
             <Plus aria-hidden="true" />
-            Open isolated work
+            Fork repositories
           </Button>
         </div>
       </div>
@@ -63,7 +63,7 @@ export function FuturesView({ nativeState, onNewFuture, onCompose, reload, messa
       {!nativeState.futures.length && (
         <p className="rounded-lg border bg-card p-5 text-sm leading-6 text-muted-foreground">
           {ready
-            ? 'Open a future from a ready repository to begin independent work.'
+            ? 'Fork a ready repository to begin independent work.'
             : 'Add a repository with a first commit before opening isolated work.'}
         </p>
       )}

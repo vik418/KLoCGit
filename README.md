@@ -15,7 +15,7 @@ npm ci
 LOCAL_ACTOR_ID="$(git config user.email)" npm run dev
 ```
 
-Open <http://localhost:43187>. The server starts with an empty workspace. Create or import a repository, then create a Future from a repository with a commit. The interface shows its Git remote and observed revisions.
+Open <http://localhost:43187>. The server starts with an empty workspace. Create or import a repository, then choose **Fork repository** to create a Future from its current commit. The interface shows its Git remote and observed revisions.
 
 The command uses your configured Git email as the local identity. `PORT` changes the port. This local identity is not organizational authentication.
 
@@ -27,7 +27,7 @@ The sample application is optional. Stop the server, run `npm run demo:reset`, t
 npm run check
 ```
 
-The [design document](docs/design.md) contains the system diagram, contracts, setup, safety rules and remaining work. The authenticated capability registry distinguishes verified local behavior from partial, experimental and unsupported workflows.
+The [design document](docs/design.md) contains the system diagram, core contracts and safety boundaries. The authenticated capability registry distinguishes verified local behavior from partial, experimental and unsupported workflows.
 
 Cloudflare runs the API Worker, Durable Object, Artifacts repositories, Queue and private Git executor. The UI is React; the backend is JavaScript. Cloudflare integration remains experimental until the complete live path is verified.
 
