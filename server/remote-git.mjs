@@ -284,14 +284,26 @@ export class RemoteGit extends LocalGit {
     await this.ensureCommit(repo.id, target);
     const remote = this.entry(repo.id).remote;
     try {
-      await this.remote(repo.id, [
+      const output = await this.remote(repo.id, [
         'push',
         '--porcelain',
         `--force-with-lease=${repo.canonical_ref}:${expected}`,
         remote,
         `${target}:${repo.canonical_ref}`,
       ]);
-      return true;
+      const receipt = output
+        .split('\n')
+        .map((line) => line.split('\t'))
+        .find((row) => row[1] === `${target}:${repo.canonical_ref}`);
+      // Git marks an already-present target up to date before checking its lease.
+      // That acknowledges no write and cannot accept a different reviewed head.
+      if (receipt?.[0] === '=') return expected === target;
+      if ([' ', '+', '*'].includes(receipt?.[0])) return true;
+      throw new DomainError(
+        'CANONICAL_WRITE_UNCERTAIN',
+        'Git returned no canonical write receipt; reconciliation is required',
+        503,
+      );
     } catch (error) {
       if (error.code === 'CANONICAL_CAS_REJECTED') return false;
       // A failed reply plus a different ref is still ambiguous: the write may
