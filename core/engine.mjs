@@ -12,6 +12,7 @@ import { hash, record, DomainError } from './hash.mjs';
 import { prepareTaskContext, answerTaskContext, assumeTaskContext } from './context.mjs';
 import { MergeRequests } from './merge-requests.mjs';
 import { MergeQueue } from './merge-queue.mjs';
+import { NativePipeline } from './native-pipeline.mjs';
 import { NativeState } from './native-state.mjs';
 import { validationPassed } from './evidence.mjs';
 import { readProducerMetadata } from './metadata.mjs';
@@ -106,6 +107,7 @@ export class Engine {
     this.mr = new MergeRequests(this);
     this.queue = new MergeQueue(this);
     this.native = new NativeState(this);
+    this.pipeline = new NativePipeline(this);
   }
 
   // Transports serialize a whole operation here. Delegated helpers do not enqueue
@@ -441,7 +443,7 @@ export class Engine {
         409,
       );
   }
-  async validate(subject, repo, tree, commit, validityHeads = {}) {
+  async validate(subject, repo, tree, commit, validityHeads = {}, evaluationHeads = validityHeads) {
     const configHash = this.git.configHash;
     const constraints = this.state.constraints.filter((c) => c.active);
     const constraintVersions = constraints.map((c) => c.id);
@@ -449,7 +451,7 @@ export class Engine {
       repo,
       commit,
       constraints.filter((c) => c.kind === 'checkable'),
-      validityHeads,
+      evaluationHeads,
     );
     const evidence = await record('ev', {
       subject_ref: subject,
@@ -460,6 +462,7 @@ export class Engine {
       source: 'platform-owned checks',
       created_at: now(),
       validity_heads: validityHeads,
+      ...(evaluationHeads !== validityHeads ? { evaluation_heads: evaluationHeads } : {}),
       constraint_versions: constraintVersions,
       claim: 'Establishes only the listed checks for this exact tree and configuration.',
     });
@@ -816,7 +819,7 @@ export class Engine {
     const presented = decisions.map((c) => ({ ...c, actionable: open.some((d) => d.id === c.id) }));
     return {
       ...this.state,
-      nativeState: this.native.view(),
+      nativeState: { ...this.native.view(), ...this.pipeline.view() },
       discovery,
       mergeRequests: this.mr.list(),
       mergeQueue: this.queue.list(),

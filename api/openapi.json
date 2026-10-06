@@ -823,6 +823,346 @@
           }
         }
       }
+    },
+    "/api/selections": {
+      "get": {
+        "summary": "List immutable native selections",
+        "responses": {
+          "200": {
+            "description": "Current immutable records and review projection"
+          },
+          "401": {
+            "description": "Authenticated actor required"
+          }
+        }
+      },
+      "post": {
+        "summary": "Pin a whole Future revision or ordered commit selection",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "additionalProperties": false,
+                "properties": {
+                  "future_revision_id": {
+                    "type": "string"
+                  },
+                  "kind": {
+                    "type": "string",
+                    "enum": ["future", "commits"],
+                    "default": "future"
+                  },
+                  "repo_id": {
+                    "type": "string"
+                  },
+                  "commits": {
+                    "type": "array",
+                    "minItems": 1,
+                    "maxItems": 50,
+                    "uniqueItems": true,
+                    "items": {
+                      "type": "string",
+                      "pattern": "^[a-f0-9]{40}$"
+                    }
+                  },
+                  "request_id": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 128
+                  }
+                },
+                "required": ["future_revision_id", "request_id"]
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Recorded result"
+          },
+          "400": {
+            "description": "Invalid immutable input"
+          },
+          "409": {
+            "description": "Stale input, failed validation or recovery required"
+          },
+          "422": {
+            "description": "Unsupported selection or composition conflict"
+          },
+          "503": {
+            "description": "Trusted executor unavailable"
+          }
+        }
+      }
+    },
+    "/api/candidates": {
+      "get": {
+        "summary": "List exact native candidate states",
+        "responses": {
+          "200": {
+            "description": "Current immutable records and review projection"
+          },
+          "401": {
+            "description": "Authenticated actor required"
+          }
+        }
+      },
+      "post": {
+        "summary": "Compose pinned selections into retained Git candidates",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "additionalProperties": false,
+                "properties": {
+                  "selection_ids": {
+                    "type": "array",
+                    "minItems": 1,
+                    "maxItems": 100,
+                    "uniqueItems": true,
+                    "items": {
+                      "type": "string"
+                    }
+                  },
+                  "request_id": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 128
+                  }
+                },
+                "required": ["selection_ids", "request_id"]
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Recorded result"
+          },
+          "400": {
+            "description": "Invalid immutable input"
+          },
+          "409": {
+            "description": "Stale input, failed validation or recovery required"
+          },
+          "422": {
+            "description": "Unsupported selection or composition conflict"
+          },
+          "503": {
+            "description": "Trusted executor unavailable"
+          }
+        }
+      }
+    },
+    "/api/candidates/{id}/review": {
+      "parameters": [
+        {
+          "name": "id",
+          "in": "path",
+          "required": true,
+          "schema": {
+            "type": "string"
+          }
+        }
+      ],
+      "get": {
+        "summary": "Review current basis, head vector, source freshness and exact-tree evidence",
+        "responses": {
+          "200": {
+            "description": "Current immutable records and review projection"
+          },
+          "401": {
+            "description": "Authenticated actor required"
+          }
+        }
+      }
+    },
+    "/api/candidates/{id}/validate": {
+      "parameters": [
+        {
+          "name": "id",
+          "in": "path",
+          "required": true,
+          "schema": {
+            "type": "string"
+          }
+        }
+      ],
+      "post": {
+        "summary": "Run operator-owned checks on the exact candidate trees",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "additionalProperties": false,
+                "properties": {
+                  "request_id": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 128
+                  }
+                },
+                "required": ["request_id"]
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Recorded result"
+          },
+          "400": {
+            "description": "Invalid immutable input"
+          },
+          "409": {
+            "description": "Stale input, failed validation or recovery required"
+          },
+          "422": {
+            "description": "Unsupported selection or composition conflict"
+          },
+          "503": {
+            "description": "Trusted executor unavailable"
+          }
+        }
+      }
+    },
+    "/api/candidates/{id}/promote": {
+      "parameters": [
+        {
+          "name": "id",
+          "in": "path",
+          "required": true,
+          "schema": {
+            "type": "string"
+          }
+        }
+      ],
+      "post": {
+        "summary": "Promote one changed repository through reviewed basis/head CAS",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "additionalProperties": false,
+                "properties": {
+                  "decision_basis_hash": {
+                    "type": "string",
+                    "pattern": "^[a-f0-9]{64}$"
+                  },
+                  "expected_heads": {
+                    "type": "object",
+                    "additionalProperties": {
+                      "type": "string",
+                      "pattern": "^[a-f0-9]{40}$"
+                    }
+                  },
+                  "rationale": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 4000
+                  },
+                  "request_id": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 128
+                  }
+                },
+                "required": ["decision_basis_hash", "expected_heads", "rationale", "request_id"]
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Recorded result"
+          },
+          "400": {
+            "description": "Invalid immutable input"
+          },
+          "409": {
+            "description": "Stale input, failed validation or recovery required"
+          },
+          "422": {
+            "description": "Unsupported selection or composition conflict"
+          },
+          "503": {
+            "description": "Trusted executor unavailable"
+          }
+        }
+      }
+    },
+    "/api/promotions/{id}/settle": {
+      "parameters": [
+        {
+          "name": "id",
+          "in": "path",
+          "required": true,
+          "schema": {
+            "type": "string"
+          }
+        }
+      ],
+      "post": {
+        "summary": "Record an authenticated operator attestation without replaying Git",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "additionalProperties": false,
+                "required": ["request_id", "expected_head", "outcome", "confirmed", "rationale"],
+                "properties": {
+                  "request_id": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 128
+                  },
+                  "expected_head": {
+                    "type": "string",
+                    "pattern": "^[a-f0-9]{40}$"
+                  },
+                  "outcome": {
+                    "type": "string",
+                    "enum": ["not_applied", "applied_then_moved"]
+                  },
+                  "confirmed": {
+                    "type": "boolean",
+                    "enum": [true]
+                  },
+                  "rationale": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 4000
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Immutable declared attestation and terminal operation; Git unchanged"
+          },
+          "400": {
+            "description": "Explicit confirmation required"
+          },
+          "401": {
+            "description": "Authenticated operator required"
+          },
+          "409": {
+            "description": "Observed ref changed, target present or operation not uncertain"
+          }
+        }
+      }
     }
   },
   "components": {

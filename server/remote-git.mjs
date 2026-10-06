@@ -5,7 +5,7 @@ import { LocalGit, git, protectedGitArguments } from './git.mjs';
 import { DomainError } from '../core/hash.mjs';
 const exec = promisify(execFile);
 const commit = (value) => {
-  if (!/^[a-f0-9]{40}$/.test(value ?? ''))
+  if (!/^[a-f0-9]{40}$/.test(value ?? '') || /^0{40}$/.test(value))
     throw new DomainError('INVALID_COMMIT', 'Full immutable Git commit hashes are required');
   return value;
 };
@@ -93,7 +93,20 @@ export class RemoteGit extends LocalGit {
           timeout: 60000,
         })
       ).stdout.trim();
-    } catch {
+    } catch (error) {
+      const lease = args.find((argument) => argument.startsWith('--force-with-lease='));
+      const destination = lease?.slice('--force-with-lease='.length).split(':')[0];
+      const rejected = (error.stdout ?? '').split('\n').some((line) => {
+        const [status, refspec, result] = line.split('\t');
+        return (
+          status === '!' &&
+          refspec === args.at(-1) &&
+          refspec.endsWith(':' + destination) &&
+          result === '[rejected] (stale info)'
+        );
+      });
+      if (args[0] === 'push' && args.includes('--porcelain') && destination && rejected)
+        throw new DomainError('CANONICAL_CAS_REJECTED', 'Git rejected the reviewed ref lease', 409);
       throw new DomainError(
         'REMOTE_GIT_FAILED',
         'Authenticated Git operation failed; credentials are excluded from diagnostics',
@@ -193,6 +206,25 @@ export class RemoteGit extends LocalGit {
     // Retain the actual candidate before the engine prepares a canonical operation.
     return this.retainCandidate(repo, result);
   }
+  async composeSelections(repo, head, selections) {
+    commit(head);
+    await this.ensureCommit(repo.id, head);
+    if (!Array.isArray(selections) || selections.length > 100)
+      throw new DomainError('INVALID_SELECTION', 'A bounded selection list is required');
+    for (const selection of selections) {
+      const source = selection.source_repo;
+      for (const oid of [
+        selection.base_commit,
+        selection.head_commit,
+        ...(selection.commits ?? []),
+      ])
+        await this.ensureCommit(source, oid);
+    }
+    return this.retainCandidate(
+      repo,
+      await super.composeSelections(this.configured(repo), head, selections),
+    );
+  }
   async revert(repo, currentHead, targetCommit, mainline) {
     commit(currentHead);
     commit(targetCommit);
@@ -236,8 +268,8 @@ export class RemoteGit extends LocalGit {
    * @param {{id: string, canonical_ref: string}} repo Configured canonical repository.
    * @param {string} expected Full immutable old commit ID reviewed by the caller.
    * @param {string} target Full immutable retained candidate commit ID.
-   * @returns {Promise<boolean>} True for an acknowledged push; false when a failed
-   *   push is followed by an observed head different from both expected and target.
+   * @returns {Promise<boolean>} True for an acknowledged push; false only for Git's
+   *   explicit porcelain lease rejection.
    * @throws {DomainError} Invalid inputs/configuration or an unresolved remote outcome.
    * @throws {Error} Local candidate-cache preparation fails before the push.
    */
@@ -252,20 +284,30 @@ export class RemoteGit extends LocalGit {
     await this.ensureCommit(repo.id, target);
     const remote = this.entry(repo.id).remote;
     try {
-      await this.remote(repo.id, [
+      const output = await this.remote(repo.id, [
         'push',
         '--porcelain',
         `--force-with-lease=${repo.canonical_ref}:${expected}`,
         remote,
         `${target}:${repo.canonical_ref}`,
       ]);
-      return true;
+      const receipt = output
+        .split('\n')
+        .map((line) => line.split('\t'))
+        .find((row) => row[1] === `${target}:${repo.canonical_ref}`);
+      // Git marks an already-present target up to date before checking its lease.
+      // That acknowledges no write and cannot accept a different reviewed head.
+      if (receipt?.[0] === '=') return expected === target;
+      if ([' ', '+', '*'].includes(receipt?.[0])) return true;
+      throw new DomainError(
+        'CANONICAL_WRITE_UNCERTAIN',
+        'Git returned no canonical write receipt; reconciliation is required',
+        503,
+      );
     } catch (error) {
-      const refs = await this.remote(repo.id, ['ls-remote', remote, repo.canonical_ref]),
-        observed = refs.split(/\s/)[0];
-      // Our exact target after transport failure is recovered from immutable intent.
-      // Never classify it as a failed CAS or silently repeat the write.
-      if (observed && observed !== expected && observed !== target) return false;
+      if (error.code === 'CANONICAL_CAS_REJECTED') return false;
+      // A failed reply plus a different ref is still ambiguous: the write may
+      // have landed before an external push. Only journal recovery settles it.
       throw error;
     }
   }

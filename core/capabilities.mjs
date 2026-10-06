@@ -301,13 +301,14 @@ const registry = {
     },
     {
       id: 'composition.native',
-      category: 'Undelivered product capabilities',
-      title: 'Native Selection and CandidateState composition',
-      status: 'UNSUPPORTED',
+      category: 'Native state',
+      title: 'Native selection, composition and promotion',
+      status: 'PARTIAL',
+      tests: ['tests/native-pipeline.test.mjs', 'tests/browser-native.smoke.mjs'],
       scope:
-        'The specification calls for whole-Future, commit, patch, path, hunk and symbol selection with exact-state materialization.',
+        'Pinned whole-Future and ordered non-merge commit selections produce retained Git candidates. Exact-tree trusted validation gates single-repository promotion through the shared basis/head CAS and recovery journal.',
       limits:
-        'No native Selection or CandidateState workflow is delivered. Existing kernel compositions use ProposalRevisions and do not establish partial dependency closure.',
+        'No file/hunk selection, proven semantic dependency closure or multi-repository promotion. Live Artifacts execution requires operator-admitted source repositories and trusted validation profiles.',
     },
     {
       id: 'evaluation.general',

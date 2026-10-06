@@ -36,7 +36,7 @@ export const protectedGitArguments = [
   'commit.gpgSign=false',
 ];
 const immutableCommit = (value) => {
-  if (!/^[a-f0-9]{40}$/.test(value ?? ''))
+  if (!/^[a-f0-9]{40}$/.test(value ?? '') || /^0{40}$/.test(value))
     throw new DomainError('INVALID_COMMIT', 'Full immutable commit hashes are required');
   return value;
 };
@@ -286,7 +286,9 @@ export class LocalGit {
       const trailers = [
         ...new Set(
           revisions.flatMap((r) => [
-            `Proposal-Revision: ${r.id}`,
+            ...(r.future_revision_id
+              ? [`Selection: ${r.id}`, `Future-Revision: ${r.future_revision_id}`]
+              : [`Proposal-Revision: ${r.id}`]),
             ...(r.context_task_id
               ? [`Decision-Task: ${r.context_task_id}`, `Decision-Context: ${r.context_version}`]
               : []),
@@ -307,6 +309,142 @@ export class LocalGit {
       await rm(temp, { recursive: true, force: true });
     }
   }
+  /**
+   * Compose whole histories, then apply explicitly ordered commit patches to an
+   * index. No producer code or hooks run, and unselected parents are not promoted.
+   */
+  async composeSelections(repo, head, selections) {
+    immutableCommit(head);
+    if (!Array.isArray(selections) || !selections.length || selections.length > 100)
+      throw new DomainError('INVALID_SELECTION', 'A bounded selection list is required');
+    for (const selection of selections) {
+      if (!['future', 'commits'].includes(selection.kind))
+        throw new DomainError('INVALID_SELECTION', 'Unknown selection kind');
+      immutableCommit(selection.head_commit);
+      immutableCommit(selection.base_commit);
+      immutableCommit(selection.tree_hash);
+      if (
+        !Array.isArray(selection.commits) ||
+        selection.commits.length > 50 ||
+        (selection.kind === 'commits' && !selection.commits.length) ||
+        (selection.kind === 'future' && selection.commits.length)
+      )
+        throw new DomainError(
+          'INVALID_SELECTION',
+          'Select whole histories or bounded commit patches',
+        );
+      selection.commits.forEach(immutableCommit);
+    }
+    const whole = selections.filter((selection) => selection.kind === 'future');
+    const initial = await this.compose(repo, head, whole);
+    const temp = await mkdtemp(path.join(os.tmpdir(), 'klocgit-selection-'));
+    const cwd = path.join(temp, 'work');
+    try {
+      await git(temp, ['clone', '--quiet', '--no-checkout', '--no-hardlinks', this.dir(repo), cwd]);
+      let current = initial.commit;
+      await git(cwd, ['read-tree', current]);
+      const applied = new Set();
+      for (const selection of selections.filter((entry) => entry.kind === 'commits')) {
+        const source = this.dir({ id: selection.source_repo });
+        for (const commit of [selection.base_commit, selection.head_commit, ...selection.commits])
+          await git(cwd, ['fetch', '--quiet', source, commit]);
+        const tree = await git(cwd, ['rev-parse', selection.head_commit + '^{tree}']);
+        if (tree !== selection.tree_hash)
+          throw new DomainError('REVISION_TREE_MISMATCH', 'The pinned source tree differs', 422);
+        for (const commit of selection.commits) {
+          if (applied.has(commit))
+            throw new DomainError('INVALID_SELECTION', 'The same commit patch was selected twice');
+          applied.add(commit);
+          if (commit === selection.base_commit)
+            throw new DomainError(
+              'COMMIT_OUTSIDE_REVISION',
+              'The baseline is not a selectable change',
+              422,
+            );
+          for (const pair of [
+            [selection.base_commit, commit],
+            [commit, selection.head_commit],
+          ]) {
+            try {
+              await git(cwd, ['merge-base', '--is-ancestor', ...pair]);
+            } catch {
+              throw new DomainError(
+                'COMMIT_OUTSIDE_REVISION',
+                'Commit is outside the pinned revision',
+                422,
+              );
+            }
+          }
+          const parents = (await git(cwd, ['rev-list', '--parents', '-n', '1', commit]))
+            .split(/\s+/)
+            .slice(1);
+          if (parents.length !== 1)
+            throw new DomainError(
+              'COMMIT_PARENT_REQUIRED',
+              'Commit selection currently supports non-root, non-merge commits',
+              422,
+            );
+          const patch = await git(
+            cwd,
+            [
+              'diff',
+              '--binary',
+              '--full-index',
+              '--no-ext-diff',
+              '--no-textconv',
+              parents[0],
+              commit,
+            ],
+            undefined,
+            { raw: true },
+          );
+          try {
+            await git(cwd, ['apply', '--cached', '--3way', '--allow-empty'], patch);
+          } catch {
+            throw new DomainError(
+              'COMPOSITION_CONFLICT',
+              'Selected patches conflict or require unselected changes',
+              422,
+            );
+          }
+          const result = await git(cwd, ['write-tree']);
+          current = await git(
+            cwd,
+            ['commit-tree', result, '-p', current],
+            [
+              'klocgit: selected immutable commit patch',
+              '',
+              'Selection: ' + selection.id,
+              'Future-Revision: ' + selection.future_revision_id,
+              'Source-Commit: ' + commit,
+              '',
+            ].join('\n'),
+          );
+        }
+      }
+      const tree = await git(cwd, ['rev-parse', current + '^{tree}']);
+      const trailers = selections.flatMap((selection) => [
+        'Selection: ' + selection.id,
+        'Future-Revision: ' + selection.future_revision_id,
+      ]);
+      const commit = await git(
+        cwd,
+        ['commit-tree', tree, '-p', current],
+        ['klocgit: composed native candidate', '', ...trailers, ''].join('\n'),
+      );
+      await git(this.dir(repo), ['fetch', '--quiet', cwd, commit]);
+      await git(this.dir(repo), ['update-ref', 'refs/klocgit/candidates/' + commit, commit]);
+      return {
+        tree,
+        commit: tree === initial.baseTree ? head : commit,
+        baseTree: initial.baseTree,
+        canonical_parent: head,
+      };
+    } finally {
+      await rm(temp, { recursive: true, force: true });
+    }
+  }
+
   async revert(repo, currentHead, targetCommit, mainline) {
     immutableCommit(currentHead);
     immutableCommit(targetCommit);
@@ -469,15 +607,34 @@ export class LocalGit {
    * @param {{id: string, canonical_ref: string}} repo Canonical repository descriptor.
    * @param {string} expected Immutable old commit ID supplied by the reviewed decision.
    * @param {string} commit Retained candidate commit selected for application.
-   * @returns {Promise<boolean>} True when update-ref completes; false on any caught
-   *   command/path failure, including an old-head mismatch. False has no finer diagnosis.
+   * @returns {Promise<boolean>} True when update-ref completes; false for an explicit Git compare
+   *   rejection. Other command failures remain uncertain and throw for recovery.
    */
   async cas(repo, expected, commit) {
+    immutableCommit(expected);
+    immutableCommit(commit);
+    if (
+      !/^refs\/heads\/[a-zA-Z0-9._/-]+$/.test(repo.canonical_ref ?? '') ||
+      repo.canonical_ref.includes('..')
+    )
+      throw new DomainError('INVALID_REF', 'A valid canonical branch ref is required');
     try {
       await git(this.dir(repo), ['update-ref', repo.canonical_ref, commit, expected]);
       return true;
-    } catch {
-      return false;
+    } catch (error) {
+      // Only Git's explicit compare rejection proves that this attempt made no
+      // write. A later ref value cannot establish historical non-application.
+      if (
+        typeof error.stderr === 'string' &&
+        error.stderr.includes("cannot lock ref '" + repo.canonical_ref + "'") &&
+        error.stderr.includes('but expected ' + expected)
+      )
+        return false;
+      throw new DomainError(
+        'CANONICAL_WRITE_UNCERTAIN',
+        'Git did not acknowledge the canonical write; reconciliation is required',
+        503,
+      );
     }
   }
   async diff(repo, base, head) {

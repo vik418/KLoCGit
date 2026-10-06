@@ -16,18 +16,14 @@ class TestRemote extends RemoteGit {
     return { remote: this.testRemote, validation_profile: 'checkout-effects-v0' };
   }
   async remote(id, args) {
-    try {
-      const output = await git(this.dir({ id }), args);
-      if (
-        this.loseReply &&
-        args[0] === 'push' &&
-        args.some((a) => a.startsWith('--force-with-lease='))
-      )
-        throw new Error('Lost successful canonical reply');
-      return output;
-    } catch {
-      throw new DomainError('REMOTE_GIT_FAILED', 'Test remote outcome is uncertain', 503);
-    }
+    const output = await super.remote(id, args);
+    if (
+      this.loseReply &&
+      args[0] === 'push' &&
+      args.some((argument) => argument.startsWith('--force-with-lease='))
+    )
+      throw new DomainError('REMOTE_GIT_FAILED', 'Lost successful canonical reply', 503);
+    return output;
   }
 }
 async function fixture(t) {

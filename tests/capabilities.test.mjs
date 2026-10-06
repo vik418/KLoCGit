@@ -62,7 +62,7 @@ test('current capability registry keeps bounded trust and deployment limits visi
   assert.equal(entries.get('cloudflare.lifecycle').status, 'EXPERIMENTAL');
   assert.equal(entries.get('state.futures').status, 'PARTIAL');
   assert.match(entries.get('state.observation').limits, /not behavior.*trusted validation/i);
-  assert.equal(entries.get('composition.native').status, 'UNSUPPORTED');
+  assert.equal(entries.get('composition.native').status, 'PARTIAL');
   assert.equal(entries.get('canonical.multi').status, 'UNSUPPORTED');
   assert.equal(entries.get('decisions.semantic').status, 'UNSUPPORTED');
 });

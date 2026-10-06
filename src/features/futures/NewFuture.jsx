@@ -60,21 +60,21 @@ export function NewFuture({
     if (initialSystemId) body.system_id = initialSystemId;
     if (statement.trim()) body.statement = statement.trim();
     if (name.trim()) body.name = name.trim();
-    const result = await mutate('/futures', body, 'Isolated work recorded.');
+    const result = await mutate('/futures', body, 'Repositories forked. Future created.');
     if (result) onCreated(result.future);
   }
 
   return (
     <NativeFormDialog
-      title="Open isolated work"
-      description="Fork known Git states without changing the canonical repositories."
+      title="Fork repositories"
+      description="Create isolated Git repositories from the current states. The original repositories stay unchanged."
       onClose={onClose}
       onSubmit={submit}
       busy={busy}
       error={error}
       disabled={!selectedReady}
-      submitLabel="Create future"
-      pendingLabel="Creating…"
+      submitLabel="Fork repositories"
+      pendingLabel="Forking…"
     >
       <fieldset className="min-w-0 border-0 p-0">
         <legend className="mb-2 text-sm font-medium">Repositories</legend>

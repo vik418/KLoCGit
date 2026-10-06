@@ -23,7 +23,7 @@ function GitSnapshot({ entries, label }) {
   );
 }
 
-export function FuturesView({ nativeState, onNewFuture, reload, message }) {
+export function FuturesView({ nativeState, onNewFuture, onCompose, reload, message }) {
   const { busy, pendingPath, error, mutate } = useNativeMutation(reload, message);
   const ready = nativeState.repositories.some(
     (repository) => repository.status === 'ready' && repository.head && repository.tree,
@@ -35,10 +35,25 @@ export function FuturesView({ nativeState, onNewFuture, reload, message }) {
         <p className="text-sm leading-6 text-muted-foreground">
           Independent Git work recorded as immutable revisions.
         </p>
-        <Button type="button" size="sm" onClick={() => onNewFuture()} disabled={!ready}>
-          <Plus aria-hidden="true" />
-          Open isolated work
-        </Button>
+        <div className="flex flex-wrap gap-2">
+          <Button
+            type="button"
+            size="sm"
+            variant="outline"
+            onClick={onCompose}
+            disabled={
+              !nativeState.futures.some(
+                (future) => future.status === 'active' && future.current_revision_id,
+              )
+            }
+          >
+            Compose candidate
+          </Button>
+          <Button type="button" size="sm" onClick={() => onNewFuture()} disabled={!ready}>
+            <Plus aria-hidden="true" />
+            Fork repositories
+          </Button>
+        </div>
       </div>
       {error && (
         <p className="error-banner" role="alert">
@@ -48,7 +63,7 @@ export function FuturesView({ nativeState, onNewFuture, reload, message }) {
       {!nativeState.futures.length && (
         <p className="rounded-lg border bg-card p-5 text-sm leading-6 text-muted-foreground">
           {ready
-            ? 'Open a future from a ready repository to begin independent work.'
+            ? 'Fork a ready repository to begin independent work.'
             : 'Add a repository with a first commit before opening isolated work.'}
         </p>
       )}

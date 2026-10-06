@@ -1,4 +1,4 @@
-import { Layers3, Plus, RefreshCw } from 'lucide-react';
+import { GitFork, Layers3, Plus, RefreshCw } from 'lucide-react';
 import { Button } from '../../ui/Button.jsx';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '../../ui/Card.jsx';
 import { useNativeMutation } from '../../hooks/useNativeMutation.js';
@@ -119,7 +119,8 @@ export function SystemsView({
                       variant="outline"
                       onClick={() => onNewFuture({ repositoryId: repository.id })}
                     >
-                      Open isolated work
+                      <GitFork aria-hidden="true" />
+                      Fork repository
                     </Button>
                   )}
                   <Button
@@ -186,7 +187,8 @@ export function SystemsView({
                   variant="outline"
                   onClick={() => onNewFuture({ systemId: system.id })}
                 >
-                  Open isolated work
+                  <GitFork aria-hidden="true" />
+                  Fork repositories
                 </Button>
                 <details>
                   <summary className="cursor-pointer text-xs text-muted-foreground">

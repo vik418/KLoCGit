@@ -2,6 +2,9 @@ import { DomainError } from '../core/hash.mjs';
 
 const roots = [
   '/api/native-state',
+  '/api/selections',
+  '/api/candidates',
+  '/api/promotions',
   '/api/systems',
   '/api/objectives',
   '/api/futures',
@@ -52,7 +55,45 @@ export async function handleNativeRequest(engine, { method, url, input = {}, act
   const native = engine.native;
   if (path === '/api/native-state') {
     if (method !== 'GET') methodError();
-    return native.view(actor);
+    return { ...native.view(actor), ...engine.pipeline.view() };
+  }
+  if (path === '/api/selections') {
+    if (method === 'GET') return { selections: engine.pipeline.view().selections };
+    if (method === 'POST')
+      return engine.pipeline.createSelection(
+        pick(input, ['future_revision_id', 'kind', 'repo_id', 'commits', 'request_id']),
+        actor,
+      );
+    methodError();
+  }
+  if (path === '/api/candidates') {
+    if (method === 'GET') return { candidates: engine.pipeline.view().candidates };
+    if (method === 'POST')
+      return engine.pipeline.createCandidate(pick(input, ['selection_ids', 'request_id']), actor);
+    methodError();
+  }
+  const candidate = path.match(/^\/api\/candidates\/([^/]+)(?:\/(review|validate|promote))?$/);
+  if (candidate) {
+    if (method === 'GET' && (!candidate[2] || candidate[2] === 'review'))
+      return engine.pipeline.review(candidate[1]);
+    if (method === 'POST' && candidate[2] === 'validate')
+      return engine.pipeline.validateCandidate(candidate[1], pick(input, ['request_id']), actor);
+    if (method === 'POST' && candidate[2] === 'promote')
+      return engine.pipeline.promote(
+        candidate[1],
+        pick(input, ['request_id', 'decision_basis_hash', 'expected_heads', 'rationale']),
+        actor,
+      );
+    methodError();
+  }
+  const promotion = path.match(/^\/api\/promotions\/([^/]+)\/settle$/);
+  if (promotion) {
+    if (method !== 'POST') methodError();
+    return engine.pipeline.settleOperation(
+      promotion[1],
+      pick(input, ['request_id', 'expected_head', 'outcome', 'confirmed', 'rationale']),
+      actor,
+    );
   }
   if (path === '/api/repositories') {
     if (method === 'GET') return { repositories: native.view(actor).repositories };
