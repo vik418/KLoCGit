@@ -1,4 +1,5 @@
 import { DomainError } from '../core/hash.mjs';
+import { handleNativeServiceRequest, ownsNativeServicePath, nativePrincipal } from './native-services.mjs';
 
 const roots = [
   '/api/native-state',
@@ -14,7 +15,9 @@ const roots = [
 export function ownsNativePath(path) {
   return (
     path === '/api/repositories' ||
-    /^\/api\/repositories\/[^/]+\/refresh$/.test(path) ||
+    /^\/api\/repositories\/[^/]+\/(refresh|refs)$/.test(path) ||
+    /^\/api\/revisions\/[^/]+\/retain$/.test(path) ||
+    ownsNativeServicePath(path) ||
     roots.some((root) => path === root || path.startsWith(root + '/'))
   );
 }
@@ -43,7 +46,38 @@ function methodError() {
  * The caller authenticates and serializes mutations; request-body identities
  * cannot select audit actors or grant trusted validation/provenance.
  */
-export async function handleNativeRequest(engine, { method, url, input = {}, actor }) {
+export async function handleNativeRequest(engine, options) {
+  const { method, url, input = {}, actor, requestHeaders } = options;
+  const parsed = url instanceof URL ? url : new URL(url, 'http://coordination.internal');
+  if (!ownsNativePath(parsed.pathname)) return null;
+  requireActor(actor);
+  if (!input || typeof input !== 'object' || Array.isArray(input))
+    throw new DomainError('INVALID_REQUEST', 'Native input must be a JSON object');
+  const principal = nativePrincipal(engine, actor, options.principal);
+  if (ownsNativeServicePath(parsed.pathname))
+    return handleNativeServiceRequest(engine, { method, url: parsed, input, actor, principal, requestHeaders });
+  if (engine.access) {
+    if (/^\/api\/promotions\/[^/]+\/review$/.test(parsed.pathname)) {
+      const repos = engine.access.resourceRepositories({ id: parsed.pathname.split('/')[3],
+        candidate_id: parsed.searchParams.get('candidate_id') });
+      engine.access.require(principal, 'repository.read', repos);
+    } else if (/^\/api\/promotions\/[^/]+\/continue$/.test(parsed.pathname)) {
+      const repos = engine.access.resourceRepositories({ id: parsed.pathname.split('/')[3], candidate_id: input.candidate_id });
+      engine.access.require(principal, 'decision.resolve', repos);
+    } else if (/^\/api\/revisions\/[^/]+\/retain$/.test(parsed.pathname)) {
+      engine.access.require(principal, 'repository.update', engine.access.resourceRepositories({ id: parsed.pathname.split('/')[3] }));
+    } else engine.access.authorizeNative({ method, url: parsed, input, principal });
+    if (input.context_snapshot_id)
+      engine.access.require(principal, 'repository.read',
+        engine.access.resourceRepositories({ id: input.context_snapshot_id }));
+  }
+  if (parsed.pathname === '/api/native-state' && method === 'GET' && engine.access)
+    return (await engine.view(principal)).nativeState;
+  const result = await dispatchNativeRequest(engine, { method, url: parsed, input, actor });
+  return engine.access ? engine.access.projectNative(result, principal) : result;
+}
+
+async function dispatchNativeRequest(engine, { method, url, input = {}, actor }) {
   const parsed = url instanceof URL ? url : new URL(url, 'http://coordination.internal');
   const path = parsed.pathname;
   if (!ownsNativePath(path)) return null;
@@ -69,7 +103,7 @@ export async function handleNativeRequest(engine, { method, url, input = {}, act
   if (path === '/api/candidates') {
     if (method === 'GET') return { candidates: engine.pipeline.view().candidates };
     if (method === 'POST')
-      return engine.pipeline.createCandidate(pick(input, ['selection_ids', 'request_id']), actor);
+      return engine.pipeline.createCandidate(pick(input, ['selection_ids', 'expected_heads', 'request_id']), actor);
     methodError();
   }
   const candidate = path.match(/^\/api\/candidates\/([^/]+)(?:\/(review|validate|promote))?$/);
@@ -86,12 +120,21 @@ export async function handleNativeRequest(engine, { method, url, input = {}, act
       );
     methodError();
   }
-  const promotion = path.match(/^\/api\/promotions\/([^/]+)\/settle$/);
+  const promotion = path.match(/^\/api\/promotions\/([^/]+)\/(settle|review|continue)$/);
+  if (promotion?.[2] === 'review') {
+    if (method !== 'GET') methodError();
+    return engine.pipeline.reviewContinuation(promotion[1], parsed.searchParams.get('candidate_id'));
+  }
+  if (promotion?.[2] === 'continue') {
+    if (method !== 'POST') methodError();
+    return engine.pipeline.continuePromotion(promotion[1],
+      pick(input, ['candidate_id', 'request_id', 'decision_basis_hash', 'expected_heads', 'rationale']), actor);
+  }
   if (promotion) {
     if (method !== 'POST') methodError();
     return engine.pipeline.settleOperation(
       promotion[1],
-      pick(input, ['request_id', 'expected_head', 'outcome', 'confirmed', 'rationale']),
+      pick(input, ['request_id', 'repo_id', 'expected_head', 'expected_heads', 'abandon', 'outcome', 'confirmed', 'rationale']),
       actor,
     );
   }
@@ -103,6 +146,17 @@ export async function handleNativeRequest(engine, { method, url, input = {}, act
         actor,
       );
     methodError();
+  }
+  const refs = path.match(/^\/api\/repositories\/([^/]+)\/refs$/);
+  if (refs) {
+    if (method !== 'GET') methodError();
+    const limit = parsed.searchParams.has('limit') ? Number(parsed.searchParams.get('limit')) : undefined;
+    return native.listRepositoryRefs(refs[1], { limit, cursor: parsed.searchParams.get('cursor') ?? undefined }, actor);
+  }
+  const retention = path.match(/^\/api\/revisions\/([^/]+)\/retain$/);
+  if (retention) {
+    if (method !== 'POST') methodError();
+    return native.retainRevision(retention[1], pick(input, ['request_id']), actor);
   }
   const repository = path.match(/^\/api\/repositories\/([^/]+)\/refresh$/);
   if (repository) {
@@ -141,7 +195,7 @@ export async function handleNativeRequest(engine, { method, url, input = {}, act
     if (objective[2] && method === 'POST')
       return native.createFuture(
         {
-          ...pick(input, ['name', 'producer', 'repository_ids', 'request_id']),
+          ...pick(input, ['name', 'producer', 'repository_ids', 'context_snapshot_id', 'request_id']),
           objective_id: objective[1],
         },
         actor,
@@ -159,6 +213,7 @@ export async function handleNativeRequest(engine, { method, url, input = {}, act
           'statement',
           'name',
           'producer',
+          'context_snapshot_id',
           'request_id',
         ]),
         actor,
@@ -176,12 +231,29 @@ export async function handleNativeRequest(engine, { method, url, input = {}, act
         ? { revisions: structuredClone(revisions) }
         : structuredClone({ future: value, revisions });
     }
-    if (method === 'POST' && future[2] === 'observe')
-      return native.observeFuture(
+    if (method === 'POST' && future[2] === 'observe') {
+      const result = await native.observeFuture(
         future[1],
-        pick(input, ['expected_version', 'request_id']),
+        pick(input, ['expected_version', 'repository_refs', 'context_snapshot_id', 'request_id']),
         actor,
       );
+      if (result.changed && result.revision && engine.futuresGraph) {
+        try {
+          const objective = native.objective(result.future.objective_id);
+          const analysis = await engine.futuresGraph.analyze({
+            system_id: objective.system_id,
+            request_id: 'native-observe:' + result.revision.id,
+            max_comparisons: 100,
+          }, 'coordinator');
+          return { ...result, analysis: { state: 'ready', run_id: analysis.run?.id ?? null } };
+        } catch {
+          // Ingestion is already durable. Analyzer failure cannot turn a
+          // successful Git observation into an apparently failed producer push.
+          return { ...result, analysis: { state: 'unavailable', reason: 'ANALYSIS_UNAVAILABLE' } };
+        }
+      }
+      return result;
+    }
     if (method === 'POST' && future[2] === 'abandon')
       return native.abandonFuture(
         future[1],

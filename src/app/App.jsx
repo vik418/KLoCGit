@@ -14,6 +14,12 @@ import { NewObjective } from '../features/systems/NewObjective.jsx';
 import { NewCandidate } from '../features/futures/NewCandidate.jsx';
 import { SettlementDialog } from '../features/futures/SettlementDialog.jsx';
 import { CandidateDialog } from '../features/futures/CandidateDialog.jsx';
+import { ContinuationDialog } from '../features/futures/ContinuationDialog.jsx';
+import { SourceRefDialog } from '../features/futures/SourceRefDialog.jsx';
+import { DecisionGroupDialog } from '../features/attention/DecisionGroupDialog.jsx';
+import { ObjectiveContextDialog } from '../features/context/ObjectiveContextDialog.jsx';
+import { ProvenanceDialog } from '../features/context/ProvenanceDialog.jsx';
+import { AccessDialog } from '../features/settings/AccessDialog.jsx';
 import { NewFuture } from '../features/futures/NewFuture.jsx';
 import { WorkView } from '../features/work/WorkView.jsx';
 import { MergeRequestDialog } from '../features/merge-requests/MergeRequestDialog.jsx';
@@ -62,6 +68,12 @@ export function App() {
   const [settlementId, setSettlementId] = useState(null);
   const [candidateId, setCandidateId] = useState(null);
   const [nativeDialog, setNativeDialog] = useState(null);
+  const [decisionGroup, setDecisionGroup] = useState(null);
+  const [contextObjective, setContextObjective] = useState(null);
+  const [provenanceSubject, setProvenanceSubject] = useState(null);
+  const [sourceFuture, setSourceFuture] = useState(null);
+  const [continuationId, setContinuationId] = useState(null);
+  const [showAccess, setShowAccess] = useState(false);
 
   function openDecision(decisionId) {
     setSelectedMergeRequestId(null);
@@ -126,6 +138,8 @@ export function App() {
               onFutures={() => setActiveTab('futures')}
               onCandidate={setCandidateId}
               onSettlement={setSettlementId}
+              onContinue={setContinuationId}
+              onOpenDecisionGroup={setDecisionGroup}
               onDecision={setSelectedDecisionId}
               onProposal={setSelectedProposalId}
               reload={reload}
@@ -139,6 +153,7 @@ export function App() {
               onNewSystem={() => setNativeDialog({ type: 'system' })}
               onNewObjective={(systemId) => setNativeDialog({ type: 'objective', systemId })}
               onNewFuture={openNewFuture}
+              onContext={setContextObjective}
               reload={reload}
               message={notify}
             />
@@ -148,6 +163,8 @@ export function App() {
               nativeState={workspace.nativeState}
               onNewFuture={openNewFuture}
               onCompose={() => setNativeDialog({ type: 'candidate' })}
+              onSourceRefs={(future) => setSourceFuture(future.id)}
+              onInspectProvenance={setProvenanceSubject}
               reload={reload}
               message={notify}
             />
@@ -191,6 +208,9 @@ export function App() {
               >
                 Capabilities
               </Button>
+              <Button type="button" variant="ghost" size="sm" onClick={() => setShowAccess(true)}>
+                Access
+              </Button>
             </nav>
           </footer>
         </main>
@@ -220,6 +240,7 @@ export function App() {
                 workspace.nativeState.promotions.find((operation) => operation.id === settlementId)
                   .repo,
             )}
+            repositories={workspace.repositories}
             onClose={() => setSettlementId(null)}
             reload={reload}
             message={notify}
@@ -228,6 +249,7 @@ export function App() {
       {candidateId && (
         <CandidateDialog
           id={candidateId}
+          onInspectProvenance={setProvenanceSubject}
           onClose={() => setCandidateId(null)}
           reload={reload}
           message={notify}
@@ -298,6 +320,8 @@ export function App() {
         <NewObjective
           nativeState={workspace.nativeState}
           initialSystemId={nativeDialog.systemId}
+          initialObjective={nativeDialog.objective}
+          contextSnapshotId={nativeDialog.contextSnapshotId}
           onClose={() => setNativeDialog(null)}
           onCreated={() => nativeCreated('systems')}
           reload={reload}
@@ -314,6 +338,55 @@ export function App() {
           reload={reload}
           message={notify}
         />
+      )}
+      {decisionGroup && (
+        <DecisionGroupDialog
+          group={decisionGroup}
+          onClose={() => setDecisionGroup(null)}
+          reload={reload}
+          message={notify}
+        />
+      )}
+      {contextObjective && (
+        <ObjectiveContextDialog
+          objective={contextObjective}
+          repositories={workspace.nativeState.repositories}
+          onClose={() => setContextObjective(null)}
+          reload={reload}
+          message={notify}
+          onSaved={({ objective, snapshot }) => {
+            setContextObjective(null);
+            openNewFuture({
+              systemId: objective.system_id,
+              objective,
+              contextSnapshotId: snapshot.id,
+            });
+          }}
+        />
+      )}
+      {sourceFuture && workspace.nativeState.futures.some((future) => future.id === sourceFuture) && (
+        <SourceRefDialog
+          future={workspace.nativeState.futures.find((future) => future.id === sourceFuture)}
+          repositories={workspace.nativeState.repositories}
+          onClose={() => setSourceFuture(null)}
+          reload={reload}
+          message={notify}
+        />
+      )}
+      {continuationId && workspace.nativeState.promotions.some((entry) => entry.id === continuationId) && (
+        <ContinuationDialog
+          operation={workspace.nativeState.promotions.find((entry) => entry.id === continuationId)}
+          candidates={workspace.nativeState.candidates}
+          onClose={() => setContinuationId(null)}
+          reload={reload}
+          message={notify}
+        />
+      )}
+      {provenanceSubject && (
+        <ProvenanceDialog subject={provenanceSubject} onClose={() => setProvenanceSubject(null)} />
+      )}
+      {showAccess && (
+        <AccessDialog onClose={() => setShowAccess(false)} reload={reload} message={notify} />
       )}
       {showCapabilities && <CapabilitiesDialog onClose={() => setShowCapabilities(false)} />}
       <Notification notification={notification} onDismiss={dismissNotification} />

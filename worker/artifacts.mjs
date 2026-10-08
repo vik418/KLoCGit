@@ -1,4 +1,5 @@
 import { DomainError } from '../core/hash.mjs';
+import { observationRef } from '../core/git-refs.mjs';
 import {
   artifactRepositoryCreate,
   artifactRepositoryFork,
@@ -39,12 +40,28 @@ export class ArtifactsGit {
       capability[Symbol.dispose]?.();
     }
   }
-  async ref(repo, ref) {
+  async readRef(repo, ref) {
+    observationRef(ref);
+    if (ref.startsWith('refs/tags/'))
+      return this.execute('read-ref', { repo: repo.id, ref });
     return this.withRepo(repo, async (r) => {
       const log = await r.log({ ref, limit: 1 });
       if (!log.length) throw new DomainError('REF_NOT_FOUND', 'Git ref does not exist', 404);
-      return log[0].hash;
+      return { ref, kind: 'branch', object_id: log[0].hash, object_type: 'commit', commit: log[0].hash, available_for_future: true };
     });
+  }
+  async ref(repo, ref) {
+    const value = await this.readRef(repo, ref);
+    if (!value.available_for_future)
+      throw new DomainError('REF_NOT_COMMIT', 'This ref does not resolve to a commit', 422);
+    return value.commit;
+  }
+  async retainObservation(repo, objects) {
+    return this.execute('retain-observation', { ...this.descriptor(repo), objects });
+  }
+  async listRefs(repo, input = {}) {
+    // The binding's commit log cannot prove a tag's object identity or enumerate refs.
+    return this.execute('list-refs', { repo: repo.id, ...input });
   }
   async flatten(r, tree, prefix = '', budget = { count: 0 }) {
     if (++budget.count > 20000)

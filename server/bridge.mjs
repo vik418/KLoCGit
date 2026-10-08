@@ -98,6 +98,9 @@ export async function createBridge({ manifest, token = process.env.GIT_BRIDGE_TO
           canonical_repo: input.canonical_repo,
           source_repo: input.source_repo,
         });
+        if (req.url === '/retain-observation') return adapter.retainObservation(repo, input.objects);
+        if (req.url === '/read-ref') return adapter.readRef(repo, input.ref);
+        if (req.url === '/list-refs') return adapter.listRefs(repo, { limit: input.limit, cursor: input.cursor });
         if (req.url === '/profile')
           return {
             validation_profile: repo.validation_profile ?? null,

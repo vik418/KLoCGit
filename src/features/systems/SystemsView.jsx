@@ -10,6 +10,7 @@ export function SystemsView({
   onNewSystem,
   onNewObjective,
   onNewFuture,
+  onContext,
   reload,
   message,
 }) {
@@ -204,6 +205,49 @@ export function SystemsView({
                     Set objective
                   </Button>
                 </details>
+              </CardContent>
+            </Card>
+          ))}
+        </div>
+      </section>
+      <section aria-label="Objectives">
+        <h2 className="mb-4 text-base font-semibold">Objectives</h2>
+        {!nativeState.objectives.length && (
+          <p className="text-sm leading-6 text-muted-foreground">
+            Record an outcome in a system, then prepare context before starting work.
+          </p>
+        )}
+        <div className="grid gap-4 md:grid-cols-2">
+          {nativeState.objectives.map((objective) => (
+            <Card key={objective.id} className="gap-4">
+              <CardHeader>
+                <CardTitle>
+                  <h3 className="text-base leading-6">{objective.statement}</h3>
+                </CardTitle>
+                <CardDescription>
+                  {nativeState.systems.find((system) => system.id === objective.system_id)?.name ??
+                    objective.system_id}
+                </CardDescription>
+              </CardHeader>
+              <CardContent className="space-y-4">
+                {objective.scope?.length > 0 && (
+                  <ul className="space-y-1 text-xs leading-6 text-muted-foreground">
+                    {objective.scope.map((scope) => (
+                      <li key={scope} className="break-all">
+                        {scope}
+                      </li>
+                    ))}
+                  </ul>
+                )}
+                <Button
+                  type="button"
+                  size="sm"
+                  variant="outline"
+                  disabled={!onContext}
+                  onClick={() => onContext(objective)}
+                >
+                  Prepare context
+                </Button>
               </CardContent>
             </Card>
           ))}

@@ -10,6 +10,10 @@ import {
 } from './decisions.mjs';
 import { hash, record, DomainError } from './hash.mjs';
 import { prepareTaskContext, answerTaskContext, assumeTaskContext } from './context.mjs';
+import { AccessControl } from './access.mjs';
+import { NativeContext } from './native-context.mjs';
+import { Evaluators } from './evaluators.mjs';
+import { NativeDiscovery } from './native-discovery.mjs';
 import { MergeRequests } from './merge-requests.mjs';
 import { MergeQueue } from './merge-queue.mjs';
 import { NativePipeline } from './native-pipeline.mjs';
@@ -93,7 +97,7 @@ export class Engine {
    * @param {GitAdapter} git Trusted repository/validation adapter.
    * @param {(state: object) => Promise<void>} save Persist the complete current metadata state.
    */
-  constructor(state, git, save = async () => {}) {
+  constructor(state, git, save = async () => {}, options = {}) {
     if (state.version !== 0)
       throw new DomainError(
         'UNSUPPORTED_STATE_VERSION',
@@ -108,6 +112,10 @@ export class Engine {
     this.queue = new MergeQueue(this);
     this.native = new NativeState(this);
     this.pipeline = new NativePipeline(this);
+    this.access = new AccessControl(this);
+    this.objectiveContext = new NativeContext(this, options.context ?? {});
+    this.evaluators = new Evaluators(this, options.evaluators ?? {});
+    this.futuresGraph = new NativeDiscovery(this, options.discovery ?? {});
   }
 
   // Transports serialize a whole operation here. Delegated helpers do not enqueue
@@ -160,10 +168,15 @@ export class Engine {
     // still takes precedence if the registered canonical ref uses this prefix.
     if (
       typeof event.ref === 'string' &&
-      event.ref.startsWith('refs/klocgit/candidates/') &&
+      (event.ref.startsWith('refs/klocgit/candidates/') ||
+        event.ref.startsWith('refs/klocgit/observations/')) &&
       !(sourceRepo.id === repo.id && event.ref === repo.canonical_ref)
     )
-      return { ignored: true, reason: 'INTERNAL_CANDIDATE_REF' };
+      return {
+        ignored: true,
+        reason: event.ref.startsWith('refs/klocgit/candidates/')
+          ? 'INTERNAL_CANDIDATE_REF' : 'INTERNAL_OBSERVATION_REF',
+      };
     if (
       /^0{40,64}$/.test(event.after) &&
       !(sourceRepo.id === repo.id && event.ref === repo.canonical_ref)
@@ -401,9 +414,9 @@ export class Engine {
     Object.assign(repo, { head, unavailable: false, ...(tree === undefined ? {} : { tree }) });
     return changed;
   }
-  async syncHeads() {
+  async syncHeads(repoIds = null) {
     let changed = false;
-    for (const repo of this.state.repositories) {
+    for (const repo of this.state.repositories.filter((repo) => repoIds === null || repoIds.includes(repo.id))) {
       let head;
       try {
         head = await this.git.ref(repo, repo.canonical_ref);
@@ -730,8 +743,36 @@ export class Engine {
   async analyzeWork(options = {}) {
     return analyzeWork(this, options);
   }
+
+  /** Bound automatic discovery without turning analysis failure into Git failure. */
+  async analyzeNativeWork({ actor = 'coordinator', request_id, trigger = {} } = {}) {
+    const futures = this.state.futures ?? [];
+    if (!futures.length) return { state: 'not-needed' };
+    const source = trigger.source_repo ?? trigger.repo;
+    const future = futures.find((entry) =>
+      (entry.repositories ?? []).some((repo) => repo.repo_id === source));
+    const repository = source ? this.access.canonicalRepository(source) : null;
+    const systems = future ? [future.system_id] : source
+      ? (this.state.systems ?? []).filter((system) =>
+          system.repository_refs.some((ref) => ref.repo_id === repository)).map((system) => system.id)
+      : [];
+    if (source && !systems.length) return { state: 'not-needed' };
+    // A shared canonical repository may affect several Systems. The workspace
+    // analyzer keeps their indexes separate and applies one total pair budget.
+    const systemId = systems.length === 1 ? systems[0] : null;
+    const result = await this.futuresGraph.analyze({
+      ...(systemId ? { system_id: systemId } : {}),
+      request_id: 'native:' + await hash({ trigger, request_id: request_id ?? null, system_id: systemId }),
+      max_comparisons: 100,
+    }, actor);
+    return { state: 'ready', run_id: result.run.id };
+  }
   async basis(component) {
-    return decisionBasis(this, component);
+    const basis = await decisionBasis(this, component);
+    const accessVersion = this.state.access?.version ?? 0;
+    // Preserve legacy owner-only hashes. Explicit governance changes invalidate
+    // every previously reviewed conventional decision and queued approval.
+    return accessVersion === 0 ? basis : hash({ decision_basis: basis, access_version: accessVersion });
   }
   async buildDecision(c) {
     return buildDecision(this, c);
@@ -788,8 +829,9 @@ export class Engine {
   async recover() {
     return recoverOperations(this);
   }
-  async view() {
-    await this.syncHeads();
+  async view(principal = null) {
+    if (principal) this.access.require(principal, 'workspace.read');
+    await this.syncHeads(principal ? this.access.visibleRepositories(principal) : null);
     const evidence = this.state.evidence.map((e) => ({ ...e, validity: this.evidenceValidity(e) }));
     const decisions = await Promise.all(
       this.state.decisionComponents.map(async (c) => ({
@@ -817,9 +859,14 @@ export class Engine {
     const discovery = { ...this.state.discovery, conventional_review_ids: conventional },
       required = open.length + conventional.length;
     const presented = decisions.map((c) => ({ ...c, actionable: open.some((d) => d.id === c.id) }));
-    return {
+    const snapshot = {
       ...this.state,
-      nativeState: { ...this.native.view(), ...this.pipeline.view() },
+      nativeState: {
+        ...this.native.view(), ...this.pipeline.view(),
+        ...await this.objectiveContext.view(),
+        ...await this.evaluators.view(),
+        ...await this.futuresGraph.view(),
+      },
       discovery,
       mergeRequests: this.mr.list(),
       mergeQueue: this.queue.list(),
@@ -863,5 +910,6 @@ export class Engine {
         staleEvidence: evidence.filter((e) => e.validity.status === 'stale').length,
       },
     };
+    return principal ? this.access.project(snapshot, principal) : snapshot;
   }
 }

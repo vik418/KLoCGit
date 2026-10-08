@@ -3,6 +3,7 @@ import { execFile } from 'node:child_process';
 import { promisify } from 'node:util';
 import { LocalGit, git, protectedGitArguments } from './git.mjs';
 import { DomainError } from '../core/hash.mjs';
+import { observationRef, pageRefs, gitObjectId } from '../core/git-refs.mjs';
 const exec = promisify(execFile);
 const commit = (value) => {
   if (!/^[a-f0-9]{40}$/.test(value ?? '') || /^0{40}$/.test(value))
@@ -135,9 +136,85 @@ export class RemoteGit extends LocalGit {
       'fetch',
       '--quiet',
       entry.remote,
+      '--prune',
       '+refs/heads/*:refs/heads/*',
+      '+refs/tags/*:refs/tags/*',
       '+refs/klocgit/candidates/*:refs/klocgit/candidates/*',
     ]);
+  }
+  async prepareCache(id) {
+    this.entry(id);
+    await mkdir(this.dir({ id }), { recursive: true });
+    try {
+      await git(this.dir({ id }), ['rev-parse', '--is-bare-repository']);
+    } catch {
+      await git(this.dir({ id }), ['init', '--bare', '--quiet']);
+    }
+  }
+  /** Mutable ref authority is remote, never a surviving Container cache. */
+  async readRef(repo, ref) {
+    observationRef(ref);
+    await this.prepareCache(repo.id);
+    const rows = (await this.remote(repo.id, ['ls-remote', this.entry(repo.id).remote, ref]))
+      .split('\n').filter(Boolean).map((line) => line.split(/\s+/));
+    const object_id = rows.find((row) => row[1] === ref)?.[0];
+    if (!object_id)
+      throw new DomainError('REF_NOT_FOUND', 'Remote Git ref is unavailable', 404);
+    if (!gitObjectId.test(object_id))
+      throw new DomainError('INVALID_GIT_FACTS', 'Remote Git returned an invalid ref object', 503);
+    try {
+      await git(this.dir(repo), ['cat-file', '-e', object_id]);
+    } catch {
+      await this.remote(repo.id, ['fetch', '--quiet', this.entry(repo.id).remote, object_id]);
+    }
+    const object_type = await git(this.dir(repo), ['cat-file', '-t', object_id]);
+    let resolved = object_type === 'commit' ? object_id : null;
+    if (object_type === 'tag') {
+      try {
+        resolved = await git(this.dir(repo), ['rev-parse', '--verify', object_id + '^{commit}']);
+      } catch {
+        resolved = null;
+      }
+    }
+    return { ref, kind: ref.startsWith('refs/tags/') ? 'tag' : 'branch', object_id, object_type, commit: resolved, available_for_future: gitObjectId.test(resolved) };
+  }
+  async listRefs(repo, input = {}) {
+    await this.prepareCache(repo.id);
+    const rows = (await this.remote(repo.id, ['ls-remote', '--heads', '--tags', this.entry(repo.id).remote]))
+      .split('\n').filter(Boolean).map((line) => line.split(/\s+/));
+    const refs = rows.filter((row) => !row[1]?.endsWith('^{}')).map(([object_id, ref]) => {
+      observationRef(ref);
+      if (!gitObjectId.test(object_id))
+        throw new DomainError('INVALID_GIT_FACTS', 'Remote Git returned an invalid ref object', 503);
+      const peeled = rows.find((row) => row[1] === ref + '^{}')?.[0];
+      const branch = ref.startsWith('refs/heads/');
+      // Advertising an unpeeled tag alone cannot establish its target object type.
+      return { ref, kind: branch ? 'branch' : 'tag', object_id, object_type: branch ? 'commit' : peeled ? 'tag' : 'unknown', commit: branch ? object_id : null, available_for_future: branch ? true : null };
+    });
+    return pageRefs(refs, input);
+  }
+  async retainObservation(repo, objects) {
+    if (!Array.isArray(objects) || !objects.length || objects.length > 2)
+      throw new DomainError('INVALID_RETENTION', 'Retain the exact ref object and commit');
+    const archive = { id: repo.canonical_repo ?? repo.id };
+    await this.prepareCache(repo.id);
+    await this.prepareCache(archive.id);
+    for (const oid of [...new Set(objects)]) {
+      commit(oid);
+      await this.remote(repo.id, ['fetch', '--quiet', this.entry(repo.id).remote, oid]);
+    }
+    const retained = await super.retainObservation(repo, objects);
+    for (const entry of retained.objects) {
+      await this.remote(archive.id, [
+        'push', '--porcelain', '--force-with-lease=' + entry.ref + ':',
+        this.entry(archive.id).remote, entry.object_id + ':' + entry.ref,
+      ]);
+      const rows = (await this.remote(archive.id, ['ls-remote', this.entry(archive.id).remote, entry.ref]))
+        .split('\n').filter(Boolean).map((line) => line.split(/\s+/));
+      if (rows.find((row) => row[1] === entry.ref)?.[0] !== entry.object_id)
+        throw new DomainError('RETENTION_UNCERTAIN', 'Remote archive retention is unconfirmed', 503);
+    }
+    return retained;
   }
   async ensureCommit(id, oid) {
     commit(oid);

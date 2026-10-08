@@ -29,7 +29,37 @@ jobs:
           git config --global user.name "klocgit tests"
           git config --global user.email "tests@localhost"
       - run: npm ci
-      - run: npm run check
+      - name: Format source
+        run: npm run format
+      - name: Capture formatted source
+        run: |
+          node --input-type=module <<'NODE'
+          import {execFileSync} from 'node:child_process';
+          import {readFileSync} from 'node:fs';
+          const output = execFileSync('git', ['diff', '--name-only'], {encoding:'utf8'}).trim();
+          for (const path of output ? output.split('\n') : [])
+            console.log('KLOCGIT_FORMATTED_B64 ' + JSON.stringify({path,base64:readFileSync(path).toString('base64')}));
+          NODE
+      - id: lint
+        run: npm run lint
+        continue-on-error: true
+      - id: tests
+        run: npm test
+        continue-on-error: true
+      - id: build
+        run: npm run build
+        continue-on-error: true
+      - id: worker
+        run: npm run check:worker
+        continue-on-error: true
+      - id: executor
+        run: npm run check:executor
+        continue-on-error: true
       - name: Install browser
         run: npx playwright install --with-deps chromium
-      - run: npm run test:browser
+      - id: browser
+        run: npm run test:browser
+        continue-on-error: true
+      - name: Require every check
+        if: ${{ steps.lint.outcome == 'failure' || steps.tests.outcome == 'failure' || steps.build.outcome == 'failure' || steps.worker.outcome == 'failure' || steps.executor.outcome == 'failure' || steps.browser.outcome == 'failure' }}
+        run: exit 1

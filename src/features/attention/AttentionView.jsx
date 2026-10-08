@@ -12,6 +12,9 @@ export function AttentionView({
   onCandidate,
   onSettlement,
   onDecision,
+  onOpenDecisionGroup,
+  onDiscover,
+  onContinue,
   onProposal,
   reload,
   message,
@@ -21,20 +24,54 @@ export function AttentionView({
   const recovery = native.requests.filter((request) =>
     ['prepared', 'recovery_required'].includes(request.status),
   );
+  const groups = (native.decisionGroups ?? []).filter((group) => group.status === 'open');
+  const discovery = native.discovery ?? {};
+  const conventional = discovery.conventional_review_count ?? 0;
+  const analysisCandidateIds = new Set(discovery.analysis_candidate_ids ?? []);
   const candidates = (native.candidates ?? []).filter(
     (candidate) =>
-      !(native.promotions ?? []).some(
+      !analysisCandidateIds.has(candidate.id) && !(native.promotions ?? []).some(
         (operation) => operation.candidate_id === candidate.id && operation.status === 'applied',
       ),
   );
   const promotions = (native.promotions ?? []).filter((operation) =>
-    ['prepared', 'recovery-required'].includes(operation.status),
+    ['prepared', 'recovery-required', 'partially-applied', 'partial-applied'].includes(operation.status),
   );
   const hasReviewWork = workspace.proposals.length > 0 || workspace.tasks.length > 0;
   const hasFutures = native.futures.some((future) => future.status !== 'abandoned');
 
   return (
     <div className="space-y-6 py-7">
+      {hasFutures && <Card className="gap-4">
+        <CardHeader>
+          <CardTitle>Understand the work</CardTitle>
+          <CardDescription>
+            {groups.length} grouped {groups.length === 1 ? 'decision' : 'decisions'}.
+            {' '}{conventional} {conventional === 1 ? 'change still needs' : 'changes still need'} conventional review.
+          </CardDescription>
+        </CardHeader>
+        <CardContent className="space-y-3">
+          {error && <p className="error-banner" role="alert">{error}</p>}
+          <div className="flex flex-wrap gap-2">
+            <Button type="button" size="sm" disabled={busy} onClick={() => onDiscover ? onDiscover() : mutate('/discovery', {}, 'Decision discovery completed. Unclassified work remains explicit.')}>
+              {busy ? 'Discovering…' : 'Discover decisions'}
+            </Button>
+            {conventional > 0 && <Button type="button" size="sm" variant="outline" onClick={onFutures}>Review unclassified work</Button>}
+          </div>
+          {(discovery.diagnostics ?? []).map((diagnostic, index) => <p key={diagnostic.code + ':' + index} className="muted text-sm">{diagnostic.message}</p>)}
+          {discovery.possible_comparisons > 0 && <details className="native-details">
+            <summary>Analysis scope</summary>
+            <p className="muted text-sm">{discovery.comparisons} comparisons performed; {discovery.comparisons_avoided} avoided by indexing. {discovery.compositions} retained compositions and {discovery.validation_runs} trusted validation runs.</p>
+            <p className="muted text-sm">These measurements cover this finite run. Unexamined interactions remain unknown.</p>
+          </details>}
+        </CardContent>
+      </Card>}
+      {groups.map((group) => <Card key={group.id} className="gap-4">
+        <CardHeader><CardTitle>{group.title}</CardTitle>
+          <CardDescription>{group.revision_ids.length} changes share this decision. {group.stale ? 'Earlier interaction evidence needs renewed review.' : 'Inspect the recorded choices and evidence.'}</CardDescription>
+        </CardHeader>
+        <CardContent><Button type="button" size="sm" onClick={() => onOpenDecisionGroup(group.id)}>Review decision</Button></CardContent>
+      </Card>)}
       {promotions.length > 0 && (
         <Card className="gap-4">
           <CardHeader>
@@ -63,6 +100,12 @@ export function AttentionView({
             >
               {busy ? 'Reconciling…' : 'Reconcile promotion'}
             </Button>
+            {onContinue && promotions.filter((operation) => operation.stages?.some((stage) => stage.status === 'applied') &&
+              operation.stages.some((stage) => stage.status !== 'applied')).map((operation) => (
+              <Button key={'continue-' + operation.id} type="button" variant="outline" disabled={busy} onClick={() => onContinue(operation.id)}>
+                Review remaining repositories
+              </Button>
+            ))}
             {promotions
               .filter(
                 (operation) =>
@@ -127,7 +170,7 @@ export function AttentionView({
           message={message}
         />
       )}
-      {!hasReviewWork && !candidates.length && !promotions.length && (
+      {!hasReviewWork && !candidates.length && !promotions.length && !groups.length && !conventional && (
         <Card className="gap-4">
           <CardHeader>
             <CardTitle>

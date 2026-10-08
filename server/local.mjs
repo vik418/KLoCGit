@@ -5,12 +5,14 @@ import { fileURLToPath } from 'node:url';
 import { createServer as createViteServer } from 'vite';
 import { Engine, emptyState } from '../core/engine.mjs';
 import { DomainError } from '../core/hash.mjs';
+import { redactSensitive } from '../core/access.mjs';
+import { authenticateEvaluationReport, evaluatorServices } from '../worker/identity.mjs';
 import { LocalGit } from './git.mjs';
 import { handleLocalRequest } from './local-api.mjs';
 import {
-  readRequestBody,
+  readRequestPayload,
   jsonResponse,
-  authenticatedActor,
+  authenticatedPrincipal,
   assertSameOrigin,
 } from './local-http.mjs';
 
@@ -27,6 +29,8 @@ if (typeof localActor !== 'string' || !localActor.trim())
     503,
   );
 const ownerToken = process.env.LOCAL_OWNER_TOKEN;
+const host = process.env.HOST ?? '127.0.0.1';
+const engineOptions = { evaluators: { services: evaluatorServices(process.env) } };
 
 async function save(state) {
   await mkdir(root, { recursive: true });
@@ -42,8 +46,11 @@ async function loadEngine() {
     if (error.code !== 'ENOENT') throw error;
   }
   if (state) {
-    state.workspace.owner_id = localActor;
-    const engine = new Engine(state, await new LocalGit(root).init(), save);
+    if (state.workspace.owner_id && state.workspace.owner_id !== localActor)
+      throw new DomainError('OWNER_IDENTITY_CHANGED', 'Restore the configured owner or explicitly reconcile ownership', 503);
+    state.workspace.owner_id ??= localActor;
+    const engine = new Engine(state, await new LocalGit(root).init(), save, engineOptions);
+    await save(state);
     await engine.recover();
     return engine;
   }
@@ -61,7 +68,7 @@ async function loadEngine() {
   }
   state = emptyState();
   state.workspace.owner_id = localActor;
-  const engine = new Engine(state, await new LocalGit(root).init(), save);
+  const engine = new Engine(state, await new LocalGit(root).init(), save, engineOptions);
   await save(state);
   return engine;
 }
@@ -83,19 +90,31 @@ async function handleRequest(request, response) {
   }
 
   try {
-    // One configured principal owns this local session. Client payloads never
-    // select audit actors; LOCAL_OWNER_TOKEN optionally authenticates callers.
-    const actor = authenticatedActor(request, { actor: localActor, ownerToken });
     assertSameOrigin(request);
-    const input = request.method === 'GET' ? {} : await readRequestBody(request);
+    const report = request.method === 'POST' && url.pathname.match(/^\/api\/evaluation-runs\/([^/]+)\/report$/);
+    let principal;
+    if (!report)
+      principal = await authenticatedPrincipal(request, {
+        actor: localActor, ownerToken, host, identityEnv: process.env,
+      });
+    const payload = ['GET', 'HEAD'].includes(request.method)
+      ? { input: {}, raw: '', bytes: 0 } : await readRequestPayload(request);
+    if (report) {
+      const webRequest = new Request(url, { method: request.method, headers: request.headers });
+      principal = await authenticateEvaluationReport(webRequest, process.env, payload.input, report[1]);
+    }
+    engine.access.assertQuota('request_bytes', 0, payload.bytes);
+    const input = payload.input;
+    if (!input || typeof input !== 'object' || Array.isArray(input))
+      throw new DomainError('INVALID_REQUEST', 'Request body must be an object');
     const result = await engine.serial(() =>
       handleLocalRequest(
         engine,
         {
           method: request.method,
           url,
-          input,
-          actor,
+          input, principal, actor: principal.actor_id,
+          headers: request.headers, bytes: payload.bytes,
         },
         { root, save },
       ),
@@ -107,14 +126,13 @@ async function handleRequest(request, response) {
       message: error.status
         ? error.message
         : 'The operation failed. Git repositories remain available.',
-      details: error.details ?? {},
+      details: redactSensitive(error.details ?? {}),
     });
   }
 }
 
 const server = http.createServer(handleRequest);
 const port = Number(process.env.PORT ?? 43187);
-const host = process.env.HOST ?? '127.0.0.1';
 server.listen(port, host, () => {
   console.log('klocgit workspace: http://localhost:' + server.address().port);
   console.log('Canonical repositories: ' + path.join(root, 'repositories'));

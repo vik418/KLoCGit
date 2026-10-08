@@ -8,6 +8,9 @@ const json = (data, status = 200) =>
     headers: { 'Content-Type': 'application/json', 'Cache-Control': 'no-store' },
   });
 const operations = new Set([
+  '/retain-observation',
+  '/read-ref',
+  '/list-refs',
   '/compose',
   '/compose-selections',
   '/revert',

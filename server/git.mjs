@@ -4,6 +4,7 @@ import { mkdtemp, rm } from 'node:fs/promises';
 import os from 'node:os';
 import path from 'node:path';
 import { DomainError } from '../core/hash.mjs';
+import { observationRef, pageRefs, gitObjectId } from '../core/git-refs.mjs';
 import { createApplicationRunner, applicationValidationConfigHash } from './runner.mjs';
 import {
   localRepositoryCreate,
@@ -105,14 +106,72 @@ export class LocalGit {
       throw new DomainError('INVALID_REPO', 'Repository identifiers must be bounded names');
     return path.join(this.root, 'repositories', repo.id + '.git');
   }
-  async ref(repo, ref) {
-    if (!/^refs\/heads\/[a-zA-Z0-9._/-]+$/.test(ref) || ref.includes('..'))
-      throw new DomainError('INVALID_REF', 'A valid branch ref is required');
-    try {
-      return await git(this.dir(repo), ['rev-parse', '--verify', ref]);
-    } catch {
+  /** Resolve a movable ref to both its exact object and its peeled commit. */
+  async readRef(repo, ref) {
+    observationRef(ref);
+    const line = await git(this.dir(repo), [
+      'for-each-ref', '--count=1', '--format=%(refname)%09%(objectname)%09%(objecttype)', ref,
+    ]);
+    const [name, object_id, object_type] = line.split('\t');
+    if (name !== ref)
       throw new DomainError('REF_NOT_FOUND', 'Git ref is unavailable', 404);
+    if (!gitObjectId.test(object_id) || !['commit', 'tag', 'tree', 'blob'].includes(object_type))
+      throw new DomainError('INVALID_GIT_FACTS', 'Git returned an invalid ref object', 503);
+    let commit = object_type === 'commit' ? object_id : null;
+    if (object_type === 'tag') {
+      try {
+        commit = await git(this.dir(repo), ['rev-parse', '--verify', object_id + '^{commit}']);
+      } catch {
+        // Tags may legitimately name trees or blobs. They remain visible, but cannot be Futures.
+        commit = null;
+      }
     }
+    return { ref, kind: ref.startsWith('refs/tags/') ? 'tag' : 'branch', object_id, object_type, commit, available_for_future: gitObjectId.test(commit) };
+  }
+  async ref(repo, ref) {
+    const value = await this.readRef(repo, ref);
+    if (!value.available_for_future)
+      throw new DomainError('REF_NOT_COMMIT', 'This ref does not resolve to a commit', 422);
+    return value.commit;
+  }
+  /** Read at most 1001 refs so unexpectedly large repositories fail with an explicit budget. */
+  async listRefs(repo, input = {}) {
+    const output = await git(this.dir(repo), [
+      'for-each-ref', '--sort=refname', '--count=1001',
+      '--format=%(refname)%09%(objectname)%09%(objecttype)%09%(*objectname)%09%(*objecttype)',
+      'refs/heads/', 'refs/tags/',
+    ]);
+    const refs = output ? output.split('\n').map((line) => {
+      const [ref, object_id, object_type, peeled, peeledType] = line.split('\t');
+      observationRef(ref);
+      if (!gitObjectId.test(object_id))
+        throw new DomainError('INVALID_GIT_FACTS', 'Git returned an invalid ref object', 503);
+      const commit = object_type === 'commit' ? object_id : peeledType === 'commit' ? peeled : null;
+      return { ref, kind: ref.startsWith('refs/tags/') ? 'tag' : 'branch', object_id, object_type, commit, available_for_future: gitObjectId.test(commit) };
+    }) : [];
+    return pageRefs(refs, input);
+  }
+  /** Archive source objects under coordinator refs, independent of producer branch lifetime. */
+  async retainObservation(repo, objects) {
+    if (!Array.isArray(objects) || !objects.length || objects.length > 2)
+      throw new DomainError('INVALID_RETENTION', 'Retain the exact ref object and commit');
+    const archive = { id: repo.canonical_repo ?? repo.id };
+    const refs = [];
+    for (const object_id of [...new Set(objects)]) {
+      immutableCommit(object_id);
+      const ref = 'refs/klocgit/observations/' + repo.id + '/' + object_id;
+      if (archive.id !== repo.id)
+        await git(this.dir(archive), ['fetch', '--quiet', this.dir(repo), object_id]);
+      await git(this.dir(archive), ['cat-file', '-e', object_id]);
+      let existing = null;
+      try { existing = await git(this.dir(archive), ['rev-parse', '--verify', ref]); } catch {}
+      if (existing && existing !== object_id)
+        throw new DomainError('RETENTION_CONFLICT', 'An archive ref names another object', 409);
+      if (!existing)
+        await git(this.dir(archive), ['update-ref', ref, object_id, '0'.repeat(40)]);
+      refs.push({ object_id, ref });
+    }
+    return { source_repo_id: repo.id, archive_repo_id: archive.id, objects: refs };
   }
   async facts(repo, head, base) {
     if (!/^[a-f0-9]{40}$/.test(head) || !/^[a-f0-9]{40}$/.test(base))

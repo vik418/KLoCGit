@@ -56,15 +56,15 @@ test('current capability registry keeps bounded trust and deployment limits visi
     /unknown provenance.*accepted.*remains unknown/i,
   );
   assert.equal(entries.get('security.identity').status, 'PARTIAL');
-  assert.match(entries.get('security.identity').limits, /no multi-user authentication/i);
+  assert.match(entries.get('security.identity').limits, /organizations.*absent/i);
   assert.equal(entries.get('cloudflare.live').status, 'EXPERIMENTAL');
   assert.match(entries.get('cloudflare.live').limits, /live provisioning.*unverified/i);
   assert.equal(entries.get('cloudflare.lifecycle').status, 'EXPERIMENTAL');
   assert.equal(entries.get('state.futures').status, 'PARTIAL');
   assert.match(entries.get('state.observation').limits, /not behavior.*trusted validation/i);
   assert.equal(entries.get('composition.native').status, 'PARTIAL');
-  assert.equal(entries.get('canonical.multi').status, 'UNSUPPORTED');
-  assert.equal(entries.get('decisions.semantic').status, 'UNSUPPORTED');
+  assert.equal(entries.get('canonical.multi').status, 'PARTIAL');
+  assert.equal(entries.get('decisions.semantic').status, 'PARTIAL');
 });
 
 test('capability snapshots cannot change later responses', () => {
