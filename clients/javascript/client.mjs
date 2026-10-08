@@ -18,9 +18,19 @@ export class KlocgitError extends Error {
  * @param {typeof fetch} [options.fetch] Fetch implementation.
  * @returns {object} Native coordination API methods.
  */
-export function createClient({ baseUrl, getToken = () => null, fetch: fetcher = globalThis.fetch }) {
+export function createClient({
+  baseUrl,
+  getToken = () => null,
+  fetch: fetcher = globalThis.fetch,
+}) {
   const base = new URL(baseUrl);
-  if (!['https:', 'http:'].includes(base.protocol) || base.username || base.password || base.search || base.hash)
+  if (
+    !['https:', 'http:'].includes(base.protocol) ||
+    base.username ||
+    base.password ||
+    base.search ||
+    base.hash
+  )
     throw new TypeError('Use a credential-free HTTP origin or API URL');
   const prefix = base.pathname.replace(/\/$/, '');
   base.pathname = prefix.endsWith('/api') ? prefix + '/' : prefix + '/api/';
@@ -35,7 +45,10 @@ export function createClient({ baseUrl, getToken = () => null, fetch: fetcher = 
     if (token) headers.set('authorization', 'Bearer ' + token);
     if (body !== undefined) headers.set('content-type', 'application/json');
     const response = await fetcher(new URL(path, base), {
-      method, headers, ...(body === undefined ? {} : { body: JSON.stringify(body) }), signal,
+      method,
+      headers,
+      ...(body === undefined ? {} : { body: JSON.stringify(body) }),
+      signal,
     });
     const data = await response.json();
     if (!response.ok) throw new KlocgitError(response.status, data);
@@ -54,16 +67,22 @@ export function createClient({ baseUrl, getToken = () => null, fetch: fetcher = 
     createSystem: (body, options) => mutate('systems', body, options),
     createObjective: (body, options) => mutate('objectives', body, options),
     createFuture: (body, options) => mutate('futures', body, options),
-    observeFuture: (futureId, body, options) => mutate('futures/' + id(futureId) + '/observe', body, options),
+    observeFuture: (futureId, body, options) =>
+      mutate('futures/' + id(futureId) + '/observe', body, options),
     select: (body, options) => mutate('selections', body, options),
     compose: (body, options) => mutate('candidates', body, options),
-    evaluate: (candidateId, body, options) => mutate('candidates/' + id(candidateId) + '/validate', body, options),
+    evaluate: (candidateId, body, options) =>
+      mutate('candidates/' + id(candidateId) + '/validate', body, options),
     compare: (body, options) => mutate('discovery', body, options),
     review: (candidateId, options) => request('candidates/' + id(candidateId) + '/review', options),
-    decide: (groupId, body, options) => mutate('decision-groups/' + id(groupId) + '/resolve', body, options),
-    promote: (candidateId, body, options) => mutate('candidates/' + id(candidateId) + '/promote', body, options),
-    provenance: (kind, subjectId, options) => request('provenance/' + id(kind) + '/' + id(subjectId), options),
-    exportContext: (systemId, options) => request('systems/' + id(systemId) + '/context/export', options),
+    decide: (groupId, body, options) =>
+      mutate('decision-groups/' + id(groupId) + '/resolve', body, options),
+    promote: (candidateId, body, options) =>
+      mutate('candidates/' + id(candidateId) + '/promote', body, options),
+    provenance: (kind, subjectId, options) =>
+      request('provenance/' + id(kind) + '/' + id(subjectId), options),
+    exportContext: (systemId, options) =>
+      request('systems/' + id(systemId) + '/context/export', options),
     request,
   });
 }

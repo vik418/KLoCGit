@@ -80,6 +80,7 @@ async function fixture(inputSpecs = specs()) {
   const calls = { compositions: [], validations: [], cas: [] };
   const saved = [];
   const state = emptyState();
+  state.workspace.owner_id = actor;
   const repoIds = sorted(inputSpecs.map((spec) => spec.repo ?? 'app'));
   const baselines = new Map();
   for (const repoId of repoIds) {
@@ -327,19 +328,89 @@ test('a baseline or singleton failure prevents the claim of an emergent pair int
   }
 });
 
+test('unfinished or cancelled composed evaluations establish neither compatibility nor semantic conflict', async () => {
+  for (const outcome of [
+    { state: 'pending' },
+    { state: 'cancelled' },
+    { state: 'skipped' },
+    { state: 'unknown' },
+    { state: 'failed', status: 'pending' },
+    { state: 'failed', check_status: 'pending' },
+  ]) {
+    const f = await fixture(specs().filter((spec) => ['a', 'b'].includes(spec.name)));
+    f.adapter.validationOverride = ({ files, result }) => {
+      const pair = JSON.parse(files['client.json']).retryFailedResponse &&
+        !JSON.parse(files['server.json']).deduplicateConfirmations;
+      return pair ? {
+        passed: false, state: outcome.state,
+        ...(outcome.status ? { status: outcome.status } : {}),
+        checks: [{
+          name: 'Lost-response scenario is not completed',
+          passed: false,
+          state: outcome.state,
+          ...(outcome.check_status ? { status: outcome.check_status } : {}),
+        }],
+      } : result;
+    };
+    await f.analyze();
+    const view = await f.graph.view();
+    assert.equal(view.decisionGroups.length, 0);
+    assert.deepEqual(sorted(view.discovery.ungrouped_revision_ids), sorted([...f.revisions.values()].map((entry) => entry.id)));
+    assert.equal(view.relationships.some((entry) => entry.basis === 'observed' &&
+      ['conflicts_with', 'compatible_candidate'].includes(entry.type)), false);
+    assert.ok(view.discovery.diagnostics.some((entry) => entry.code === 'COMPOSITION_OUTCOME_UNKNOWN'));
+    assert.equal(f.calls.cas.length, 0);
+  }
+});
+
+test('a pending rerun retains a stale proven interaction until completed same-base evidence supersedes it', async () => {
+  const f = await fixture(specs().filter((spec) => ['a', 'b'].includes(spec.name)));
+  await f.analyze();
+  const original = await groupFor(f, ['a', 'b']);
+  const originalReview = await f.graph.review(original.id);
+  const proof = originalReview.relationships.find((entry) => entry.type === 'conflicts_with' && entry.basis === 'observed');
+  assert.ok(proof);
+  const immutableHistory = structuredClone(proof);
+  f.adapter.configHash = 'native-discovery-fixture-v1';
+  f.adapter.validationOverride = ({ files, result }) => {
+    const pair = JSON.parse(files['client.json']).retryFailedResponse &&
+      !JSON.parse(files['server.json']).deduplicateConfirmations;
+    return pair ? {
+      passed: false, state: 'pending',
+      checks: [{ name: 'New composed run has not completed', passed: false, state: 'pending' }],
+    } : result;
+  };
+  await f.analyze({ request_id: 'reanalyse-with-pending-result' });
+  const retained = await groupFor(f, ['a', 'b']);
+  assert.equal(retained.id, original.id);
+  assert.equal(retained.status, 'open');
+  assert.equal(retained.stale, true);
+  const review = await f.graph.review(retained.id);
+  assert.ok(review.relationships.some((entry) => entry.id === proof.id));
+  assert.deepEqual(f.state.nativeRelationships.find((entry) => entry.id === proof.id), immutableHistory);
+  assert.ok(review.stale_reasons.some((reason) => /stale|repeat analysis/i.test(reason)));
+  assert.ok(review.evidence.some((entry) => proof.evidence_refs.includes(entry.id) &&
+    entry.validity.status === 'stale'));
+  assert.equal(review.relationships.some((entry) => entry.type === 'compatible_candidate' &&
+    equalIds([entry.from_revision, entry.to_revision], original.revision_ids)), false);
+  assert.equal(f.state.operations.length, 0);
+  assert.equal(f.calls.cas.length, 0);
+});
+
 test('indexing avoids global comparisons for unrelated repository paths and objectives', async () => {
   const input = Array.from({ length: 24 }, (_, index) => ({
     name: 'independent-' + index,
     objective: 'objective-' + index,
-    files: { ['isolated/' + index + '.txt']: 'Independent material ' + index },
+    files: { ['isolated-' + index + '/entry.txt']: 'Independent material ' + index },
   }));
   const f = await fixture(input);
   await f.analyze();
   const view = await f.graph.view();
   assert.equal(view.decisionGroups.length, 0);
   assert.equal(view.discovery.ungrouped_revision_ids.length, 24);
-  assert.ok(view.discovery.comparisons < view.discovery.possible_comparisons);
+  assert.equal(view.discovery.comparisons, 0);
   assert.ok(view.discovery.comparisons_avoided > 0);
+  assert.equal(view.discovery.diagnostics.some((entry) => /budget/i.test(entry.code)), false);
   assert.equal(f.calls.cas.length, 0);
 });
 
@@ -530,6 +601,49 @@ test('native discovery recovery settles only its linked applied promotion withou
   assert.equal(f.calls.cas.length, 1);
 });
 
+test('a later unrelated direct promotion cannot establish an interrupted discovery resolution outcome', async () => {
+  const f = await fixture();
+  await f.analyze();
+  const group = await groupFor(f, ['e', 'f']);
+  const selected = await candidateFor(f, ['e']);
+  const unrelated = await candidateFor(f, ['c']);
+  const selectedReview = await f.engine.pipeline.review(selected.id);
+  const input = await resolutionInput(f, group, [
+    { future_revision_id: f.revisions.get('e').id, outcome: 'accept' },
+    { future_revision_id: f.revisions.get('f').id, outcome: 'defer' },
+  ], {
+    request_id: 'same-public-promotion-identity',
+    candidate_id: selected.id,
+    candidate_basis_hash: selectedReview.decision_basis_hash,
+  });
+  const promote = f.engine.pipeline.promote.bind(f.engine.pipeline);
+  f.engine.pipeline.promote = async () => {
+    throw new Error('Interrupted before preparing a canonical operation');
+  };
+  await assert.rejects(() => f.run(() => f.graph.resolve(group.id, input, actor)));
+  assert.equal(f.state.operations.length, 0);
+  f.engine.pipeline.promote = promote;
+  const unrelatedReview = await f.engine.pipeline.review(unrelated.id);
+  assert.equal(unrelatedReview.validation_passing, true);
+  try {
+    await f.run(() => f.engine.pipeline.promote(unrelated.id, {
+      request_id: input.request_id,
+      decision_basis_hash: unrelatedReview.decision_basis_hash,
+      expected_heads: unrelatedReview.expected_heads,
+      rationale: 'A separate direct request to promote tracing.',
+    }, actor));
+  } catch (error) {
+    // A reserved identity may reject the direct request before any write.
+    assert.ok(error instanceof DomainError);
+    assert.ok(['IDEMPOTENCY_CONFLICT', 'RECOVERY_REQUIRED'].includes(error.code));
+  }
+  await f.run(() => f.graph.reconcile());
+  assert.equal(f.state.nativeGroupDispositions.length, 0);
+  assert.notEqual((await f.graph.review(group.id)).group.status, 'resolved');
+  assert.ok(f.state.operations.every((operation) => operation.candidate_id !== selected.id));
+  assert.ok(f.calls.cas.length <= 1);
+});
+
 async function actualGitFixture(t) {
   const root = await mkdtemp(path.join(os.tmpdir(), 'klocgit-native-discovery-'));
   t.after(() => rm(root, { recursive: true, force: true }));
@@ -561,7 +675,9 @@ async function actualGitFixture(t) {
     files['app.mjs'] += '\n';
     return finiteValidation(files);
   };
-  const engine = new Engine({ ...emptyState(), repositories }, adapter);
+  const state = { ...emptyState(), repositories };
+  state.workspace.owner_id = actor;
+  const engine = new Engine(state, adapter);
   const { system } = await engine.serial(() => engine.native.createSystem({
     name: 'Checkout', repository_ids: ['app', 'policy'], request_id: 'checkout-system',
   }, actor));

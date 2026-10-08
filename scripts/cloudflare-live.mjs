@@ -9,7 +9,8 @@ import { fileURLToPath } from 'node:url';
 import assert from 'node:assert/strict';
 import { EnvHttpProxyAgent, setGlobalDispatcher } from 'undici';
 
-if (process.env.HTTP_PROXY || process.env.HTTPS_PROXY) setGlobalDispatcher(new EnvHttpProxyAgent());
+const invoked = Boolean(process.argv[1]) && fileURLToPath(import.meta.url) === path.resolve(process.argv[1]);
+if (invoked && (process.env.HTTP_PROXY || process.env.HTTPS_PROXY)) setGlobalDispatcher(new EnvHttpProxyAgent());
 const exec = promisify(execFile),
   root = fileURLToPath(new URL('../', import.meta.url));
 const mode = process.argv[2] ?? 'preflight';
@@ -21,7 +22,8 @@ const report = {
   version: 0,
   mode,
   started_at: new Date().toISOString(),
-  live: true,
+  live: false,
+  live_verified: false,
   checks: [],
   resources: [],
 };
@@ -69,6 +71,7 @@ async function manifest() {
   const filename = process.argv[3];
   if (!filename) throw new Error('A non-secret deployment manifest path is required.');
   const m = JSON.parse(await readFile(filename, 'utf8'));
+  validateLiveManifest(m, mode);
   if (!Array.isArray(m.repositories) || m.repositories.length < 2)
     throw new Error('Manifest must name at least two repositories.');
   for (const r of m.repositories) {
@@ -193,6 +196,7 @@ async function api(m, route, body) {
 async function workspace(m) {
   const result = await api(m, '/api/workspace');
   assert.equal(result.status, 200, 'Authenticated live workspace read failed');
+  report.live = true;
   return result.data;
 }
 async function git(repo, cwd, args) {
@@ -409,21 +413,356 @@ async function recovery(m) {
   });
 }
 
-try {
-  if (mode === 'preflight') {
-    if (!(await readiness())) process.exitCode = 2;
-  } else if (mode === 'provision-events') await provisionEvents(await manifest());
-  else if (mode === 'verify') await verify(await manifest());
-  else throw new Error('Use preflight, provision-events, or verify.');
-  report.status = process.exitCode ? 'blocked' : 'passed';
-} catch (e) {
-  report.status = 'blocked';
-  report.failure = e.message;
-  emit({ name: mode, passed: false, reason: e.message });
-  process.exitCode = 2;
-} finally {
-  report.completed_at = new Date().toISOString();
-  await mkdir(path.dirname(reportPath), { recursive: true });
-  await writeFile(reportPath, JSON.stringify(report, null, 2) + '\n', { mode: 0o600 });
-  console.log(JSON.stringify({ report: reportPath, status: report.status }));
+export const NATIVE_LIVE_CHECKS = [
+  'native-future-git-push-ingested',
+  'reviewed-evidence-basis-rejected',
+  'external-git-push-invalidates-evidence',
+  'native-concurrent-promotion',
+  'native-lost-reply-cold-cache-recovery',
+  'ordinary-native-artifacts-git-integrity',
+];
+
+/** A control-plane success or a partial run is never full live acceptance. */
+export function liveAcceptancePassed(value, requiredChecks = NATIVE_LIVE_CHECKS) {
+  return value.mode === 'check' && value.live === true && value.status === 'passed' &&
+    requiredChecks.every((name) => value.checks.some((check) => check.name === name && check.passed === true));
+}
+
+export function validateLiveManifest(m, operation, env = process.env) {
+  const account = m.account_id ?? env.CLOUDFLARE_ACCOUNT_ID;
+  if (!/^[a-f0-9]{32}$/i.test(account ?? '')) throw new Error('INVALID_ACCOUNT_ID');
+  if (!/^[A-Za-z0-9][A-Za-z0-9._-]{0,99}$/.test(m.namespace ?? ''))
+    throw new Error('INVALID_ARTIFACTS_NAMESPACE');
+  if (!Array.isArray(m.repositories) || m.repositories.length < 2 ||
+      new Set(m.repositories.map((repo) => repo.name)).size !== m.repositories.length)
+    throw new Error('LIVE_TWO_UNIQUE_REPOSITORIES_REQUIRED');
+  for (const repo of m.repositories) {
+    if (!/^[A-Za-z0-9][A-Za-z0-9._-]{0,99}$/.test(repo.name ?? ''))
+      throw new Error('INVALID_REPOSITORY_NAME');
+    if (repo.remote) {
+      const remote = new URL(repo.remote);
+      if (remote.protocol !== 'https:' || remote.username || remote.password || remote.search ||
+          remote.hash || remote.port || remote.hostname !== account + '.artifacts.cloudflare.net' ||
+          remote.pathname !== '/git/' + m.namespace + '/' + repo.name + '.git')
+        throw new Error('INVALID_ARTIFACTS_REMOTE');
+    }
+    if (repo.tokenEnv && !/^[A-Z][A-Z0-9_]*$/.test(repo.tokenEnv))
+      throw new Error('INVALID_CREDENTIAL_VARIABLE_NAME');
+  }
+  for (const value of [m.url, m.executorControlUrl].filter(Boolean)) {
+    const url = new URL(value);
+    if (url.protocol !== 'https:' || url.username || url.password || url.search || url.hash)
+      throw new Error('INVALID_WORKER_URL');
+  }
+  if (['check', 'verify'].includes(operation) && (m.allowCanonicalMutation !== true ||
+      m.repositories.some((repo) => repo.disposable !== true)))
+    throw new Error('LIVE_DISPOSABLE_FIXTURES_REQUIRED');
+  if (operation === 'check' && (!m.url || !m.executorControlUrl || !m.queue))
+    throw new Error('LIVE_NATIVE_CONFIGURATION_REQUIRED');
+  for (const name of [m.ownerTokenEnv, m.testTokenEnv].filter(Boolean))
+    if (!/^[A-Z][A-Z0-9_]*$/.test(name)) throw new Error('INVALID_CREDENTIAL_VARIABLE_NAME');
+  return m;
+}
+
+export function nativePromotionInput(review, requestId) {
+  if (!review?.validation_passing || !review.sources_current || !review.heads_current ||
+      !review.promotion_supported || typeof review.decision_basis_hash !== 'string')
+    throw new Error('LIVE_CANDIDATE_NOT_PROMOTABLE');
+  return {
+    request_id: requestId,
+    decision_basis_hash: review.decision_basis_hash,
+    expected_heads: structuredClone(review.expected_heads),
+    rationale: 'Live acceptance: apply the exact currently validated candidate.',
+  };
+}
+
+async function nativeState(m) {
+  const result = await api(m, '/api/native-state');
+  assert.equal(result.status, 200, 'Authenticated native state read failed');
+  report.live = true;
+  return result.data;
+}
+
+async function success(m, route, body) {
+  const result = await api(m, route, body);
+  if (result.status < 200 || result.status >= 300)
+    throw new Error('LIVE_API_FAILED:' + route.split('/')[2] + ':' + result.status + ':' +
+      (typeof result.data.error === 'string' && /^[A-Z_]{1,80}$/.test(result.data.error) ? result.data.error : 'unknown'));
+  return result.data;
+}
+
+async function nativeCheck(m) {
+  validateLiveManifest(m, 'check');
+  required('CLOUDFLARE_API_TOKEN');
+  required(m.ownerTokenEnv ?? 'AUTH_TOKEN');
+  required(m.testTokenEnv ?? 'LIVE_TEST_TOKEN');
+  const runId = 'live-' + Date.now();
+  const requestId = (step) => runId + '-' + step;
+  const tokens = [], clones = [];
+  const namespace = '/artifacts/namespaces/' + encodeURIComponent(m.namespace);
+  const initial = await nativeState(m);
+  if (initial.promotions.some((entry) => ['prepared', 'recovery-required'].includes(entry.status)))
+    throw new Error('LIVE_WORKSPACE_RECOVERY_REQUIRED');
+  const repositories = m.repositories.map((entry) => {
+    const actual = initial.repositories.find((repo) => repo.id === entry.name && repo.status === 'ready');
+    if (!actual || actual.remote !== entry.remote || !actual.head)
+      throw new Error('LIVE_REPOSITORY_NOT_READY:' + entry.name);
+    required(entry.tokenEnv);
+    return { ...entry, ref: actual.canonical_ref };
+  });
+  const primary = repositories.find((repo) => repo.name === m.test_repo) ?? repositories[0];
+  const queue = (await cf(m, '/queues?per_page=100')).find((entry) => entry.queue_name === m.queue);
+  if (!queue) throw new Error('LIVE_QUEUE_NOT_FOUND');
+  const system = (await success(m, '/api/systems', {
+    name: runId, repository_ids: repositories.map((repo) => repo.name), request_id: requestId('system'),
+  })).system;
+  const objective = (await success(m, '/api/objectives', {
+    system_id: system.id, statement: 'Verify native concurrent Git and exact reviewed canonical advancement.',
+    request_id: requestId('objective'),
+  })).objective;
+  report.resources.push({ type: 'native-system', id: system.id }, { type: 'native-objective', id: objective.id });
+
+  const control = async (route, body) => {
+    const response = await fetch(new URL(route, m.executorControlUrl), {
+      method: body === undefined ? 'GET' : 'POST',
+      headers: { Authorization: 'Bearer ' + required(m.testTokenEnv ?? 'LIVE_TEST_TOKEN'),
+        'Content-Type': 'application/json' },
+      body: body === undefined ? undefined : JSON.stringify(body),
+      signal: AbortSignal.timeout(30000),
+    });
+    assert.equal(response.status, 200, 'Separate live test control failed');
+    return response.json();
+  };
+
+  async function subscribe(repoId) {
+    const subscriptions = await cf(m, '/event_subscriptions/subscriptions?queue_id=' + queue.queue_id + '&per_page=100');
+    const existing = subscriptions.find((entry) => entry.enabled &&
+      entry.source?.type === 'artifacts.repo' && entry.source.namespace === m.namespace &&
+      entry.source.repo_name === repoId && entry.events?.includes('cf.artifacts.repo.pushed'));
+    if (existing) return;
+    const created = await cf(m, '/event_subscriptions/subscriptions', 'POST', {
+      name: (runId + ':' + repoId).slice(0, 100), enabled: true,
+      source: { type: 'artifacts.repo', namespace: m.namespace, repo_name: repoId },
+      destination: { type: 'queues.queue', queue_id: queue.queue_id },
+      events: ['cf.artifacts.repo.pushed'],
+    });
+    report.resources.push({ type: 'fixture-native-push-subscription', repo: repoId, id: created.id });
+  }
+
+  async function producerToken(repository) {
+    const token = await cf(m, namespace + '/tokens', 'POST', {
+      repo: repository.repo_id, scope: 'write', ttl: 900,
+    });
+    tokens.push(token);
+    const expiry = Date.parse(token.expires_at);
+    if (token.scope !== 'write' || typeof token.plaintext !== 'string' || !token.plaintext ||
+        /[\r\n\0]/.test(token.plaintext) || !Number.isFinite(expiry) ||
+        expiry <= Date.now() || expiry > Date.now() + 930000)
+      throw new Error('LIVE_PRODUCER_CREDENTIAL_INVALID');
+    return { remote: repository.remote, token: token.plaintext };
+  }
+
+  async function producerGit(repository, cwd, args) {
+    const credential = repository.token ?? required(repository.tokenEnv);
+    const transport = Object.fromEntries([
+      'HTTP_PROXY', 'HTTPS_PROXY', 'ALL_PROXY', 'NO_PROXY', 'http_proxy', 'https_proxy',
+      'all_proxy', 'no_proxy', 'SSL_CERT_FILE', 'GIT_SSL_CAINFO',
+    ].filter((name) => process.env[name]).map((name) => [name, process.env[name]]));
+    const env = {
+      ...transport, PATH: process.env.PATH ?? '/usr/bin:/bin', LANG: 'C.UTF-8',
+      GIT_TERMINAL_PROMPT: '0', GIT_CONFIG_NOSYSTEM: '1', GIT_CONFIG_GLOBAL: '/dev/null',
+      GIT_CONFIG_COUNT: '1', GIT_CONFIG_KEY_0: 'http.extraHeader',
+      GIT_CONFIG_VALUE_0: 'Authorization: Bearer ' + credential,
+      GIT_AUTHOR_NAME: 'Live acceptance', GIT_AUTHOR_EMAIL: 'live-acceptance@klocgit.invalid',
+      GIT_COMMITTER_NAME: 'Live acceptance', GIT_COMMITTER_EMAIL: 'live-acceptance@klocgit.invalid',
+    };
+    return (await command('git', ['-c', 'core.hooksPath=/dev/null', '-c', 'init.templateDir=',
+      '-c', 'protocol.ext.allow=never', '-c', 'commit.gpgSign=false', ...args], { cwd, env })).stdout.trim();
+  }
+
+  async function nativeWork(label) {
+    const created = await success(m, '/api/futures', {
+      objective_id: objective.id, name: runId + '-' + label,
+      producer: { kind: 'unknown' }, request_id: requestId('future-' + label),
+    });
+    const futureId = created.future.id;
+    report.resources.push({ type: 'native-future', id: futureId });
+    let current = created.future;
+    if (current.status === 'preparing') {
+      current = await poll(async () => {
+        const read = await success(m, '/api/futures/' + futureId);
+        const result = await api(m, '/api/futures/' + futureId + '/observe', {
+          expected_version: read.future.version, request_id: requestId('ready-' + label + '-' + Date.now()),
+        });
+        if (result.status === 409 && result.data.error === 'FUTURE_NOT_READY') return false;
+        if (result.status !== 200) throw new Error('LIVE_FUTURE_READINESS_FAILED:' + result.status);
+        return result.data.future.status === 'active' ? result.data.future : false;
+      }, 120000);
+    }
+    assert.equal(current.status, 'active');
+    assert.equal(current.provenance_state, 'unknown');
+    for (const repository of current.repositories) await subscribe(repository.repo_id);
+    const fork = current.repositories.find((repo) => repo.canonical_repo_id === primary.name);
+    assert.ok(fork?.remote, 'Native Future must expose an ordinary scoped Git remote');
+    const producer = await producerToken(fork);
+    const directory = await mkdtemp(path.join(os.tmpdir(), 'klocgit-native-live-'));
+    clones.push(directory);
+    await producerGit(producer, root, ['clone', '--quiet', producer.remote, directory]);
+    await producerGit(producer, directory, ['checkout', '--quiet', primary.ref.slice(11)]);
+    const filename = 'LIVE_ACCEPTANCE_' + runId + '_' + label + '.md';
+    await writeFile(path.join(directory, filename), 'Native producer acceptance ' + runId + ' ' + label + '\n');
+    await producerGit(producer, directory, ['add', filename]);
+    await producerGit(producer, directory, ['commit', '--quiet', '-m', 'Ordinary Git producer without provenance']);
+    const head = await producerGit(producer, directory, ['rev-parse', 'HEAD']);
+    await producerGit(producer, directory, ['push', '--quiet', 'origin', 'HEAD:' + fork.ref]);
+    // No explicit observe, owner ingress or synthetic event follows this push.
+    const observed = await poll(async () => {
+      const state = await nativeState(m);
+      const revision = state.futureRevisions.find((entry) => entry.future_id === futureId &&
+        entry.repository_heads.some((repo) => repo.source_repo_id === fork.repo_id && repo.commit === head));
+      return revision ? { state, revision } : false;
+    }, 120000);
+    const selected = await success(m, '/api/selections', {
+      future_revision_id: observed.revision.id, kind: 'future', request_id: requestId('selection-' + label),
+    });
+    assert.equal(observed.revision.provenance_state, 'unknown');
+    return { futureId, revision: observed.revision, selectionId: selected.selection.id, producer, directory, head };
+  }
+
+  async function candidate(selectionId, label) {
+    const created = await success(m, '/api/candidates', {
+      selection_ids: [selectionId], request_id: requestId('candidate-' + label),
+    });
+    const id = created.candidate.id;
+    const validation = await success(m, '/api/candidates/' + id + '/validate', {
+      request_id: requestId('validate-' + label),
+    });
+    assert.ok(validation.evidence.length, 'Trusted exact-tree evidence is required');
+    const review = await success(m, '/api/candidates/' + id + '/review');
+    nativePromotionInput(review, requestId('review-' + label));
+    return { id, review };
+  }
+
+  const canonicalHead = async (directory) =>
+    (await producerGit(primary, directory, ['ls-remote', primary.remote, primary.ref])).split(/\s/)[0];
+
+  try {
+    // Fail before touching canonical refs unless the separate, explicitly enabled fault gate exists.
+    await control('/control/status');
+    const work = await nativeWork('first');
+    emit({ name: NATIVE_LIVE_CHECKS[0], passed: true, future_id: work.futureId,
+      revision_id: work.revision.id, head: work.head, provenance: 'unknown',
+      note: 'Actual Artifacts Git push → native push subscription → Queue → Worker → durable Future revision. No POST /events or post-push observe.' });
+    const first = await candidate(work.selectionId, 'first');
+    const reviewed = nativePromotionInput(first.review, requestId('old-evidence'));
+    const originalHead = await canonicalHead(work.directory);
+    await success(m, '/api/candidates/' + first.id + '/validate', { request_id: requestId('new-evidence') });
+    const newReview = await success(m, '/api/candidates/' + first.id + '/review');
+    assert.equal(await canonicalHead(work.directory), originalHead);
+    assert.notEqual(newReview.decision_basis_hash, first.review.decision_basis_hash);
+    const oldEvidence = await api(m, '/api/candidates/' + first.id + '/promote', reviewed);
+    assert.equal(oldEvidence.status, 409);
+    assert.equal(oldEvidence.data.error, 'DECISION_STALE');
+    assert.equal(await canonicalHead(work.directory), originalHead);
+    emit({ name: NATIVE_LIVE_CHECKS[1], passed: true, canonical_head: originalHead,
+      response: oldEvidence.status, note: 'New exact-tree evidence changes reviewed basis while Git head stays identical.' });
+
+    await producerGit(primary, work.directory, ['fetch', '--quiet', primary.remote, primary.ref]);
+    await producerGit(primary, work.directory, ['checkout', '--quiet', '--detach', newReview.expected_heads[primary.name]]);
+    await producerGit(primary, work.directory, ['commit', '--quiet', '--allow-empty', '-m', 'External canonical Git client']);
+    const external = await producerGit(primary, work.directory, ['rev-parse', 'HEAD']);
+    await producerGit(primary, work.directory, ['push', '--quiet',
+      '--force-with-lease=' + primary.ref + ':' + newReview.expected_heads[primary.name],
+      primary.remote, 'HEAD:' + primary.ref]);
+    const stale = await api(m, '/api/candidates/' + first.id + '/promote',
+      nativePromotionInput(newReview, requestId('external-stale')));
+    assert.equal(stale.status, 409);
+    assert.equal(stale.data.error, 'DECISION_STALE');
+    assert.equal(await canonicalHead(work.directory), external);
+    const staleReview = await success(m, '/api/candidates/' + first.id + '/review');
+    assert.equal(staleReview.heads_current, false);
+    assert.ok(staleReview.evidence.every((entry) => entry && entry.validity.status !== 'current'));
+    emit({ name: NATIVE_LIVE_CHECKS[2], passed: true, external_head: external,
+      stale_evidence_ids: staleReview.evidence.map((entry) => entry.id), response: stale.status });
+
+    const fresh = await candidate(work.selectionId, 'fresh');
+    const attempts = await Promise.all([
+      api(m, '/api/candidates/' + fresh.id + '/promote', nativePromotionInput(fresh.review, requestId('concurrent-a'))),
+      api(m, '/api/candidates/' + fresh.id + '/promote', nativePromotionInput(fresh.review, requestId('concurrent-b'))),
+    ]);
+    assert.equal(attempts.filter((entry) => entry.status >= 200 && entry.status < 300).length, 1);
+    assert.equal(attempts.filter((entry) => entry.status === 409).length, 1);
+    const state = await nativeState(m);
+    const applied = state.promotions.filter((entry) => entry.candidate_id === fresh.id && entry.status === 'applied');
+    assert.equal(applied.length, 1);
+    assert.equal(await canonicalHead(work.directory), applied[0].target_commit);
+    emit({ name: NATIVE_LIVE_CHECKS[3], passed: true, statuses: attempts.map((entry) => entry.status),
+      operation_id: applied[0].id, target: applied[0].target_commit });
+
+    const recoveryWork = await nativeWork('recovery');
+    const recoverable = await candidate(recoveryWork.selectionId, 'recoverable');
+    const expected = recoverable.review.expected_heads[primary.name];
+    await control('/control/arm', { kind: 'drop-cas-response-once', repo: primary.name, expected });
+    const lost = await api(m, '/api/candidates/' + recoverable.id + '/promote',
+      nativePromotionInput(recoverable.review, requestId('lost-reply')));
+    assert.ok(lost.status >= 500, 'Withheld real successful CAS must remain uncertain');
+    const receipt = (await control('/control/status')).receipt;
+    assert.equal(receipt.updated, true);
+    assert.equal(receipt.repo, primary.name);
+    assert.equal(receipt.expected, expected);
+    assert.equal(await canonicalHead(recoveryWork.directory), receipt.target);
+    await control('/control/restart', {});
+    await success(m, '/api/recover', {});
+    const recovered = (await nativeState(m)).promotions.find((entry) =>
+      entry.candidate_id === recoverable.id && entry.target_commit === receipt.target);
+    assert.equal(recovered?.status, 'applied');
+    // Re-running trusted validation forces the cold executor to fetch retained objects.
+    await success(m, '/api/candidates/' + recoverable.id + '/validate', {
+      request_id: requestId('cold-cache-validate'),
+    });
+    assert.equal(await canonicalHead(recoveryWork.directory), receipt.target);
+    emit({ name: NATIVE_LIVE_CHECKS[4], passed: true, operation_id: recovered.id,
+      target: receipt.target, note: 'Real remote CAS, deliberately lost acknowledgement, Container disk destruction, authoritative-ref recovery and trusted cold-cache validation. Coordinator process kill remains separately untested.' });
+
+    const final = await workspace(m);
+    assert.equal(final.metrics.staleEvidenceAccepted, 0);
+    await producerGit(primary, recoveryWork.directory, ['fetch', '--quiet', primary.remote, primary.ref]);
+    await producerGit(primary, recoveryWork.directory, ['fsck', '--full']);
+    emit({ name: NATIVE_LIVE_CHECKS[5], passed: true, staleEvidenceAccepted: 0,
+      canonical_head: await canonicalHead(recoveryWork.directory) });
+  } finally {
+    for (const token of tokens) {
+      try { await cf(m, namespace + '/tokens/' + encodeURIComponent(token.id), 'DELETE'); } catch {}
+    }
+    for (const directory of clones) await rm(directory, { recursive: true, force: true });
+  }
+}
+
+if (invoked) {
+  try {
+    if (mode === 'preflight') {
+      if (!(await readiness())) process.exitCode = 2;
+    } else if (mode === 'provision-events') await provisionEvents(await manifest());
+    else if (mode === 'verify') await verify(await manifest());
+    else if (mode === 'check') await nativeCheck(await manifest());
+    else throw new Error('Use preflight, provision-events, verify, or check.');
+    report.status = process.exitCode ? 'blocked' : 'passed';
+  } catch (error) {
+    report.status = 'blocked';
+    report.failure = error.message;
+    emit({ name: mode, passed: false, reason: error.message });
+    process.exitCode = 2;
+  } finally {
+    report.live_verified = liveAcceptancePassed(report);
+    report.completed_at = new Date().toISOString();
+    report.limitations = [
+      'Dry runs and resource provisioning do not establish live acceptance.',
+      'Fixture subscriptions are provisioned by this harness; automatic product subscription lifecycle is not established.',
+      'Coordinator process termination and cross-repository atomic promotion are not tested.',
+      'Passing checks establish their stated code and environment scope only.',
+    ];
+    await mkdir(path.dirname(reportPath), { recursive: true });
+    await writeFile(reportPath, JSON.stringify(report, null, 2) + '\n', { mode: 0o600 });
+    console.log(JSON.stringify({ report: reportPath, status: report.status, live_verified: report.live_verified }));
+  }
 }

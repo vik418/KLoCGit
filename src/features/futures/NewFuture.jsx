@@ -22,7 +22,7 @@ export function NewFuture({
   message,
 }) {
   const initialObjectiveId =
-    typeof initialObjective === 'string' ? initialObjective : initialObjective?.id ?? '';
+    typeof initialObjective === 'string' ? initialObjective : (initialObjective?.id ?? '');
   const [objectiveId, setObjectiveId] = useState(initialObjectiveId);
   const objective = nativeState.objectives.find((item) => item.id === objectiveId);
   const systemId = objective?.system_id ?? initialSystemId;
@@ -34,7 +34,9 @@ export function NewFuture({
     initialRepositoryId
       ? [initialRepositoryId]
       : (system?.repository_ids ?? []).filter((id) =>
-          eligibleRepositories.some((repository) => repository.id === id && repositoryReady(repository)),
+          eligibleRepositories.some(
+            (repository) => repository.id === id && repositoryReady(repository),
+          ),
         ),
   );
   const [statement, setStatement] = useState('');
@@ -43,7 +45,9 @@ export function NewFuture({
   const selectedReady =
     repositoryIds.length > 0 &&
     repositoryIds.every((id) =>
-      eligibleRepositories.some((repository) => repository.id === id && repositoryReady(repository)),
+      eligibleRepositories.some(
+        (repository) => repository.id === id && repositoryReady(repository),
+      ),
     );
   const objectiveReady = !objectiveId || objective?.status === 'open';
   const contextReady = !contextSnapshotId || (objective && objectiveId === initialObjectiveId);
@@ -59,9 +63,12 @@ export function NewFuture({
     );
     const allowedIds = selectedSystem?.repository_ids;
     setRepositoryIds((selected) =>
-      selected.filter((repoId) =>
-        (!allowedIds || allowedIds.includes(repoId)) &&
-        nativeState.repositories.some((repository) => repository.id === repoId && repositoryReady(repository)),
+      selected.filter(
+        (repoId) =>
+          (!allowedIds || allowedIds.includes(repoId)) &&
+          nativeState.repositories.some(
+            (repository) => repository.id === repoId && repositoryReady(repository),
+          ),
       ),
     );
   }
@@ -111,13 +118,17 @@ export function NewFuture({
               />
               <span className="min-w-0 break-all">
                 {repository.id}
-                {!ready && <small>{repository.status} · refresh its Git state before forking</small>}
+                {!ready && (
+                  <small>{repository.status} · refresh its Git state before forking</small>
+                )}
               </span>
             </label>
           );
         })}
         {!eligibleRepositories.length && (
-          <p className="text-sm text-muted-foreground">No repositories are available for this work.</p>
+          <p className="text-sm text-muted-foreground">
+            No repositories are available for this work.
+          </p>
         )}
       </fieldset>
       {availableObjectives.length > 0 && (
@@ -165,14 +176,17 @@ export function NewFuture({
         </p>
       )}
       <details className="mt-4">
-        <summary className="cursor-pointer text-sm text-muted-foreground">Name this work (optional)</summary>
+        <summary className="cursor-pointer text-sm text-muted-foreground">
+          Name this work (optional)
+        </summary>
         <label className="field">
           Name
           <Input value={name} onChange={(event) => setName(event.target.value)} maxLength={100} />
         </label>
       </details>
       <p className="mt-4 text-xs leading-6 text-muted-foreground">
-        Use any Git client in the isolated repositories. A future records exact versions as work arrives.
+        Use any Git client in the isolated repositories. A future records exact versions as work
+        arrives.
       </p>
     </NativeFormDialog>
   );

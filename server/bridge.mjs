@@ -92,15 +92,17 @@ export async function createBridge({ manifest, token = process.env.GIT_BRIDGE_TO
       if (input.configHash !== adapter.configHash)
         throw new DomainError('CONFIG_STALE', 'Executor validation configuration changed', 409);
       const job = tail.then(async () => {
-        const repo = adapter.configured({
+        const operation = req.url.slice(1);
+        const execution = adapter.forRequest(operation, input);
+        const repo = execution.configured({
           id: input.repo,
           canonical_ref: input.ref ?? 'refs/heads/main',
           canonical_repo: input.canonical_repo,
           source_repo: input.source_repo,
         });
-        if (req.url === '/retain-observation') return adapter.retainObservation(repo, input.objects);
-        if (req.url === '/read-ref') return adapter.readRef(repo, input.ref);
-        if (req.url === '/list-refs') return adapter.listRefs(repo, { limit: input.limit, cursor: input.cursor });
+        if (req.url === '/retain-observation') return execution.retainObservation(repo, input.objects);
+        if (req.url === '/read-ref') return execution.readRef(repo, input.ref);
+        if (req.url === '/list-refs') return execution.listRefs(repo, { limit: input.limit, cursor: input.cursor });
         if (req.url === '/profile')
           return {
             validation_profile: repo.validation_profile ?? null,
@@ -117,6 +119,7 @@ export async function createBridge({ manifest, token = process.env.GIT_BRIDGE_TO
             '/suite',
             '/cas',
           ].includes(req.url) &&
+          !(repo.canonical_repo && repo.canonical_repo !== repo.id) &&
           ((input.validation_profile ?? null) !== (repo.validation_profile ?? null) ||
             (input.context_repo ?? null) !== (repo.context_repo ?? null))
         )
@@ -126,20 +129,20 @@ export async function createBridge({ manifest, token = process.env.GIT_BRIDGE_TO
             409,
           );
         if (req.url === '/compose-selections')
-          return adapter.composeSelections(repo, input.head, input.selections);
-        if (req.url === '/compose') return adapter.compose(repo, input.head, input.revisions);
+          return execution.composeSelections(repo, input.head, input.selections);
+        if (req.url === '/compose') return execution.compose(repo, input.head, input.revisions);
         if (req.url === '/revert')
-          return adapter.revert(repo, input.head, input.target, input.mainline);
+          return execution.revert(repo, input.head, input.target, input.mainline);
         if (req.url === '/is-ancestor')
-          return { isAncestor: await adapter.isAncestor(repo, input.ancestor, input.descendant) };
+          return { isAncestor: await execution.isAncestor(repo, input.ancestor, input.descendant) };
         if (req.url === '/merge-base')
-          return { base: await adapter.mergeBase(repo, input.head, input.canonical) };
+          return { base: await execution.mergeBase(repo, input.head, input.canonical) };
         if (req.url === '/validate' || req.url === '/suite')
-          return adapter.validate(repo, input.commit, input.constraints, input.validityHeads);
-        if (req.url === '/trailers') return adapter.trailers(repo, input.commit);
-        if (req.url === '/diff') return { diff: await adapter.diff(repo, input.base, input.head) };
+          return execution.validate(repo, input.commit, input.constraints, input.validityHeads);
+        if (req.url === '/trailers') return execution.trailers(repo, input.commit);
+        if (req.url === '/diff') return { diff: await execution.diff(repo, input.base, input.head) };
         if (req.url === '/cas')
-          return { updated: await adapter.cas(repo, input.expected, input.commit) };
+          return { updated: await execution.cas(repo, input.expected, input.commit) };
         throw new DomainError('NOT_FOUND', 'Unknown executor operation', 404);
       });
       tail = job.catch(() => {});

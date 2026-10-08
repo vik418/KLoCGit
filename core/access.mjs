@@ -383,7 +383,10 @@ export class AccessControl {
         if (child && typeof child === 'object') collect(child);
       }
     };
-    if (typeof value.id === 'string' && this.repositoryIds().includes(value.id)) found.add(value.id);
+    if (typeof value.id === 'string') {
+      const canonical = this.canonicalRepository(value.id);
+      if (this.repositoryIds().includes(canonical)) found.add(canonical);
+    }
     collect(value);
     // A code record can pin context or evidence in another repository. Finding
     // its direct code scope must not stop authorization of those immutable inputs.

@@ -133,41 +133,66 @@ export class NativeState {
   }
   async readRef(repo, ref) {
     observationRef(ref);
-    const value = typeof this.engine.git.readRef === 'function'
-      ? await this.engine.git.readRef(repo, ref)
-      : await this.engine.git.ref(repo, ref).then((commit) => ({
-          ref, kind: ref.startsWith('refs/tags/') ? 'tag' : 'branch',
-          object_id: commit, object_type: 'commit', commit, available_for_future: true,
-        }));
-    if (!value || value.ref !== ref || !gitObjectId.test(value.object_id) ||
-        !['commit', 'tag', 'tree', 'blob'].includes(value.object_type) ||
-        (value.commit !== null && !gitObjectId.test(value.commit)) ||
-        value.available_for_future !== gitObjectId.test(value.commit))
+    const value =
+      typeof this.engine.git.readRef === 'function'
+        ? await this.engine.git.readRef(repo, ref)
+        : await this.engine.git.ref(repo, ref).then((commit) => ({
+            ref,
+            kind: ref.startsWith('refs/tags/') ? 'tag' : 'branch',
+            object_id: commit,
+            object_type: 'commit',
+            commit,
+            available_for_future: true,
+          }));
+    if (
+      !value ||
+      value.ref !== ref ||
+      !gitObjectId.test(value.object_id) ||
+      !['commit', 'tag', 'tree', 'blob'].includes(value.object_type) ||
+      (value.commit !== null && !gitObjectId.test(value.commit)) ||
+      value.available_for_future !== gitObjectId.test(value.commit)
+    )
       throw new DomainError('INVALID_GIT_FACTS', 'Git returned invalid ref facts', 503);
-    return { ref, kind: ref.startsWith('refs/tags/') ? 'tag' : 'branch',
-      object_id: value.object_id, object_type: value.object_type,
-      commit: value.commit, available_for_future: value.available_for_future };
+    return {
+      ref,
+      kind: ref.startsWith('refs/tags/') ? 'tag' : 'branch',
+      object_id: value.object_id,
+      object_type: value.object_type,
+      commit: value.commit,
+      available_for_future: value.available_for_future,
+    };
   }
 
   /** Expose ordinary refs without changing the repository's canonical branch. */
   async listRepositoryRefs(id, input = {}, actor) {
     actorIdentity(actor);
     const page = refPage(input);
-    const isolated = this.state.futures.flatMap((future) => future.repositories)
+    const isolated = this.state.futures
+      .flatMap((future) => future.repositories)
       .find((repo) => repo.repo_id === id);
     if (!isolated) this.getRepository(id);
-    const result = await this.provider('listRefs')({ id, ...(isolated ? { canonical_repo: isolated.canonical_repo_id } : {}) }, page);
-    if (!result || !Array.isArray(result.refs) || result.refs.length > page.limit ||
-        typeof result.has_more !== 'boolean' ||
-        (result.next_cursor !== null && typeof result.next_cursor !== 'string'))
+    const result = await this.provider('listRefs')(
+      { id, ...(isolated ? { canonical_repo: isolated.canonical_repo_id } : {}) },
+      page,
+    );
+    if (
+      !result ||
+      !Array.isArray(result.refs) ||
+      result.refs.length > page.limit ||
+      typeof result.has_more !== 'boolean' ||
+      (result.next_cursor !== null && typeof result.next_cursor !== 'string')
+    )
       throw new DomainError('INVALID_GIT_FACTS', 'Git returned an invalid ref page', 503);
     let previous = page.cursor;
     for (const entry of result.refs) {
       observationRef(entry.ref);
-      if (entry.ref <= previous || !gitObjectId.test(entry.object_id) ||
-          !['commit', 'tag', 'tree', 'blob', 'unknown'].includes(entry.object_type) ||
-          (entry.commit !== null && !gitObjectId.test(entry.commit)) ||
-          ![true, false, null].includes(entry.available_for_future))
+      if (
+        entry.ref <= previous ||
+        !gitObjectId.test(entry.object_id) ||
+        !['commit', 'tag', 'tree', 'blob', 'unknown'].includes(entry.object_type) ||
+        (entry.commit !== null && !gitObjectId.test(entry.commit)) ||
+        ![true, false, null].includes(entry.available_for_future)
+      )
         throw new DomainError('INVALID_GIT_FACTS', 'Git returned invalid ref metadata', 503);
       previous = entry.ref;
     }
@@ -181,12 +206,20 @@ export class NativeState {
     const previous = this.state.nativeRefObservations.find(
       (entry) => entry.id === this.state.nativeRefStates[key],
     );
-    const facts = { repo_id: repoId, ref, status: value ? value.available_for_future ? 'ready' : 'unsupported' : 'missing',
-      object_id: value?.object_id ?? null, object_type: value?.object_type ?? null,
-      commit: value?.commit ?? null, basis: 'observed' };
-    if (previous && await hash(previous.facts) === await hash(facts)) return previous;
+    const facts = {
+      repo_id: repoId,
+      ref,
+      status: value ? (value.available_for_future ? 'ready' : 'unsupported') : 'missing',
+      object_id: value?.object_id ?? null,
+      object_type: value?.object_type ?? null,
+      commit: value?.commit ?? null,
+      basis: 'observed',
+    };
+    if (previous && (await hash(previous.facts)) === (await hash(facts))) return previous;
     const observed = await record('ref_observation', {
-      facts, previous_observation_id: previous?.id ?? null, created_at: now(),
+      facts,
+      previous_observation_id: previous?.id ?? null,
+      created_at: now(),
     });
     this.state.nativeRefObservations.push(observed);
     this.state.nativeRefStates[key] = observed.id;
@@ -195,50 +228,94 @@ export class NativeState {
   }
 
   async retainRef(repo, value, actor, retry = false) {
-    const subject = { source_repo_id: repo.id, archive_repo_id: repo.canonical_repo ?? repo.id,
-      object_ids: [...new Set([value.object_id, value.commit].filter(Boolean))].sort() };
+    const subject = {
+      source_repo_id: repo.id,
+      archive_repo_id: repo.canonical_repo ?? repo.id,
+      object_ids: [...new Set([value.object_id, value.commit].filter(Boolean))].sort(),
+    };
     const key = await hash(subject);
-    const previous = this.state.nativeRetentions.filter((entry) => entry.subject_hash === key).at(-1);
+    const previous = this.state.nativeRetentions
+      .filter((entry) => entry.subject_hash === key)
+      .at(-1);
     if (previous && (previous.status === 'retained' || !retry)) return previous;
-    let status = 'pending', refs = [], reason = 'RETENTION_UNAVAILABLE';
+    let status = 'pending',
+      refs = [],
+      reason = 'RETENTION_UNAVAILABLE';
     if (typeof this.engine.git.retainObservation === 'function') {
       try {
         const result = await this.engine.git.retainObservation(repo, subject.object_ids);
-        if (result?.source_repo_id !== subject.source_repo_id || result?.archive_repo_id !== subject.archive_repo_id ||
-            !Array.isArray(result.objects) || result.objects.length !== subject.object_ids.length ||
-            result.objects.some((entry) => !subject.object_ids.includes(entry.object_id) ||
-              entry.ref !== 'refs/klocgit/observations/' + repo.id + '/' + entry.object_id) ||
-            new Set(result.objects.map((entry) => entry.object_id)).size !== subject.object_ids.length)
-          throw new DomainError('INVALID_RETENTION_RESULT', 'Archive object receipt differs from immutable inputs', 503);
+        if (
+          result?.source_repo_id !== subject.source_repo_id ||
+          result?.archive_repo_id !== subject.archive_repo_id ||
+          !Array.isArray(result.objects) ||
+          result.objects.length !== subject.object_ids.length ||
+          result.objects.some(
+            (entry) =>
+              !subject.object_ids.includes(entry.object_id) ||
+              entry.ref !== 'refs/klocgit/observations/' + repo.id + '/' + entry.object_id,
+          ) ||
+          new Set(result.objects.map((entry) => entry.object_id)).size !== subject.object_ids.length
+        )
+          throw new DomainError(
+            'INVALID_RETENTION_RESULT',
+            'Archive object receipt differs from immutable inputs',
+            503,
+          );
         status = 'retained';
         refs = result.objects;
         reason = null;
       } catch (error) {
         // A failed archive must not prevent ordinary Git ingestion or claim durable object retention.
-        reason = typeof error.code === 'string' && /^[A-Z_]{1,80}$/.test(error.code) ? error.code : 'RETENTION_UNAVAILABLE';
+        reason =
+          typeof error.code === 'string' && /^[A-Z_]{1,80}$/.test(error.code)
+            ? error.code
+            : 'RETENTION_UNAVAILABLE';
       }
     }
     if (previous?.status === status && previous.reason === reason) return previous;
-    const retention = await record('retention', { subject, subject_hash: key, status, refs, reason, created_at: now() });
+    const retention = await record('retention', {
+      subject,
+      subject_hash: key,
+      status,
+      refs,
+      reason,
+      created_at: now(),
+    });
     this.state.nativeRetentions.push(retention);
-    await this.event('repository.retention_observed', actor, { source_repo_id: repo.id, retention_id: retention.id, status, reason });
+    await this.event('repository.retention_observed', actor, {
+      source_repo_id: repo.id,
+      retention_id: retention.id,
+      status,
+      reason,
+    });
     return retention;
   }
 
   /** Retry archival of exact historical objects; this never advances a canonical branch. */
   async retainRevision(id, input, actor) {
-    return this.request('revision.retain', { revision_id: id, request_id: input.request_id }, actor, async () => {
-      const revision = this.revision(id);
-      const retentions = [];
-      for (const head of revision.repository_heads)
-        retentions.push(await this.retainRef({ id: head.source_repo_id, canonical_repo: head.repo_id },
-          { object_id: head.object_id ?? head.commit, commit: head.commit }, actor, true));
-      const future = this.future(revision.future_id);
-      if (future.current_revision_id === id)
-        for (let index = 0; index < future.repositories.length; index++)
-          future.repositories[index].retention_state = retentions[index].status;
-      return { revision_id: id, retentions };
-    });
+    return this.request(
+      'revision.retain',
+      { revision_id: id, request_id: input.request_id },
+      actor,
+      async () => {
+        const revision = this.revision(id);
+        const retentions = [];
+        for (const head of revision.repository_heads)
+          retentions.push(
+            await this.retainRef(
+              { id: head.source_repo_id, canonical_repo: head.repo_id },
+              { object_id: head.object_id ?? head.commit, commit: head.commit },
+              actor,
+              true,
+            ),
+          );
+        const future = this.future(revision.future_id);
+        if (future.current_revision_id === id)
+          for (let index = 0; index < future.repositories.length; index++)
+            future.repositories[index].retention_state = retentions[index].status;
+        return { revision_id: id, retentions };
+      },
+    );
   }
 
   async save() {
@@ -655,7 +732,14 @@ export class NativeState {
       name: bounded(input.name, 'Future name', 100, true),
       statement: bounded(input.statement, 'Objective', 2000, true),
       repository_ids: nameList(input.repository_ids, 'Repositories', true),
-      ...(input.context_snapshot_id === undefined ? {} : { context_snapshot_id: input.context_snapshot_id === null ? null : bounded(input.context_snapshot_id, 'Context snapshot', 200) }),
+      ...(input.context_snapshot_id === undefined
+        ? {}
+        : {
+            context_snapshot_id:
+              input.context_snapshot_id === null
+                ? null
+                : bounded(input.context_snapshot_id, 'Context snapshot', 200),
+          }),
       producer: {
         kind: bounded(producer.kind, 'Producer kind', 100),
         ...(producer.id === undefined
@@ -715,7 +799,10 @@ export class NativeState {
         });
       }
       const context = this.engine.objectiveContext
-        ? await this.engine.objectiveContext.bindFuture(objective, value.context_snapshot_id ?? null)
+        ? await this.engine.objectiveContext.bindFuture(
+            objective,
+            value.context_snapshot_id ?? null,
+          )
         : { context_snapshot: null, context_binding_state: 'unknown', context_assumption_refs: [] };
       if (!this.engine.objectiveContext && value.context_snapshot_id)
         throw new DomainError('CONTEXT_UNAVAILABLE', 'Objective context is unavailable', 503);
@@ -804,7 +891,11 @@ export class NativeState {
   async observeFuture(id, input, actor) {
     let refs;
     if (input.repository_refs !== undefined) {
-      if (!Array.isArray(input.repository_refs) || !input.repository_refs.length || input.repository_refs.length > 100)
+      if (
+        !Array.isArray(input.repository_refs) ||
+        !input.repository_refs.length ||
+        input.repository_refs.length > 100
+      )
         throw new DomainError('INVALID_NATIVE_INPUT', 'Choose 1 to 100 repository refs');
       refs = input.repository_refs.map((entry) => ({
         repo_id: bounded(entry?.repo_id, 'Isolated repository identity', 100),
@@ -814,15 +905,27 @@ export class NativeState {
         throw new DomainError('INVALID_NATIVE_INPUT', 'Choose one ref per isolated repository');
       refs.sort((a, b) => a.repo_id.localeCompare(b.repo_id));
     }
-    const value = { id, expected_version: input.expected_version, request_id: input.request_id,
+    const value = {
+      id,
+      expected_version: input.expected_version,
+      request_id: input.request_id,
       ...(refs ? { repository_refs: refs } : {}),
-      ...(input.context_snapshot_id === undefined ? {} : { context_snapshot_id: input.context_snapshot_id === null ? null : bounded(input.context_snapshot_id, 'Context snapshot', 200) }),
+      ...(input.context_snapshot_id === undefined
+        ? {}
+        : {
+            context_snapshot_id:
+              input.context_snapshot_id === null
+                ? null
+                : bounded(input.context_snapshot_id, 'Context snapshot', 200),
+          }),
     };
     return this.request('future.observe', value, actor, async () => {
       const future = this.future(id);
       if (value.expected_version !== future.version)
         throw new DomainError('FUTURE_STALE', 'The Future changed before observation', 409);
-      if (refs?.some((entry) => !future.repositories.some((repo) => repo.repo_id === entry.repo_id)))
+      if (
+        refs?.some((entry) => !future.repositories.some((repo) => repo.repo_id === entry.repo_id))
+      )
         throw new DomainError('INVALID_NATIVE_INPUT', 'Selected refs must belong to this Future');
       if (future.status === 'abandoned')
         throw new DomainError('FUTURE_ABANDONED', 'This Future is abandoned', 409);
@@ -844,31 +947,57 @@ export class NativeState {
           );
         }
         if (future.repositories.some((repository) => repository.status !== 'ready'))
-          throw new DomainError('FUTURE_NOT_READY', 'Isolated repositories are still being provisioned', 409);
+          throw new DomainError(
+            'FUTURE_NOT_READY',
+            'Isolated repositories are still being provisioned',
+            409,
+          );
       }
       let context = null;
       if (value.context_snapshot_id !== undefined) {
         if (!this.engine.objectiveContext && value.context_snapshot_id)
           throw new DomainError('CONTEXT_UNAVAILABLE', 'Objective context is unavailable', 503);
         context = this.engine.objectiveContext
-          ? await this.engine.objectiveContext.bindFuture(this.objective(future.objective_id), value.context_snapshot_id)
-          : { context_snapshot: null, context_binding_state: 'unknown', context_assumption_refs: [] };
+          ? await this.engine.objectiveContext.bindFuture(
+              this.objective(future.objective_id),
+              value.context_snapshot_id,
+            )
+          : {
+              context_snapshot: null,
+              context_binding_state: 'unknown',
+              context_assumption_refs: [],
+            };
       }
       const previous = future.current_revision_id;
       const revision = await this.observe(future, actor, refs, context);
-      return { future, revision, changed: previous !== revision?.id, unavailable: future.status === 'unavailable' };
+      return {
+        future,
+        revision,
+        changed: previous !== revision?.id,
+        unavailable: future.status === 'unavailable',
+      };
     });
   }
 
   async observe(future, actor, refs = [], context = null) {
     const selected = future.repositories.map((repository) => ({
-      ...repository, ref: refs?.find((entry) => entry.repo_id === repository.repo_id)?.ref ?? repository.ref,
+      ...repository,
+      ref: refs?.find((entry) => entry.repo_id === repository.repo_id)?.ref ?? repository.ref,
     }));
-    const repository_heads = [], tree_hashes = [], affected_scope = [], observed = [];
+    const repository_heads = [],
+      tree_hashes = [],
+      affected_scope = [],
+      observed = [];
     let unavailable = false;
     for (const repository of selected) {
-      const baseline = future.baseline_refs.find((entry) => entry.repo_id === repository.canonical_repo_id);
-      const descriptor = { id: repository.repo_id, canonical_repo: repository.canonical_repo_id, canonical_ref: repository.ref };
+      const baseline = future.baseline_refs.find(
+        (entry) => entry.repo_id === repository.canonical_repo_id,
+      );
+      const descriptor = {
+        id: repository.repo_id,
+        canonical_repo: repository.canonical_repo_id,
+        canonical_ref: repository.ref,
+      };
       let value;
       try {
         value = await this.readRef(descriptor, repository.ref);
@@ -884,30 +1013,52 @@ export class NativeState {
       }
       const facts = await this.engine.git.facts(descriptor, value.commit, baseline.commit);
       if (facts.head !== value.commit || !objectId.test(facts.tree) || !Array.isArray(facts.scope))
-        throw new DomainError('INVALID_GIT_FACTS', 'Git did not establish an immutable Future state', 503);
-      repository_heads.push({ repo_id: repository.canonical_repo_id, source_repo_id: repository.repo_id,
-        ref: repository.ref, commit: value.commit, object_id: value.object_id, object_type: value.object_type });
+        throw new DomainError(
+          'INVALID_GIT_FACTS',
+          'Git did not establish an immutable Future state',
+          503,
+        );
+      repository_heads.push({
+        repo_id: repository.canonical_repo_id,
+        source_repo_id: repository.repo_id,
+        ref: repository.ref,
+        commit: value.commit,
+        object_id: value.object_id,
+        object_type: value.object_type,
+      });
       tree_hashes.push({ repo_id: repository.canonical_repo_id, tree: facts.tree });
-      affected_scope.push({ repo_id: repository.canonical_repo_id, paths: [...new Set(facts.scope)].sort() });
+      affected_scope.push({
+        repo_id: repository.canonical_repo_id,
+        paths: [...new Set(facts.scope)].sort(),
+      });
       repository.status = 'ready';
     }
     // Both tag objects and peeled commits are pinned. Event time cannot establish freshness.
     for (const entry of observed) {
       let current;
       try {
-        current = await this.readRef({ id: entry.repository.repo_id, canonical_repo: entry.repository.canonical_repo_id }, entry.repository.ref);
+        current = await this.readRef(
+          { id: entry.repository.repo_id, canonical_repo: entry.repository.canonical_repo_id },
+          entry.repository.ref,
+        );
       } catch (error) {
         if (error.code !== 'REF_NOT_FOUND') throw error;
         current = null;
       }
-      if (await hash(current) !== await hash(entry.value))
+      if ((await hash(current)) !== (await hash(entry.value)))
         throw new DomainError('FUTURE_CHANGED', 'Future refs moved during observation', 409);
     }
     const previous = future.current_revision_id ? this.revision(future.current_revision_id) : null;
-    const changedRefs = selected.some((entry, index) => entry.ref !== future.repositories[index].ref);
-    for (const entry of observed) await this.rememberRef(entry.repository.repo_id, entry.repository.ref, entry.value, actor);
-    selected.forEach((entry, index) => Object.assign(future.repositories[index], { ref: entry.ref, status: entry.status }));
-    if (context) Object.assign(future, context, { context_snapshot_id: context.context_snapshot ?? null });
+    const changedRefs = selected.some(
+      (entry, index) => entry.ref !== future.repositories[index].ref,
+    );
+    for (const entry of observed)
+      await this.rememberRef(entry.repository.repo_id, entry.repository.ref, entry.value, actor);
+    selected.forEach((entry, index) =>
+      Object.assign(future.repositories[index], { ref: entry.ref, status: entry.status }),
+    );
+    if (context)
+      Object.assign(future, context, { context_snapshot_id: context.context_snapshot ?? null });
     if (unavailable) {
       if (future.status !== 'unavailable' || changedRefs) future.version++;
       future.status = 'unavailable';
@@ -919,34 +1070,57 @@ export class NativeState {
       context_binding_state: future.context_binding_state ?? 'unknown',
       context_assumption_refs: future.context_assumption_refs ?? [],
     };
-    if (previous && await hash(previous.repository_heads) === await hash(repository_heads) &&
-        (previous.context_snapshot ?? null) === contextFields.context_snapshot &&
-        await hash(previous.context_assumption_refs ?? []) === await hash(contextFields.context_assumption_refs)) {
-      if (future.status !== 'active') { future.status = 'active'; future.version++; }
+    if (
+      previous &&
+      (await hash(previous.repository_heads)) === (await hash(repository_heads)) &&
+      (previous.context_snapshot ?? null) === contextFields.context_snapshot &&
+      (await hash(previous.context_assumption_refs ?? [])) ===
+        (await hash(contextFields.context_assumption_refs))
+    ) {
+      if (future.status !== 'active') {
+        future.status = 'active';
+        future.version++;
+      }
       return previous;
     }
     const retentions = [];
     for (const entry of observed) {
-      const retention = await this.retainRef({ id: entry.repository.repo_id, canonical_repo: entry.repository.canonical_repo_id }, entry.value, actor);
+      const retention = await this.retainRef(
+        { id: entry.repository.repo_id, canonical_repo: entry.repository.canonical_repo_id },
+        entry.value,
+        actor,
+      );
       retentions.push(retention.id);
-      future.repositories.find((repo) => repo.repo_id === entry.repository.repo_id).retention_state = retention.status;
+      future.repositories.find(
+        (repo) => repo.repo_id === entry.repository.repo_id,
+      ).retention_state = retention.status;
     }
     const data = {
       retention_ids: retentions,
-      future_id: future.id, previous_revision_id: previous?.id ?? null, repository_heads, tree_hashes,
-      baseline_refs: future.baseline_refs, affected_scope, producer: future.producer,
-      ...contextFields, provenance_state: future.provenance_state,
+      future_id: future.id,
+      previous_revision_id: previous?.id ?? null,
+      repository_heads,
+      tree_hashes,
+      baseline_refs: future.baseline_refs,
+      affected_scope,
+      producer: future.producer,
+      ...contextFields,
+      provenance_state: future.provenance_state,
     };
     // The predecessor distinguishes rewinds; observation time is metadata, not identity.
     const revision = await record('future_revision', {
-      ...data, id: 'future_revision_' + await hash(data), created_at: now(),
+      ...data,
+      id: 'future_revision_' + (await hash(data)),
+      created_at: now(),
     });
     this.state.futureRevisions.push(revision);
     future.current_revision_id = revision.id;
     future.status = 'active';
     future.version++;
     await this.event('future.revised', actor, {
-      future_id: future.id, revision_id: revision.id, previous_revision_id: previous?.id ?? null,
+      future_id: future.id,
+      revision_id: revision.id,
+      previous_revision_id: previous?.id ?? null,
     });
     return revision;
   }
@@ -1112,22 +1286,35 @@ export class NativeState {
     if (!event || typeof event !== 'object')
       throw new DomainError('INVALID_EVENT', 'A Git push is required');
     const id = event.source_repo ?? event.repo;
-    const future = this.state.futures.find((item) => item.repositories.some((repo) => repo.repo_id === id));
+    const future = this.state.futures.find((item) =>
+      item.repositories.some((repo) => repo.repo_id === id),
+    );
     const repository = this.repositories().find((repo) => repo.id === id);
     const nativeCanonical = this.state.nativeRepositories.some((repo) => repo.id === id);
     if (!future && (!repository || !nativeCanonical)) return { handled: false };
     const binding = future?.repositories.find((repo) => repo.repo_id === id);
     const selectedRef = binding?.ref ?? repository.canonical_ref;
-    if (typeof event.ref !== 'string' || !event.ref.startsWith('refs/') || event.ref.length > 255 ||
-        typeof event.after !== 'string' || !objectId.test(event.after) ||
-        (event.before !== undefined && event.before !== null &&
-          (typeof event.before !== 'string' || !objectId.test(event.before))))
-      throw new DomainError('INVALID_EVENT', 'Git push requires bounded refs and immutable before/after object IDs');
+    if (
+      typeof event.ref !== 'string' ||
+      !event.ref.startsWith('refs/') ||
+      event.ref.length > 255 ||
+      typeof event.after !== 'string' ||
+      !objectId.test(event.after) ||
+      (event.before !== undefined &&
+        event.before !== null &&
+        (typeof event.before !== 'string' || !objectId.test(event.before)))
+    )
+      throw new DomainError(
+        'INVALID_EVENT',
+        'Git push requires bounded refs and immutable before/after object IDs',
+      );
     if (future?.status === 'abandoned')
       return { handled: true, ignored: true, reason: 'FUTURE_ABANDONED' };
     if (!/^refs\/(heads|tags)\//.test(event.ref))
       return future ? { handled: true, ignored: true, reason: 'INTERNAL_REF' } : { handled: false };
-    try { observationRef(event.ref); } catch {
+    try {
+      observationRef(event.ref);
+    } catch {
       throw new DomainError('INVALID_EVENT', 'Push ref is not a valid branch or tag');
     }
     // Canonical work branches still enter the compatibility ingestion path.
@@ -1135,32 +1322,52 @@ export class NativeState {
       return { handled: false };
     let observed;
     try {
-      observed = await this.readRef({ id, ...(binding ? { canonical_repo: binding.canonical_repo_id } : {}) }, event.ref);
+      observed = await this.readRef(
+        { id, ...(binding ? { canonical_repo: binding.canonical_repo_id } : {}) },
+        event.ref,
+      );
     } catch (error) {
       if (error.code !== 'REF_NOT_FOUND') throw error;
       observed = null;
     }
     const deleted = /^0{40,64}$/.test(event.after);
-    if ((observed ? observed.object_id !== event.after : !deleted))
-      return { handled: true, ignored: true, reason: 'OUT_OF_ORDER_EVENT', head: observed?.commit ?? null };
+    if (observed ? observed.object_id !== event.after : !deleted)
+      return {
+        handled: true,
+        ignored: true,
+        reason: 'OUT_OF_ORDER_EVENT',
+        head: observed?.commit ?? null,
+      };
     if (event.ref !== selectedRef) {
       const previous = this.state.nativeRefStates[id + ':' + event.ref];
       const observation = await this.rememberRef(id, event.ref, observed, actor);
       await this.save();
-      return { handled: true, ignored: true, reason: 'UNTRACKED_REF', duplicate: previous === observation.id,
-        observation_id: observation.id, deleted, available_for_future: observed?.available_for_future ?? false };
+      return {
+        handled: true,
+        ignored: true,
+        reason: 'UNTRACKED_REF',
+        duplicate: previous === observation.id,
+        observation_id: observation.id,
+        deleted,
+        available_for_future: observed?.available_for_future ?? false,
+      };
     }
     if (future) {
-      if (future.status === 'recovery_required') return { handled: true, reason: 'RECOVERY_REQUIRED' };
+      if (future.status === 'recovery_required')
+        return { handled: true, reason: 'RECOVERY_REQUIRED' };
       if (future.status === 'preparing') return { handled: true, reason: 'FUTURE_NOT_READY' };
       const before = future.current_revision_id;
       const version = future.version;
       const revision = await this.observe(future, actor);
       await this.save();
-      return { handled: true, future_id: future.id, revision_id: revision?.id ?? null,
+      return {
+        handled: true,
+        future_id: future.id,
+        revision_id: revision?.id ?? null,
         duplicate: revision?.id === before && future.version === version,
         ...(deleted ? { deleted: true } : {}),
-        ...(future.status === 'unavailable' ? { unavailable: true } : {}) };
+        ...(future.status === 'unavailable' ? { unavailable: true } : {}),
+      };
     }
     if (!observed) {
       const native = this.state.nativeRepositories.find((repo) => repo.id === id);
@@ -1170,19 +1377,41 @@ export class NativeState {
       if (native) native.status = 'unavailable';
       const canonical = this.state.repositories.find((repo) => repo.id === id);
       if (canonical) canonical.unavailable = true;
-      await this.event('repository.ref_unavailable', actor, { repo: id, ref: event.ref, previous: event.before ?? null });
+      await this.event('repository.ref_unavailable', actor, {
+        repo: id,
+        ref: event.ref,
+        previous: event.before ?? null,
+      });
       await this.save();
       return { handled: true, deleted: true };
     }
     const info = await this.provider('repositoryInfo')({ id, ref: selectedRef });
     providerInfo(info, id, selectedRef);
     if (info.status !== 'ready' || info.commit !== observed.commit)
-      return { handled: true, ignored: true, reason: 'OUT_OF_ORDER_EVENT', head: info.status === 'ready' ? info.commit : null };
-    if (repository.status === 'ready' && repository.head === info.commit && repository.tree === info.tree)
-      return { handled: true, canonical: true, duplicate: true, repository: structuredClone(repository) };
+      return {
+        handled: true,
+        ignored: true,
+        reason: 'OUT_OF_ORDER_EVENT',
+        head: info.status === 'ready' ? info.commit : null,
+      };
+    if (
+      repository.status === 'ready' &&
+      repository.head === info.commit &&
+      repository.tree === info.tree
+    )
+      return {
+        handled: true,
+        canonical: true,
+        duplicate: true,
+        repository: structuredClone(repository),
+      };
     await this.rememberRef(id, event.ref, observed, actor);
     const result = await this.registerObserved(info, id, selectedRef, repository.description);
-    await this.event('canonical.changed', actor, { repo: id, head: result.head, tree: result.tree });
+    await this.event('canonical.changed', actor, {
+      repo: id,
+      head: result.head,
+      tree: result.tree,
+    });
     await this.save();
     return { handled: true, canonical: true, repository: structuredClone(result) };
   }

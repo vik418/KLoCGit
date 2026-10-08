@@ -110,11 +110,13 @@ export class LocalGit {
   async readRef(repo, ref) {
     observationRef(ref);
     const line = await git(this.dir(repo), [
-      'for-each-ref', '--count=1', '--format=%(refname)%09%(objectname)%09%(objecttype)', ref,
+      'for-each-ref',
+      '--count=1',
+      '--format=%(refname)%09%(objectname)%09%(objecttype)',
+      ref,
     ]);
     const [name, object_id, object_type] = line.split('\t');
-    if (name !== ref)
-      throw new DomainError('REF_NOT_FOUND', 'Git ref is unavailable', 404);
+    if (name !== ref) throw new DomainError('REF_NOT_FOUND', 'Git ref is unavailable', 404);
     if (!gitObjectId.test(object_id) || !['commit', 'tag', 'tree', 'blob'].includes(object_type))
       throw new DomainError('INVALID_GIT_FACTS', 'Git returned an invalid ref object', 503);
     let commit = object_type === 'commit' ? object_id : null;
@@ -126,7 +128,14 @@ export class LocalGit {
         commit = null;
       }
     }
-    return { ref, kind: ref.startsWith('refs/tags/') ? 'tag' : 'branch', object_id, object_type, commit, available_for_future: gitObjectId.test(commit) };
+    return {
+      ref,
+      kind: ref.startsWith('refs/tags/') ? 'tag' : 'branch',
+      object_id,
+      object_type,
+      commit,
+      available_for_future: gitObjectId.test(commit),
+    };
   }
   async ref(repo, ref) {
     const value = await this.readRef(repo, ref);
@@ -137,18 +146,31 @@ export class LocalGit {
   /** Read at most 1001 refs so unexpectedly large repositories fail with an explicit budget. */
   async listRefs(repo, input = {}) {
     const output = await git(this.dir(repo), [
-      'for-each-ref', '--sort=refname', '--count=1001',
+      'for-each-ref',
+      '--sort=refname',
+      '--count=1001',
       '--format=%(refname)%09%(objectname)%09%(objecttype)%09%(*objectname)%09%(*objecttype)',
-      'refs/heads/', 'refs/tags/',
+      'refs/heads/',
+      'refs/tags/',
     ]);
-    const refs = output ? output.split('\n').map((line) => {
-      const [ref, object_id, object_type, peeled, peeledType] = line.split('\t');
-      observationRef(ref);
-      if (!gitObjectId.test(object_id))
-        throw new DomainError('INVALID_GIT_FACTS', 'Git returned an invalid ref object', 503);
-      const commit = object_type === 'commit' ? object_id : peeledType === 'commit' ? peeled : null;
-      return { ref, kind: ref.startsWith('refs/tags/') ? 'tag' : 'branch', object_id, object_type, commit, available_for_future: gitObjectId.test(commit) };
-    }) : [];
+    const refs = output
+      ? output.split('\n').map((line) => {
+          const [ref, object_id, object_type, peeled, peeledType] = line.split('\t');
+          observationRef(ref);
+          if (!gitObjectId.test(object_id))
+            throw new DomainError('INVALID_GIT_FACTS', 'Git returned an invalid ref object', 503);
+          const commit =
+            object_type === 'commit' ? object_id : peeledType === 'commit' ? peeled : null;
+          return {
+            ref,
+            kind: ref.startsWith('refs/tags/') ? 'tag' : 'branch',
+            object_id,
+            object_type,
+            commit,
+            available_for_future: gitObjectId.test(commit),
+          };
+        })
+      : [];
     return pageRefs(refs, input);
   }
   /** Archive source objects under coordinator refs, independent of producer branch lifetime. */
@@ -164,11 +186,12 @@ export class LocalGit {
         await git(this.dir(archive), ['fetch', '--quiet', this.dir(repo), object_id]);
       await git(this.dir(archive), ['cat-file', '-e', object_id]);
       let existing = null;
-      try { existing = await git(this.dir(archive), ['rev-parse', '--verify', ref]); } catch {}
+      try {
+        existing = await git(this.dir(archive), ['rev-parse', '--verify', ref]);
+      } catch {}
       if (existing && existing !== object_id)
         throw new DomainError('RETENTION_CONFLICT', 'An archive ref names another object', 409);
-      if (!existing)
-        await git(this.dir(archive), ['update-ref', ref, object_id, '0'.repeat(40)]);
+      if (!existing) await git(this.dir(archive), ['update-ref', ref, object_id, '0'.repeat(40)]);
       refs.push({ object_id, ref });
     }
     return { source_repo_id: repo.id, archive_repo_id: archive.id, objects: refs };

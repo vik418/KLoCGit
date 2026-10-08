@@ -402,6 +402,28 @@ export class Engine {
     if (e.config_hash !== this.git.configHash) reasons.push('validation configuration changed');
     return { status: reasons.length ? 'stale' : 'current', reasons };
   }
+  /** Project external evidence with its issued profile, pins and latest run state. */
+  async presentEvidence(evidence) {
+    if (!evidence.run_id) return { ...evidence, validity: this.evidenceValidity(evidence) };
+    const run = (this.state.evaluationRuns ?? []).find((entry) => entry.id === evidence.run_id);
+    if (!run)
+      return { ...evidence, validity: { status: 'stale', reasons: ['Issued evaluation is unavailable.'] } };
+    const validity = await this.evaluators.validity(run);
+    const reasons = [...validity.reasons];
+    const latestRun = this.state.evaluationRuns.filter((entry) =>
+      entry.candidate_id === run.candidate_id && entry.profile_id === run.profile_id).at(-1);
+    if (latestRun?.id !== run.id) reasons.push('A newer evaluation superseded this result.');
+    const event = this.evaluators.latest(run.id);
+    if (!event?.evidence_ids?.includes(evidence.id))
+      reasons.push('The latest evaluation event does not establish this result.');
+    // A current failed observation remains useful evidence. Only the evaluator
+    // policy can authorize passing checks; this projection never upgrades them.
+    return {
+      ...evidence,
+      validity: { status: validity.state === 'stale' || reasons.length ? 'stale' : 'current', reasons },
+    };
+  }
+
   /** Apply one observed immutable head/tree pair without rereading a mutable ref. */
   async observeCanonical(repo, head, tree) {
     const previous = repo.head;
@@ -832,7 +854,7 @@ export class Engine {
   async view(principal = null) {
     if (principal) this.access.require(principal, 'workspace.read');
     await this.syncHeads(principal ? this.access.visibleRepositories(principal) : null);
-    const evidence = this.state.evidence.map((e) => ({ ...e, validity: this.evidenceValidity(e) }));
+    const evidence = await Promise.all(this.state.evidence.map((entry) => this.presentEvidence(entry)));
     const decisions = await Promise.all(
       this.state.decisionComponents.map(async (c) => ({
         ...c,

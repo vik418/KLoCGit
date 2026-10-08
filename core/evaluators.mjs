@@ -214,11 +214,16 @@ export class Evaluators {
         .filter((constraint) => constraint.active)
         .map((constraint) => constraint.id)
         .sort(),
-      validation_config_hash: digest(this.engine.git.configHash, 'Trusted validation configuration'),
+      validation_config_hash: digest(
+        this.engine.git.configHash,
+        'Trusted validation configuration',
+      ),
       evaluator_profile_id: profile.id,
       evaluator_config_hash: profile.config_hash,
       service_id: profile.service_id,
-      service_key_id: profile.service_id ? this.service(profile.service_id, profile.repo_ids).key_id : null,
+      service_key_id: profile.service_id
+        ? this.service(profile.service_id, profile.repo_ids).key_id
+        : null,
     };
   }
 
@@ -237,7 +242,10 @@ export class Evaluators {
       reasons.push('Trusted evaluator service is unavailable.');
     }
     const expectedHeads = canonical_heads ? vector(canonical_heads) : run.pins.canonical_heads;
-    if (stable(Object.keys(expectedHeads).sort()) !== stable(Object.keys(run.pins.canonical_heads).sort()))
+    if (
+      stable(Object.keys(expectedHeads).sort()) !==
+      stable(Object.keys(run.pins.canonical_heads).sort())
+    )
       fail('INVALID_EVALUATION_BASE', 'Recovery must preserve the complete dependency vector');
     for (const [repoId, commit] of Object.entries(expectedHeads)) {
       const repo = this.engine.repo(repoId);
@@ -252,9 +260,7 @@ export class Evaluators {
 
   admission(profile) {
     const start = this.clock() - 86400000;
-    const recent = this.state.evaluationRuns.filter(
-      (run) => Date.parse(run.created_at) >= start,
-    );
+    const recent = this.state.evaluationRuns.filter((run) => Date.parse(run.created_at) >= start);
     const active = this.state.evaluationRuns.filter((run) => {
       const state = this.latest(run.id)?.state;
       return !terminal.has(state) && this.clock() < Date.parse(run.expires_at);
@@ -301,7 +307,11 @@ export class Evaluators {
       fail('CANDIDATE_STALE', 'Recompose from current source and canonical versions', 409);
     this.admission(profile);
     for (const repo of candidate.repositories) {
-      const facts = await this.engine.git.facts(this.engine.repo(repo.repo_id), repo.commit, repo.commit);
+      const facts = await this.engine.git.facts(
+        this.engine.repo(repo.repo_id),
+        repo.commit,
+        repo.commit,
+      );
       if (facts.head !== repo.commit || facts.tree !== repo.tree)
         fail('CANDIDATE_TREE_MISMATCH', 'Git does not establish the candidate tree', 409);
     }
@@ -384,10 +394,15 @@ export class Evaluators {
     }
     if (this.latest(run.id)?.state === 'cancelled')
       return { run, event: this.latest(run.id), evidence };
-    const event = await this.append(run, failed ? 'failed' : 'passing', 'platform-owned evaluator', {
-      evidence_ids: evidence.map((entry) => entry.id),
-      claim: 'Only the listed finite checks on the pinned trees are established.',
-    });
+    const event = await this.append(
+      run,
+      failed ? 'failed' : 'passing',
+      'platform-owned evaluator',
+      {
+        evidence_ids: evidence.map((entry) => entry.id),
+        claim: 'Only the listed finite checks on the pinned trees are established.',
+      },
+    );
     await this.engine.save(this.state);
     return { run, event, evidence };
   }
@@ -459,8 +474,12 @@ export class Evaluators {
     const passing =
       normalized.length > 0 &&
       normalized.every((check) => check.state === 'passing') &&
-      profile.required_checks.every((id) => normalized.some((check) => check.id === id && check.passed)) &&
-      metadata.every((report) => !(report.failures > 0 || report.errors > 0 || report.findings > 0));
+      profile.required_checks.every((id) =>
+        normalized.some((check) => check.id === id && check.passed),
+      ) &&
+      metadata.every(
+        (report) => !(report.failures > 0 || report.errors > 0 || report.findings > 0),
+      );
     if (body.state === 'passing' && !passing)
       fail('INVALID_EVALUATION_REPORT', 'Passing requires every required independent check');
     return { passed: body.state === 'passing' && passing, checks: normalized, reports: metadata };
@@ -478,20 +497,17 @@ export class Evaluators {
       typeof value.url !== 'string' ||
       value.url.length > 2048
     )
-      fail('INVALID_EVALUATION_REPORT', 'Deployment must pin an exact repository, tree and version');
+      fail(
+        'INVALID_EVALUATION_REPORT',
+        'Deployment must pin an exact repository, tree and version',
+      );
     let url;
     try {
       url = new URL(value.url);
     } catch {
       fail('INVALID_EVALUATION_REPORT', 'Deployment URL must be HTTPS');
     }
-    if (
-      url.protocol !== 'https:' ||
-      url.username ||
-      url.password ||
-      url.search ||
-      url.hash
-    )
+    if (url.protocol !== 'https:' || url.username || url.password || url.search || url.hash)
       fail('INVALID_EVALUATION_REPORT', 'Deployment URLs must not carry credentials or query data');
     return {
       repo_id: target.repo_id,
@@ -515,7 +531,11 @@ export class Evaluators {
       fail('INVALID_EVALUATION_REPORT', 'A structured evaluation callback is required');
     if (!/^[a-f0-9]{64}$/.test(authentication.signature ?? ''))
       fail('UNAUTHENTICATED_EVALUATOR', 'A trusted service signature is required', 401);
-    const { bytes, key, run, profile } = await this.signature(runId, body, authentication.service_id);
+    const { bytes, key, run, profile } = await this.signature(
+      runId,
+      body,
+      authentication.service_id,
+    );
     if (this.service(profile.service_id, profile.repo_ids).key_id !== run.pins.service_key_id)
       fail('EVALUATOR_STALE', 'Evaluator credential version changed', 409);
     const signature = new Uint8Array(
@@ -539,7 +559,10 @@ export class Evaluators {
         fail('IDEMPOTENCY_CONFLICT', 'Callback identity has conflicting contents', 409);
       return { run, event: prior, duplicate: true };
     }
-    if (this.state.evaluationEvents.filter((event) => event.run_id === run.id && event.callback_id).length >= this.limits.max_callbacks_per_run)
+    if (
+      this.state.evaluationEvents.filter((event) => event.run_id === run.id && event.callback_id)
+        .length >= this.limits.max_callbacks_per_run
+    )
       fail('REPORT_BUDGET_EXCEEDED', 'Evaluation callback count budget is exhausted', 429);
     if (!acceptedStates.has(body.state))
       fail('INVALID_EVALUATION_REPORT', 'Unsupported callback state');
@@ -619,10 +642,17 @@ export class Evaluators {
     this.candidate(candidateId);
     await this.engine.syncHeads();
     const runs = [];
-    for (const run of this.state.evaluationRuns.filter((entry) => entry.candidate_id === candidateId)) {
+    for (const run of this.state.evaluationRuns.filter(
+      (entry) => entry.candidate_id === candidateId,
+    )) {
       const event = this.latest(run.id);
       const validity = await this.validity(run, options);
-      runs.push({ run, event, validity, state: validity.state === 'stale' ? 'stale' : event.state });
+      runs.push({
+        run,
+        event,
+        validity,
+        state: validity.state === 'stale' ? 'stale' : event.state,
+      });
     }
     return { candidate_id: candidateId, runs };
   }
@@ -633,8 +663,10 @@ export class Evaluators {
     const reviewed = await this.review(candidateId, options);
     const bindings = this.bindings().filter((binding) => {
       const profile = this.object('evaluatorProfiles', binding.profile_id);
-      return profile.enabled && profile.required && candidate.repositories.some(
-        (repo) => profile.repo_ids.includes(repo.repo_id),
+      return (
+        profile.enabled &&
+        profile.required &&
+        candidate.repositories.some((repo) => profile.repo_ids.includes(repo.repo_id))
       );
     });
     const reasons = [];

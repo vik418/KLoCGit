@@ -1,6 +1,13 @@
 import { DomainError, record } from '../core/hash.mjs';
 import { redactSensitive } from '../core/access.mjs';
-import { requestPrincipal, pushRepositories, ignoredInternalPush, filteredWorkflow, legacyReadInputs, servicePath } from '../worker/routes.mjs';
+import {
+  requestPrincipal,
+  pushRepositories,
+  ignoredInternalPush,
+  filteredWorkflow,
+  legacyReadInputs,
+  servicePath,
+} from '../worker/routes.mjs';
 import { createDemo, produceWork } from '../scripts/demo.mjs';
 import { handleWorkflowRequest } from './workflow-api.mjs';
 import { handleNativeRequest, ownsNativePath } from './native-api.mjs';
@@ -74,9 +81,11 @@ async function handleDemoRequest(engine, { method, path, actor }, options) {
 }
 
 /** Called only inside the local server's authenticated serialized request boundary. */
-export async function handleLocalRequest(engine, {
-  method, url, input = {}, actor: suppliedActor, principal, headers = {}, bytes,
-}, options) {
+export async function handleLocalRequest(
+  engine,
+  { method, url, input = {}, actor: suppliedActor, principal, headers = {}, bytes },
+  options,
+) {
   principal = requestPrincipal(engine, principal, suppliedActor);
   const actor = principal.actor_id;
   if (bytes !== undefined) engine.access.assertQuota('request_bytes', 0, bytes);
@@ -90,8 +99,16 @@ export async function handleLocalRequest(engine, {
   if (method === 'POST' && /^\/api\/evaluation-runs\/[^/]+\/report$/.test(path)) {
     if (principal.kind !== 'service' || principal.auth_method !== 'evaluator-hmac')
       throw new DomainError('UNAUTHENTICATED', 'A verified evaluator report is required', 401);
-    const result = await handleNativeRequest(engine, { method, url, input, actor, principal, requestHeaders: headers });
-    if (result === null) throw new DomainError('NOT_FOUND', 'Evaluator report route is unavailable', 404);
+    const result = await handleNativeRequest(engine, {
+      method,
+      url,
+      input,
+      actor,
+      principal,
+      requestHeaders: headers,
+    });
+    if (result === null)
+      throw new DomainError('NOT_FOUND', 'Evaluator report route is unavailable', 404);
     return redactSensitive(result);
   }
   if (path === '/api/events' && method === 'POST') {
@@ -107,7 +124,8 @@ export async function handleLocalRequest(engine, {
     let analysis;
     try {
       analysis = await engine.analyzeNativeWork({
-        actor: 'coordinator', trigger: input.event,
+        actor: 'coordinator',
+        trigger: input.event,
       });
     } catch {
       // Git observation has already persisted. Analysis can be retried without
@@ -119,22 +137,37 @@ export async function handleLocalRequest(engine, {
   engine.access.require(principal, 'workspace.read');
   if (path === '/api/workspace' && method === 'GET') return engine.view(principal);
   if (ownsNativePath(path) || servicePath(path)) {
-    const result = await handleNativeRequest(engine, { method, url, input, actor, principal, requestHeaders: headers });
+    const result = await handleNativeRequest(engine, {
+      method,
+      url,
+      input,
+      actor,
+      principal,
+      requestHeaders: headers,
+    });
     if (result === null) throw new DomainError('NOT_FOUND', 'Endpoint not found', 404);
     return redactSensitive(result);
   }
   if (engine.access.authorizeWorkflow({ method, url, input, principal })) {
-    if (method === 'POST' && /\/(prepare|validate)$/.test(path)) legacyReadInputs(engine, principal);
+    if (method === 'POST' && /\/(prepare|validate)$/.test(path))
+      legacyReadInputs(engine, principal);
     const workflow = await handleWorkflowRequest(engine, { method, url, input, actor, principal });
     if (workflow !== null) return filteredWorkflow(engine, workflow, principal, method);
   }
-  if (path === '/api/tasks' && method === 'GET') return {
-    tasks: engine.state.tasks.filter((task) =>
-      engine.access.isWorkspaceAdmin(principal) || engine.access.readable(principal, task)),
-  };
+  if (path === '/api/tasks' && method === 'GET')
+    return {
+      tasks: engine.state.tasks.filter(
+        (task) =>
+          engine.access.isWorkspaceAdmin(principal) || engine.access.readable(principal, task),
+      ),
+    };
   if (path === '/api/tasks' && method === 'POST') {
     legacyReadInputs(engine, principal);
-    engine.access.require(principal, 'task.prepare', engine.access.resourceRepositories(input.task ?? input));
+    engine.access.require(
+      principal,
+      'task.prepare',
+      engine.access.resourceRepositories(input.task ?? input),
+    );
     return engine.prepareTask(input.task ?? input, actor);
   }
   const taskMatch = path.match(/^\/api\/tasks\/([^/]+)(?:\/(answer|assume))?$/);
@@ -148,14 +181,24 @@ export async function handleLocalRequest(engine, {
     }
     if (method === 'POST' && taskMatch[2]) {
       engine.access.require(principal, 'task.resolve', repos);
-      return engine.resolveTask(taskMatch[1], {
-        value: input.value, rationale: input.rationale,
-      }, actor, taskMatch[2] === 'assume');
+      return engine.resolveTask(
+        taskMatch[1],
+        {
+          value: input.value,
+          rationale: input.rationale,
+        },
+        actor,
+        taskMatch[2] === 'assume',
+      );
     }
   }
   if (path.startsWith('/api/demo/')) {
     if (principal.actor_id !== engine.state.workspace.owner_id)
-      throw new DomainError('FORBIDDEN', 'Only the bootstrap owner can reset or mutate the disposable demo', 403);
+      throw new DomainError(
+        'FORBIDDEN',
+        'Only the bootstrap owner can reset or mutate the disposable demo',
+        403,
+      );
     engine.access.require(principal, 'access.manage');
     const demo = await handleDemoRequest(engine, { method, path, actor }, options);
     if (demo !== null) return redactSensitive(demo);
@@ -164,7 +207,9 @@ export async function handleLocalRequest(engine, {
     engine.access.require(principal, 'analysis.run');
     const result = await engine.analyzeWork({ actor, refresh: input.refresh === true });
     const nativeAnalysis = await engine.analyzeNativeWork({
-      actor, trigger: input.trigger ?? {}, request_id: input.request_id,
+      actor,
+      trigger: input.trigger ?? {},
+      request_id: input.request_id,
     });
     return { ...result, native_analysis: nativeAnalysis };
   }
@@ -176,15 +221,24 @@ export async function handleLocalRequest(engine, {
   const decision = path.match(/^\/api\/decisions\/([^/]+)\/(resolve|refresh)$/);
   if (decision && method === 'POST') {
     legacyReadInputs(engine, principal);
-    engine.access.require(principal, decision[2] === 'resolve' ? 'decision.resolve' : 'decision.prepare',
-      engine.access.resourceRepositories(engine.component(decision[1])));
+    engine.access.require(
+      principal,
+      decision[2] === 'resolve' ? 'decision.resolve' : 'decision.prepare',
+      engine.access.resourceRepositories(engine.component(decision[1])),
+    );
     if (decision[2] === 'refresh') return engine.refreshDecision(decision[1]);
     return engine.resolve(decision[1], input, actor);
   }
   if (path === '/api/diff' && method === 'GET') {
     const revision = engine.revision(url.searchParams.get('revision'));
     engine.access.require(principal, 'repository.read', [revision.repo]);
-    return { diff: await engine.git.diff(engine.repo(revision.repo), revision.base_commit, revision.head_commit) };
+    return {
+      diff: await engine.git.diff(
+        engine.repo(revision.repo),
+        revision.base_commit,
+        revision.head_commit,
+      ),
+    };
   }
   throw new DomainError('NOT_FOUND', 'Endpoint not found', 404);
 }

@@ -1,12 +1,17 @@
 import { DomainError } from '../core/hash.mjs';
 import { redactSensitive } from '../core/access.mjs';
 import { configuredWorkspace } from './config.mjs';
-import { authenticateRequest, authenticateEvaluationReport, forwardPrincipal } from './identity.mjs';
+import {
+  authenticateRequest,
+  authenticateEvaluationReport,
+  forwardPrincipal,
+} from './identity.mjs';
 
 export const MAX_REQUEST_BYTES = 1_000_000;
 export function jsonResponse(data, status = 200) {
   return new Response(JSON.stringify(data), {
-    status, headers: { 'Content-Type': 'application/json', 'Cache-Control': 'no-store' },
+    status,
+    headers: { 'Content-Type': 'application/json', 'Cache-Control': 'no-store' },
   });
 }
 
@@ -28,12 +33,20 @@ export async function readBoundedRequest(request, limit = MAX_REQUEST_BYTES) {
       }
       chunks.push(item.value);
     }
-  } finally { reader.releaseLock(); }
+  } finally {
+    reader.releaseLock();
+  }
   const buffer = new Uint8Array(bytes);
   let offset = 0;
-  for (const chunk of chunks) { buffer.set(chunk, offset); offset += chunk.byteLength; }
-  try { return { raw: new TextDecoder('utf-8', { fatal: true }).decode(buffer), bytes }; }
-  catch { throw new DomainError('INVALID_JSON', 'Request must contain valid UTF-8 JSON'); }
+  for (const chunk of chunks) {
+    buffer.set(chunk, offset);
+    offset += chunk.byteLength;
+  }
+  try {
+    return { raw: new TextDecoder('utf-8', { fatal: true }).decode(buffer), bytes };
+  } catch {
+    throw new DomainError('INVALID_JSON', 'Request must contain valid UTF-8 JSON');
+  }
 }
 
 export async function handlePublicRequest(request, env) {
@@ -44,20 +57,31 @@ export async function handlePublicRequest(request, env) {
     const origin = request.headers.get('Origin');
     if (!['GET', 'HEAD'].includes(request.method) && origin) {
       let allowed = false;
-      try { allowed = new URL(origin).origin === url.origin; } catch { /* Reject invalid origins. */ }
-      if (!allowed) throw new DomainError('FORBIDDEN_ORIGIN', 'Cross-origin mutations are not allowed', 403);
+      try {
+        allowed = new URL(origin).origin === url.origin;
+      } catch {
+        /* Reject invalid origins. */
+      }
+      if (!allowed)
+        throw new DomainError('FORBIDDEN_ORIGIN', 'Cross-origin mutations are not allowed', 403);
     }
-    const report = request.method === 'POST' &&
-      url.pathname.match(/^\/api\/evaluation-runs\/([^/]+)\/report$/);
+    const report =
+      request.method === 'POST' && url.pathname.match(/^\/api\/evaluation-runs\/([^/]+)\/report$/);
     let principal;
     let payload;
     if (report) {
       payload = await readBoundedRequest(request);
       let input;
-      try { input = JSON.parse(payload.raw); } catch { throw new DomainError('INVALID_JSON', 'Request body must be JSON'); }
+      try {
+        input = JSON.parse(payload.raw);
+      } catch {
+        throw new DomainError('INVALID_JSON', 'Request body must be JSON');
+      }
       principal = await authenticateEvaluationReport(request, env, input, report[1]);
     } else {
-      principal = await authenticateRequest(request, env, { ingress: url.pathname === '/api/events' });
+      principal = await authenticateRequest(request, env, {
+        ingress: url.pathname === '/api/events',
+      });
       payload = await readBoundedRequest(request);
     }
     request = new Request(request, {
@@ -67,10 +91,13 @@ export async function handlePublicRequest(request, env) {
     const id = env.COORDINATOR.idFromName(workspace);
     return env.COORDINATOR.get(id).fetch(forwarded);
   } catch (error) {
-    return jsonResponse({
-      error: error.code ?? 'INTERNAL_ERROR',
-      message: error.status ? error.message : 'Coordination failed. Git remains available.',
-      details: redactSensitive(error.details ?? {}),
-    }, error.status ?? 500);
+    return jsonResponse(
+      {
+        error: error.code ?? 'INTERNAL_ERROR',
+        message: error.status ? error.message : 'Coordination failed. Git remains available.',
+        details: redactSensitive(error.details ?? {}),
+      },
+      error.status ?? 500,
+    );
   }
 }

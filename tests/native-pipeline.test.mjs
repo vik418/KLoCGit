@@ -57,6 +57,7 @@ async function fixture(t) {
     futures: [{ id: 'future', status: 'active', current_revision_id: revision.id }],
     futureRevisions: [revision],
   };
+  state.workspace.owner_id = 'owner';
   const saved = [];
   const engine = new Engine(state, adapter, async (value) => saved.push(structuredClone(value)));
   return {
@@ -697,7 +698,7 @@ test('an exact prepared target is reconciled rather than settled through a human
 test('remote CAS recognizes an actual Git porcelain lease rejection', async (t) => {
   const f = await fixture(t);
   await git(f.adapter.dir({ id: 'app' }), ['update-ref', ref, f.a]);
-  const remote = new RemoteGit(f.root, {});
+  const remote = new RemoteGit(f.root, { repositories: { app: {} } });
   // The trusted test transport uses a local bare destination, not Cloudflare.
   remote.entry = () => ({ remote: f.adapter.dir({ id: 'app' }), tokenEnv: 'FIXTURE_GIT_TOKEN' });
   remote.ensureCommit = async () => {};
@@ -709,7 +710,7 @@ test('a lost remote acknowledgement followed by another push remains uncertain',
   const f = await fixture(t);
   const candidate = await f.candidate(await f.selection());
   const target = candidate.repositories[0].commit;
-  const remote = new RemoteGit(f.root, {});
+  const remote = new RemoteGit(f.root, { repositories: { app: {} } });
   remote.entry = () => ({ remote: 'https://fixture.artifacts.cloudflare.net/app.git' });
   remote.ensureCommit = async () => {};
   let attempts = 0;
@@ -731,7 +732,7 @@ test('a lost remote acknowledgement followed by another push remains uncertain',
 
 test('an already-present remote target cannot satisfy a different reviewed head', async (t) => {
   const f = await fixture(t);
-  const remote = new RemoteGit(f.root, {});
+  const remote = new RemoteGit(f.root, { repositories: { app: {} } });
   remote.entry = () => ({ remote: f.adapter.dir({ id: 'app' }), tokenEnv: 'FIXTURE_GIT_TOKEN' });
   remote.ensureCommit = async () => {};
   await git(f.adapter.dir({ id: 'app' }), ['update-ref', ref, f.b]);
@@ -741,7 +742,7 @@ test('an already-present remote target cannot satisfy a different reviewed head'
 
 test('remote CAS accepts the exact Git write acknowledgement for the reviewed head', async (t) => {
   const f = await fixture(t);
-  const remote = new RemoteGit(f.root, {});
+  const remote = new RemoteGit(f.root, { repositories: { app: {} } });
   remote.entry = () => ({ remote: f.adapter.dir({ id: 'app' }), tokenEnv: 'FIXTURE_GIT_TOKEN' });
   remote.ensureCommit = async () => {};
   assert.equal(await remote.cas(f.engine.repo('app'), f.base, f.b), true);
@@ -750,7 +751,7 @@ test('remote CAS accepts the exact Git write acknowledgement for the reviewed he
 
 test('a missing remote write receipt remains uncertain', async (t) => {
   const f = await fixture(t);
-  const remote = new RemoteGit(f.root, {});
+  const remote = new RemoteGit(f.root, { repositories: { app: {} } });
   remote.entry = () => ({ remote: 'https://fixture.artifacts.cloudflare.net/app.git' });
   remote.ensureCommit = async () => {};
   remote.remote = async () => '';

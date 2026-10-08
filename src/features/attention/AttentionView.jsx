@@ -61,7 +61,7 @@ export function AttentionView({
           {(discovery.diagnostics ?? []).map((diagnostic, index) => <p key={diagnostic.code + ':' + index} className="muted text-sm">{diagnostic.message}</p>)}
           {discovery.possible_comparisons > 0 && <details className="native-details">
             <summary>Analysis scope</summary>
-            <p className="muted text-sm">{discovery.comparisons} comparisons performed; {discovery.comparisons_avoided} avoided by indexing. {discovery.compositions} retained compositions and {discovery.validation_runs} trusted validation runs.</p>
+            <p className="muted text-sm">{discovery.comparisons} comparisons performed; {discovery.comparisons_avoided_is_lower_bound ? 'at least ' : ''}{discovery.comparisons_avoided} avoided by indexing and deterministic filtering. {discovery.compositions} retained compositions and {discovery.validation_runs} trusted validation runs.</p>
             <p className="muted text-sm">These measurements cover this finite run. Unexamined interactions remain unknown.</p>
           </details>}
         </CardContent>

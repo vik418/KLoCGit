@@ -32,7 +32,13 @@ export class NativePipeline {
   }
 
   get state() {
-    for (const key of ['selections', 'candidateStates', 'nativeDecisions', 'nativeSettlements', 'nativeDispositions'])
+    for (const key of [
+      'selections',
+      'candidateStates',
+      'nativeDecisions',
+      'nativeSettlements',
+      'nativeDispositions',
+    ])
       this.engine.state[key] ??= [];
     return this.engine.state;
   }
@@ -120,11 +126,22 @@ export class NativePipeline {
       for (const entry of selection.entries) {
         try {
           if (typeof this.engine.git.readRef === 'function') {
-            const observed = await this.engine.git.readRef({ id: entry.source_repo, canonical_repo: entry.repo_id }, entry.ref);
-            if (observed.commit !== entry.head_commit ||
-              observed.object_id !== (entry.object_id ?? entry.head_commit)) return false;
-          } else if ((entry.object_id && entry.object_id !== entry.head_commit) ||
-            (await this.engine.git.ref({ id: entry.source_repo, canonical_repo: entry.repo_id }, entry.ref)) !== entry.head_commit)
+            const observed = await this.engine.git.readRef(
+              { id: entry.source_repo, canonical_repo: entry.repo_id },
+              entry.ref,
+            );
+            if (
+              observed.commit !== entry.head_commit ||
+              observed.object_id !== (entry.object_id ?? entry.head_commit)
+            )
+              return false;
+          } else if (
+            (entry.object_id && entry.object_id !== entry.head_commit) ||
+            (await this.engine.git.ref(
+              { id: entry.source_repo, canonical_repo: entry.repo_id },
+              entry.ref,
+            )) !== entry.head_commit
+          )
             return false;
         } catch (error) {
           if (error.code === 'REF_NOT_FOUND') return false;
@@ -133,7 +150,9 @@ export class NativePipeline {
       }
     }
     if (this.engine.objectiveContext) {
-      const revisionIds = selectionIds.map((id) => this.object('selections', id).future_revision_id);
+      const revisionIds = selectionIds.map(
+        (id) => this.object('selections', id).future_revision_id,
+      );
       if ((await this.engine.objectiveContext.revisionsValidity(revisionIds)).status !== 'current')
         return false;
     }
@@ -142,15 +161,25 @@ export class NativePipeline {
 
   async createCandidate(input, actor) {
     const ids = list(input.selection_ids, 'Selections');
-    const expectedHeads = input.expected_heads === undefined ? undefined : structuredClone(input.expected_heads);
-    if (expectedHeads !== undefined && (!expectedHeads || typeof expectedHeads !== 'object' ||
-      Array.isArray(expectedHeads) || Object.keys(expectedHeads).length > 1000 ||
-      Object.values(expectedHeads).some((head) => !oid.test(head))))
+    const expectedHeads =
+      input.expected_heads === undefined ? undefined : structuredClone(input.expected_heads);
+    if (
+      expectedHeads !== undefined &&
+      (!expectedHeads ||
+        typeof expectedHeads !== 'object' ||
+        Array.isArray(expectedHeads) ||
+        Object.keys(expectedHeads).length > 1000 ||
+        Object.values(expectedHeads).some((head) => !oid.test(head)))
+    )
       throw new DomainError('INVALID_REQUEST', 'Expected heads must be immutable commit hashes');
     ids.forEach((id) => this.object('selections', id));
     return this.engine.native.request(
       'candidate.create',
-      { selection_ids: ids, ...(expectedHeads === undefined ? {} : { expected_heads: expectedHeads }), request_id: input.request_id },
+      {
+        selection_ids: ids,
+        ...(expectedHeads === undefined ? {} : { expected_heads: expectedHeads }),
+        request_id: input.request_id,
+      },
       actor,
       async () => {
         await this.engine.syncHeads();
@@ -169,7 +198,7 @@ export class NativePipeline {
         const baseHeads = Object.fromEntries(
           this.state.repositories.map((repo) => [repo.id, repo.head]),
         );
-        if (expectedHeads !== undefined && await hash(expectedHeads) !== await hash(baseHeads))
+        if (expectedHeads !== undefined && (await hash(expectedHeads)) !== (await hash(baseHeads)))
           throw new DomainError('CANONICAL_CHANGED', 'The composition baseline changed', 409);
         const repositories = [];
         for (const repoId of repoIds) {
@@ -274,14 +303,23 @@ export class NativePipeline {
 
   async reviewInputs(candidate, options = {}) {
     const context = this.engine.objectiveContext
-      ? await this.engine.objectiveContext.revisionsValidity(candidate.selection_ids.map((id) =>
-        this.object('selections', id).future_revision_id)) : null;
+      ? await this.engine.objectiveContext.revisionsValidity(
+          candidate.selection_ids.map((id) => this.object('selections', id).future_revision_id),
+        )
+      : null;
     const evaluations = this.engine.evaluators
-      ? await this.engine.evaluators.eligibility(candidate.id, options) : null;
+      ? await this.engine.evaluators.eligibility(candidate.id, options)
+      : null;
     return {
       context,
       access_version: this.state.access?.version ?? null,
-      evaluations: evaluations ? { configured: evaluations.configured, passing: evaluations.passing, basis: evaluations.basis } : null,
+      evaluations: evaluations
+        ? {
+            configured: evaluations.configured,
+            passing: evaluations.passing,
+            basis: evaluations.basis,
+          }
+        : null,
       candidate,
       selections: candidate.selection_ids.map((id) => this.object('selections', id)),
       evidence: candidate.repositories.map((repo) => this.latestEvidence(candidate, repo) ?? null),
@@ -299,7 +337,7 @@ export class NativePipeline {
 
   async basis(candidate) {
     return hash({
-      ...await this.reviewInputs(candidate),
+      ...(await this.reviewInputs(candidate)),
       canonical_heads: this.state.repositories
         .map((repo) => ({ repo_id: repo.id, head: repo.head, unavailable: !!repo.unavailable }))
         .sort((a, b) => a.repo_id.localeCompare(b.repo_id)),
@@ -319,10 +357,13 @@ export class NativePipeline {
       return entry ? { ...entry, validity: this.engine.evidenceValidity(entry) } : null;
     });
     const context = this.engine.objectiveContext
-      ? await this.engine.objectiveContext.revisionsValidity(candidate.selection_ids.map((id) =>
-        this.object('selections', id).future_revision_id)) : null;
+      ? await this.engine.objectiveContext.revisionsValidity(
+          candidate.selection_ids.map((id) => this.object('selections', id).future_revision_id),
+        )
+      : null;
     const externalEvaluations = this.engine.evaluators
-      ? await this.engine.evaluators.eligibility(candidate.id) : null;
+      ? await this.engine.evaluators.eligibility(candidate.id)
+      : null;
     return {
       candidate,
       context,
@@ -333,18 +374,19 @@ export class NativePipeline {
       sources_current: sourcesCurrent,
       heads_current: headsCurrent,
       evidence,
-      validation_passing: externalEvaluations?.configured ? externalEvaluations.passing : evidence.every(
-        (entry) =>
-          entry &&
-          entry.validity.status === 'current' &&
-          validationPassed(entry) &&
-          entry.tree_hash ===
-            candidate.repositories.find(
-              (repo) => this.subject(candidate, repo) === entry.subject_ref,
-            )?.tree,
-      ),
-      promotion_supported:
-        candidate.repositories.some((repo) => repo.tree !== repo.base_tree),
+      validation_passing: externalEvaluations?.configured
+        ? externalEvaluations.passing
+        : evidence.every(
+            (entry) =>
+              entry &&
+              entry.validity.status === 'current' &&
+              validationPassed(entry) &&
+              entry.tree_hash ===
+                candidate.repositories.find(
+                  (repo) => this.subject(candidate, repo) === entry.subject_ref,
+                )?.tree,
+          ),
+      promotion_supported: candidate.repositories.some((repo) => repo.tree !== repo.base_tree),
     };
   }
 
@@ -358,14 +400,30 @@ export class NativePipeline {
       input.rationale.length > 4000
     )
       throw new DomainError('INVALID_RESOLUTION', 'Record a brief rationale');
-    const correlation = execution.group_decision_id || execution.group_request_id
-      ? { group_decision_id: execution.group_decision_id, group_request_id: execution.group_request_id }
-      : {};
-    if (Object.keys(correlation).length && Object.values(correlation).some(
-      (value) => typeof value !== 'string' || !value || value.length > 200))
-      throw new DomainError('INVALID_REQUEST', 'Internal group correlation requires both immutable IDs');
+    const correlation =
+      execution.group_decision_id || execution.group_request_id
+        ? {
+            group_decision_id: execution.group_decision_id,
+            group_request_id: execution.group_request_id,
+          }
+        : {};
+    if (
+      Object.keys(correlation).length &&
+      Object.values(correlation).some(
+        (value) => typeof value !== 'string' || !value || value.length > 200,
+      )
+    )
+      throw new DomainError(
+        'INVALID_REQUEST',
+        'Internal group correlation requires both immutable IDs',
+      );
     const operationId = 'promotion_' + (await hash({ actor, request_id: input.request_id }));
-    const inputHash = await hash({ candidate_id: id, input, ...correlation, ...(execution.continuation_of ? { continuation_of: execution.continuation_of } : {}) });
+    const inputHash = await hash({
+      candidate_id: id,
+      input,
+      ...correlation,
+      ...(execution.continuation_of ? { continuation_of: execution.continuation_of } : {}),
+    });
     const previous = this.state.operations.find((operation) => operation.id === operationId);
     if (previous) {
       if (previous.input_hash !== inputHash)
@@ -398,8 +456,10 @@ export class NativePipeline {
       );
     }
     if (
-      this.state.operations.some((operation) =>
-        ['prepared', 'recovery-required'].includes(operation.status) && operation.id !== execution.continuation_of,
+      this.state.operations.some(
+        (operation) =>
+          ['prepared', 'recovery-required'].includes(operation.status) &&
+          operation.id !== execution.continuation_of,
       )
     )
       throw new DomainError(
@@ -431,7 +491,9 @@ export class NativePipeline {
       );
     const changed = reviewed.candidate.repositories.filter((repo) => repo.tree !== repo.base_tree);
     const repository = changed[0];
-    const prior = execution.continuation_of && this.state.operations.find((entry) => entry.id === execution.continuation_of);
+    const prior =
+      execution.continuation_of &&
+      this.state.operations.find((entry) => entry.id === execution.continuation_of);
     if (execution.continuation_of) await this.guardContinuation(prior, reviewed.candidate);
     const decision = await record('native-decision', {
       candidate_id: id,
@@ -440,7 +502,9 @@ export class NativePipeline {
       decision_basis_hash: reviewed.decision_basis_hash,
       canonical_heads_seen: reviewed.expected_heads,
       evidence_ids: reviewed.evidence.filter(Boolean).map((entry) => entry.id),
-      evaluator_run_ids: (reviewed.external_evaluations?.runs ?? []).map((entry) => entry.run?.id ?? entry.id).filter(Boolean),
+      evaluator_run_ids: (reviewed.external_evaluations?.runs ?? [])
+        .map((entry) => entry.run?.id ?? entry.id)
+        .filter(Boolean),
       context_snapshot_refs: (reviewed.context?.snapshots ?? []).map((entry) => entry.id),
       ...(prior ? { continues_operation_id: prior.id } : {}),
       resolution: 'accept',
@@ -464,14 +528,20 @@ export class NativePipeline {
       dispatch_state: 'not_started',
       review_guard_hash: await hash(await this.reviewInputs(reviewed.candidate)),
       ...(prior ? { continuation_of: prior.id } : {}),
-      ...(changed.length > 1 || prior ? {
-        non_atomic: true,
-        reviewed_heads: reviewed.expected_heads,
-        stages: changed.map((entry) => ({
-          repo: entry.repo_id, expected_head: entry.base_commit, target_commit: entry.commit,
-          target_tree: entry.tree, status: 'prepared', dispatch_state: 'not_started',
-        })),
-      } : {}),
+      ...(changed.length > 1 || prior
+        ? {
+            non_atomic: true,
+            reviewed_heads: reviewed.expected_heads,
+            stages: changed.map((entry) => ({
+              repo: entry.repo_id,
+              expected_head: entry.base_commit,
+              target_commit: entry.commit,
+              target_tree: entry.tree,
+              status: 'prepared',
+              dispatch_state: 'not_started',
+            })),
+          }
+        : {}),
     };
     this.state.operations.push(operation);
     if (prior) {
@@ -537,7 +607,9 @@ export class NativePipeline {
    */
   async settleOperation(id, input, actor) {
     actorIdentity(actor);
-    const rollout = this.state.operations.find((entry) => entry.id === id && entry.kind === 'native' && entry.stages);
+    const rollout = this.state.operations.find(
+      (entry) => entry.id === id && entry.kind === 'native' && entry.stages,
+    );
     if (rollout) return this.settleRollout(rollout, input, actor);
     if (
       input.confirmed !== true ||
@@ -647,7 +719,6 @@ export class NativePipeline {
     else operation.status = 'recovery-required';
   }
 
-
   /**
    * A rollout validates one immutable future state but advances refs separately.
    * Each dispatch is persisted before Git; uncertainty never authorizes replay.
@@ -671,7 +742,9 @@ export class NativePipeline {
           throw error;
         }
         const updated = await this.engine.git.cas(
-          this.engine.repo(stage.repo), stage.expected_head, stage.target_commit,
+          this.engine.repo(stage.repo),
+          stage.expected_head,
+          stage.target_commit,
         );
         if (!updated) {
           stage.status = 'rejected';
@@ -695,9 +768,9 @@ export class NativePipeline {
       for (const stage of operation.stages)
         if (stage.status === 'prepared' && stage.dispatch_state === 'not_started')
           stage.status = 'not-issued';
-      const hasEffect = !!operation.continuation_of || operation.stages.some((stage) =>
-        ['applied', 'uncertain'].includes(stage.status),
-      );
+      const hasEffect =
+        !!operation.continuation_of ||
+        operation.stages.some((stage) => ['applied', 'uncertain'].includes(stage.status));
       operation.status = hasEffect ? 'recovery-required' : 'cas-failed';
       operation.stop_reason = error.code ?? 'ROLLOUT_INTERRUPTED';
       await this.recordDispositions(operation);
@@ -710,8 +783,8 @@ export class NativePipeline {
     const candidate = this.object('candidateStates', operation.candidate_id);
     await this.engine.syncHeads();
     if (
-      operation.review_guard_hash !== await hash(await this.reviewInputs(candidate)) ||
-      !await this.sourceValidity(candidate.selection_ids) ||
+      operation.review_guard_hash !== (await hash(await this.reviewInputs(candidate))) ||
+      !(await this.sourceValidity(candidate.selection_ids)) ||
       Object.entries(candidate.base_heads).some(([repoId, head]) => {
         const repo = this.engine.repo(repoId);
         return repo.head !== head || repo.unavailable;
@@ -726,7 +799,8 @@ export class NativePipeline {
     const expected = {
       ...operation.reviewed_heads,
       ...Object.fromEntries(
-        operation.stages.filter((stage) => stage.status === 'applied')
+        operation.stages
+          .filter((stage) => stage.status === 'applied')
           .map((stage) => [stage.repo, stage.target_commit]),
       ),
     };
@@ -736,8 +810,9 @@ export class NativePipeline {
       stage.current = repo.head === stage.target_commit && !repo.unavailable;
     }
     if (
-      operation.review_guard_hash !== await hash(await this.reviewInputs(candidate, { canonical_heads: expected })) ||
-      !await this.sourceValidity(candidate.selection_ids)
+      operation.review_guard_hash !==
+        (await hash(await this.reviewInputs(candidate, { canonical_heads: expected }))) ||
+      !(await this.sourceValidity(candidate.selection_ids))
     )
       throw new DomainError('DECISION_STALE', 'Rollout evidence or source basis changed', 409);
     for (const [repoId, head] of Object.entries(expected)) {
@@ -749,16 +824,24 @@ export class NativePipeline {
 
   async completeStage(operation, stage, actor) {
     await this.engine.observeCanonical(
-      this.engine.repo(stage.repo), stage.target_commit, stage.target_tree,
+      this.engine.repo(stage.repo),
+      stage.target_commit,
+      stage.target_tree,
     );
-    const recorded = this.state.nativeEvents.some((event) =>
-      event.type === 'io.klocgit.canonical.updated' &&
-      event.data.operation_id === operation.id && event.data.repo === stage.repo,
+    const recorded = this.state.nativeEvents.some(
+      (event) =>
+        event.type === 'io.klocgit.canonical.updated' &&
+        event.data.operation_id === operation.id &&
+        event.data.repo === stage.repo,
     );
     if (!recorded)
       await this.engine.native.event('canonical.updated', actor, {
-        operation_id: operation.id, repo: stage.repo, decision_id: operation.decision_id,
-        candidate_id: operation.candidate_id, head: stage.target_commit, non_atomic: true,
+        operation_id: operation.id,
+        repo: stage.repo,
+        decision_id: operation.decision_id,
+        candidate_id: operation.candidate_id,
+        head: stage.target_commit,
+        non_atomic: true,
       });
   }
 
@@ -786,12 +869,23 @@ export class NativePipeline {
       });
       const applied = outcomes.some((entry) => entry.status === 'applied');
       const uncertain = outcomes.some((entry) => entry.status === 'uncertain');
-      const status = operation.status === 'applied' ? 'applied' :
-        uncertain ? 'uncertain' : applied ? 'partially_applied' : 'not_applied';
+      const status =
+        operation.status === 'applied'
+          ? 'applied'
+          : uncertain
+            ? 'uncertain'
+            : applied
+              ? 'partially_applied'
+              : 'not_applied';
       const content = {
-        operation_id: operation.id, decision_id: operation.decision_id,
-        future_id: revision.future_id, future_revision_id: revisionId,
-        selection_ids: selectionIds, scope: 'selected_material', status, repository_outcomes: outcomes,
+        operation_id: operation.id,
+        decision_id: operation.decision_id,
+        future_id: revision.future_id,
+        future_revision_id: revisionId,
+        selection_ids: selectionIds,
+        scope: 'selected_material',
+        status,
+        repository_outcomes: outcomes,
       };
       const disposition = await record('native-disposition', content);
       if (!this.state.nativeDispositions.some((entry) => entry.id === disposition.id))
@@ -802,12 +896,13 @@ export class NativePipeline {
   async recoverRollout(operation) {
     const decision = this.object('nativeDecisions', operation.decision_id);
     const candidate = this.object('candidateStates', decision.candidate_id);
-    if (await hash(operation.reviewed_heads) !== await hash(candidate.base_heads))
+    if ((await hash(operation.reviewed_heads)) !== (await hash(candidate.base_heads)))
       throw new DomainError('RECOVERY_REQUIRED', 'Rollout journal basis is invalid', 503);
     for (const stage of operation.stages) {
       const target = candidate.repositories.find((entry) => entry.repo_id === stage.repo);
       if (
-        target?.commit !== stage.target_commit || target.tree !== stage.target_tree ||
+        target?.commit !== stage.target_commit ||
+        target.tree !== stage.target_tree ||
         target.base_commit !== stage.expected_head
       )
         throw new DomainError('RECOVERY_REQUIRED', 'Rollout stage differs from its candidate', 503);
@@ -826,9 +921,9 @@ export class NativePipeline {
       } else if (stage.status !== 'applied') stage.status = 'uncertain';
     }
     const complete = operation.stages.every((stage) => stage.status === 'applied' && stage.current);
-    const hasEffect = !!operation.continuation_of || operation.stages.some((stage) =>
-      ['applied', 'uncertain', 'settled'].includes(stage.status),
-    );
+    const hasEffect =
+      !!operation.continuation_of ||
+      operation.stages.some((stage) => ['applied', 'uncertain', 'settled'].includes(stage.status));
     operation.status = complete ? 'applied' : hasEffect ? 'recovery-required' : 'not-applied';
     await this.recordDispositions(operation);
     // Recovery records observations only. It never dispatches an unfinished stage.
@@ -837,23 +932,45 @@ export class NativePipeline {
 
   async guardContinuation(operation, candidate) {
     if (!operation?.stages || operation.status !== 'recovery-required')
-      throw new DomainError('CONTINUATION_UNAVAILABLE', 'A reconciled partial rollout is required', 409);
-    if (operation.stages.some((stage) => stage.status === 'uncertain' ||
-      (stage.dispatch_state === 'issued' && stage.status === 'prepared')))
+      throw new DomainError(
+        'CONTINUATION_UNAVAILABLE',
+        'A reconciled partial rollout is required',
+        409,
+      );
+    if (
+      operation.stages.some(
+        (stage) =>
+          stage.status === 'uncertain' ||
+          (stage.dispatch_state === 'issued' && stage.status === 'prepared'),
+      )
+    )
       throw new DomainError('RECOVERY_REQUIRED', 'Settle uncertain stages before continuing', 409);
-    const remaining = new Set(operation.stages
-      .filter((stage) => stage.status !== 'applied').map((stage) => stage.repo));
+    const remaining = new Set(
+      operation.stages.filter((stage) => stage.status !== 'applied').map((stage) => stage.repo),
+    );
     const changed = candidate.repositories.filter((repo) => repo.tree !== repo.base_tree);
     if (!changed.length || changed.some((repo) => !remaining.has(repo.repo_id)))
-      throw new DomainError('INVALID_CONTINUATION', 'Continue only the remaining repository stages', 422);
+      throw new DomainError(
+        'INVALID_CONTINUATION',
+        'Continue only the remaining repository stages',
+        422,
+      );
     for (const stage of operation.stages.filter((entry) => entry.status === 'applied'))
-      if (this.engine.repo(stage.repo).head !== stage.target_commit ||
-        candidate.base_heads[stage.repo] !== stage.target_commit)
-        throw new DomainError('DECISION_STALE', 'An applied rollout ref moved; review recovery first', 409);
+      if (
+        this.engine.repo(stage.repo).head !== stage.target_commit ||
+        candidate.base_heads[stage.repo] !== stage.target_commit
+      )
+        throw new DomainError(
+          'DECISION_STALE',
+          'An applied rollout ref moved; review recovery first',
+          409,
+        );
   }
 
   async reviewContinuation(id, candidateId) {
-    const operation = this.state.operations.find((entry) => entry.id === id && entry.kind === 'native');
+    const operation = this.state.operations.find(
+      (entry) => entry.id === id && entry.kind === 'native',
+    );
     if (!operation?.stages)
       throw new DomainError('NOT_FOUND', 'Multi-repository rollout not found', 404);
     const review = await this.review(candidateId);
@@ -871,67 +988,116 @@ export class NativePipeline {
   /** Continue with a newly composed, validated and reviewed candidate; never reuse approval. */
   async continuePromotion(id, input, actor) {
     actorIdentity(actor);
-    const previous = this.state.operations.find((entry) => entry.id === id && entry.kind === 'native');
+    const previous = this.state.operations.find(
+      (entry) => entry.id === id && entry.kind === 'native',
+    );
     if (!previous?.stages)
       throw new DomainError('NOT_FOUND', 'Multi-repository rollout not found', 404);
     const candidate = this.object('candidateStates', input.candidate_id);
     const value = {
-      request_id: input.request_id, decision_basis_hash: input.decision_basis_hash,
-      expected_heads: input.expected_heads, rationale: input.rationale,
+      request_id: input.request_id,
+      decision_basis_hash: input.decision_basis_hash,
+      expected_heads: input.expected_heads,
+      rationale: input.rationale,
     };
     return this.promote(candidate.id, value, actor, { continuation_of: previous.id });
   }
 
   async settleRollout(operation, input, actor) {
     if (
-      input.confirmed !== true || typeof input.rationale !== 'string' ||
-      !input.rationale.trim() || input.rationale.length > 4000
+      input.confirmed !== true ||
+      typeof input.rationale !== 'string' ||
+      !input.rationale.trim() ||
+      input.rationale.length > 4000
     )
       throw new DomainError('INVALID_SETTLEMENT', 'Confirm the inspected outcome and rationale');
     const value = {
-      operation_id: operation.id, request_id: input.request_id,
-      confirmed: true, rationale: input.rationale,
-      ...(input.abandon === true ? { abandon: true, expected_heads: input.expected_heads } : {
-        repo_id: input.repo_id, expected_head: input.expected_head, outcome: input.outcome,
-      }),
+      operation_id: operation.id,
+      request_id: input.request_id,
+      confirmed: true,
+      rationale: input.rationale,
+      ...(input.abandon === true
+        ? { abandon: true, expected_heads: input.expected_heads }
+        : {
+            repo_id: input.repo_id,
+            expected_head: input.expected_head,
+            outcome: input.outcome,
+          }),
     };
     return this.engine.native.request('promotion.settle', value, actor, async () => {
       if (operation.status !== 'recovery-required')
-        throw new DomainError('OPERATION_NOT_UNCERTAIN', 'Reconcile the rollout before settlement', 409);
+        throw new DomainError(
+          'OPERATION_NOT_UNCERTAIN',
+          'Reconcile the rollout before settlement',
+          409,
+        );
       await this.engine.syncHeads();
       let observedRefs, outcome;
       if (value.abandon) {
-        if (operation.stages.some((stage) => stage.status === 'uncertain' ||
-          (stage.dispatch_state === 'issued' && stage.status === 'prepared')))
-          throw new DomainError('RECOVERY_REQUIRED', 'Settle uncertain stages before abandonment', 409);
-        const heads = Object.fromEntries(this.state.repositories.map((repo) => [repo.id, repo.head]));
-        if (await hash(value.expected_heads) !== await hash(heads) ||
-          this.state.repositories.some((repo) => repo.unavailable))
+        if (
+          operation.stages.some(
+            (stage) =>
+              stage.status === 'uncertain' ||
+              (stage.dispatch_state === 'issued' && stage.status === 'prepared'),
+          )
+        )
+          throw new DomainError(
+            'RECOVERY_REQUIRED',
+            'Settle uncertain stages before abandonment',
+            409,
+          );
+        const heads = Object.fromEntries(
+          this.state.repositories.map((repo) => [repo.id, repo.head]),
+        );
+        if (
+          (await hash(value.expected_heads)) !== (await hash(heads)) ||
+          this.state.repositories.some((repo) => repo.unavailable)
+        )
           throw new DomainError('SETTLEMENT_STALE', 'Git changed; review the partial rollout', 409);
         observedRefs = this.state.repositories.map((repo) => ({
-          repo_id: repo.id, ref: repo.canonical_ref, commit: repo.head, basis: 'observed',
+          repo_id: repo.id,
+          ref: repo.canonical_ref,
+          commit: repo.head,
+          basis: 'observed',
         }));
         outcome = 'abandon_remaining';
       } else {
-        if (!['not_applied', 'applied_then_moved'].includes(value.outcome) ||
-          !oid.test(value.expected_head ?? ''))
+        if (
+          !['not_applied', 'applied_then_moved'].includes(value.outcome) ||
+          !oid.test(value.expected_head ?? '')
+        )
           throw new DomainError('INVALID_SETTLEMENT', 'Select a repository outcome and exact head');
         const stage = operation.stages.find((entry) => entry.repo === value.repo_id);
         if (!stage || stage.status !== 'uncertain')
-          throw new DomainError('OPERATION_NOT_UNCERTAIN', 'The selected stage is not uncertain', 409);
+          throw new DomainError(
+            'OPERATION_NOT_UNCERTAIN',
+            'The selected stage is not uncertain',
+            409,
+          );
         const repo = this.engine.repo(stage.repo);
         if (repo.head !== value.expected_head || repo.unavailable)
           throw new DomainError('SETTLEMENT_STALE', 'Git changed; reopen the settlement', 409);
         if (repo.head === stage.target_commit)
-          throw new DomainError('RECOVERY_TARGET_PRESENT', 'The exact target is present; reconcile it', 409);
-        observedRefs = [{ repo_id: repo.id, ref: repo.canonical_ref, commit: repo.head, basis: 'observed' }];
+          throw new DomainError(
+            'RECOVERY_TARGET_PRESENT',
+            'The exact target is present; reconcile it',
+            409,
+          );
+        observedRefs = [
+          { repo_id: repo.id, ref: repo.canonical_ref, commit: repo.head, basis: 'observed' },
+        ];
         outcome = value.outcome;
       }
       const settlement = await record('settlement', {
-        operation_id: operation.id, decision_id: operation.decision_id,
+        operation_id: operation.id,
+        decision_id: operation.decision_id,
         ...(value.abandon ? {} : { repo_id: value.repo_id }),
-        outcome, basis: 'declared', observed_refs: observedRefs,
-        rationale: value.rationale.trim(), actor, created_at: now(),
+        outcome,
+        basis: 'declared',
+        observed_refs: observedRefs,
+        rationale: value.rationale.trim(),
+        actor,
+        created_at: now(),
       });
       this.state.nativeSettlements.push(settlement);
       if (value.abandon) {
@@ -944,7 +1110,8 @@ export class NativePipeline {
       }
       await this.recordDispositions(operation);
       await this.engine.native.event('promotion.settled', actor, {
-        operation_id: operation.id, settlement_id: settlement.id,
+        operation_id: operation.id,
+        settlement_id: settlement.id,
         ...(value.abandon ? { abandoned: true } : { repo: value.repo_id }),
       });
       return { settlement, operation };

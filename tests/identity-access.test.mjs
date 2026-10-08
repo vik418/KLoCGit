@@ -328,6 +328,14 @@ test('scoped native reads preserve ref pagination while cross-repository context
     next_cursor: 'refs/heads/main',
   };
   assert.deepEqual(f.access.projectNative(refs, principal), refs);
+  f.state.futures = [{
+    id: 'source-future', repositories: [{ repo_id: 'app-isolated', canonical_repo_id: 'app' }],
+  }];
+  f.access.authorizeNative({
+    method: 'GET', url: new URL('https://app.example/api/repositories/app-isolated/refs'),
+    principal,
+  });
+  assert.deepEqual(f.access.resourceRepositories({ id: 'app-isolated' }), ['app']);
   f.state.nativeContextPreparations = [{
     id: 'private-preparation', sources: [{ repo_id: 'api', path: 'policy.json' }],
   }];

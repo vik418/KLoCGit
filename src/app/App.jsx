@@ -364,24 +364,28 @@ export function App() {
           }}
         />
       )}
-      {sourceFuture && workspace.nativeState.futures.some((future) => future.id === sourceFuture) && (
-        <SourceRefDialog
-          future={workspace.nativeState.futures.find((future) => future.id === sourceFuture)}
-          repositories={workspace.nativeState.repositories}
-          onClose={() => setSourceFuture(null)}
-          reload={reload}
-          message={notify}
-        />
-      )}
-      {continuationId && workspace.nativeState.promotions.some((entry) => entry.id === continuationId) && (
-        <ContinuationDialog
-          operation={workspace.nativeState.promotions.find((entry) => entry.id === continuationId)}
-          candidates={workspace.nativeState.candidates}
-          onClose={() => setContinuationId(null)}
-          reload={reload}
-          message={notify}
-        />
-      )}
+      {sourceFuture &&
+        workspace.nativeState.futures.some((future) => future.id === sourceFuture) && (
+          <SourceRefDialog
+            future={workspace.nativeState.futures.find((future) => future.id === sourceFuture)}
+            repositories={workspace.nativeState.repositories}
+            onClose={() => setSourceFuture(null)}
+            reload={reload}
+            message={notify}
+          />
+        )}
+      {continuationId &&
+        workspace.nativeState.promotions.some((entry) => entry.id === continuationId) && (
+          <ContinuationDialog
+            operation={workspace.nativeState.promotions.find(
+              (entry) => entry.id === continuationId,
+            )}
+            candidates={workspace.nativeState.candidates}
+            onClose={() => setContinuationId(null)}
+            reload={reload}
+            message={notify}
+          />
+        )}
       {provenanceSubject && (
         <ProvenanceDialog subject={provenanceSubject} onClose={() => setProvenanceSubject(null)} />
       )}

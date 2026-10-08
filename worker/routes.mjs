@@ -16,36 +16,67 @@ export function requestPrincipal(engine, principal, actor) {
   throw new DomainError('UNAUTHENTICATED', 'An authenticated principal is required', 401);
 }
 export function servicePath(path) {
-  return /^\/api\/(?:session|access|context|evaluator-profiles|evaluator-bindings|evaluation-runs|declarations|dependencies|discovery|provenance|export)(?:\/|$)/.test(path);
+  return /^\/api\/(?:session|access|context|evaluator-profiles|evaluator-bindings|evaluation-runs|declarations|dependencies|discovery|provenance|export)(?:\/|$)/.test(
+    path,
+  );
 }
 export function pushRepositories(engine, event) {
-  if (!event || typeof event !== 'object') throw new DomainError('INVALID_EVENT', 'A Git push is required');
+  if (!event || typeof event !== 'object')
+    throw new DomainError('INVALID_EVENT', 'A Git push is required');
   const source = event.source_repo ?? event.repo;
   const future = (engine.state.futures ?? []).find((item) =>
-    (item.repositories ?? []).some((repo) => repo.repo_id === source));
-  return future ? engine.access.resourceRepositories(future) : [...new Set(
-    [event.repo, event.source_repo].filter((id) => typeof id === 'string')
-      .map((id) => engine.access.canonicalRepository(id)),
-  )];
+    (item.repositories ?? []).some((repo) => repo.repo_id === source),
+  );
+  return future
+    ? engine.access.resourceRepositories(future)
+    : [
+        ...new Set(
+          [event.repo, event.source_repo]
+            .filter((id) => typeof id === 'string')
+            .map((id) => engine.access.canonicalRepository(id)),
+        ),
+      ];
 }
 export function ignoredInternalPush(engine, event) {
-  if (typeof event?.ref !== 'string' ||
-      !(event.ref.startsWith('refs/klocgit/candidates/') || event.ref.startsWith('refs/klocgit/observations/')))
+  if (
+    typeof event?.ref !== 'string' ||
+    !(
+      event.ref.startsWith('refs/klocgit/candidates/') ||
+      event.ref.startsWith('refs/klocgit/observations/')
+    )
+  )
     return null;
   const source = event.source_repo ?? event.repo;
-  const canonical = engine.state.repositories.find((repo) => repo.id === source && repo.canonical_ref === event.ref);
+  const canonical = engine.state.repositories.find(
+    (repo) => repo.id === source && repo.canonical_ref === event.ref,
+  );
   const trackedFuture = (engine.state.futures ?? []).some((future) =>
-    (future.repositories ?? []).some((repo) => repo.repo_id === source && repo.ref === event.ref));
+    (future.repositories ?? []).some((repo) => repo.repo_id === source && repo.ref === event.ref),
+  );
   if (canonical || trackedFuture) return null;
-  return { ignored: true, reason: event.ref.startsWith('refs/klocgit/candidates/')
-    ? 'INTERNAL_CANDIDATE_REF' : 'INTERNAL_OBSERVATION_REF' };
+  return {
+    ignored: true,
+    reason: event.ref.startsWith('refs/klocgit/candidates/')
+      ? 'INTERNAL_CANDIDATE_REF'
+      : 'INTERNAL_OBSERVATION_REF',
+  };
 }
 export function filteredWorkflow(engine, result, principal, method) {
   if (method !== 'GET') return redactSensitive(result);
   if (Array.isArray(result?.mergeRequests))
-    return { ...result, mergeRequests: result.mergeRequests.filter((item) => engine.access.readable(principal, item)).map(redactSensitive) };
+    return {
+      ...result,
+      mergeRequests: result.mergeRequests
+        .filter((item) => engine.access.readable(principal, item))
+        .map(redactSensitive),
+    };
   if (Array.isArray(result?.mergeQueue))
-    return { ...result, mergeQueue: result.mergeQueue.filter((item) => engine.access.readable(principal, item)).map(redactSensitive) };
+    return {
+      ...result,
+      mergeQueue: result.mergeQueue
+        .filter((item) => engine.access.readable(principal, item))
+        .map(redactSensitive),
+    };
   return redactSensitive(result);
 }
 export function legacyReadInputs(engine, principal) {
@@ -68,16 +99,24 @@ async function ingestPush(engine, input, principal) {
 }
 
 /** Called only after authentication inside WorkspaceCoordinator's serialized boundary. */
-export async function handleCoordinatorRequest(engine, env, {
-  method, url, input = {}, principal, actor: suppliedActor, headers = new Headers(),
-}) {
+export async function handleCoordinatorRequest(
+  engine,
+  env,
+  { method, url, input = {}, principal, actor: suppliedActor, headers = new Headers() },
+) {
   const path = url.pathname;
   if (!principal && path.startsWith('/internal/'))
-    principal = internalPrincipal(path === '/internal/push' ? 'artifacts-ingress' :
-      path === '/internal/merge-queue' ? 'merge-queue-coordinator' : 'coordinator');
+    principal = internalPrincipal(
+      path === '/internal/push'
+        ? 'artifacts-ingress'
+        : path === '/internal/merge-queue'
+          ? 'merge-queue-coordinator'
+          : 'coordinator',
+    );
   principal = requestPrincipal(engine, principal, suppliedActor ?? env.ACTOR_ID);
   const actor = principal.actor_id;
-  if (path === '/api/session' && method === 'GET') return jsonResponse(engine.access.session(principal));
+  if (path === '/api/session' && method === 'GET')
+    return jsonResponse(engine.access.session(principal));
   if (path === '/api/access') {
     if (method === 'GET') return jsonResponse(engine.access.policy(principal));
     if (method === 'POST') return jsonResponse(await engine.access.update(input, principal));
@@ -91,27 +130,51 @@ export async function handleCoordinatorRequest(engine, env, {
   }
   if (path === '/internal/push' || (path === '/api/events' && method === 'POST'))
     return ingestPush(engine, input, principal);
-  if (path === '/api/workspace' && method === 'GET') return jsonResponse(await engine.view(principal));
+  if (path === '/api/workspace' && method === 'GET')
+    return jsonResponse(await engine.view(principal));
 
   const report = method === 'POST' && /^\/api\/evaluation-runs\/[^/]+\/report$/.test(path);
   if (report) {
     if (principal.kind !== 'service' || principal.auth_method !== 'evaluator-hmac')
-      throw new DomainError('UNAUTHENTICATED', 'A verified evaluator service report is required', 401);
-    const result = await handleNativeRequest(engine, { method, url, input, actor, principal, requestHeaders: headers });
-    if (result === null) throw new DomainError('NOT_FOUND', 'Evaluator report route is unavailable', 404);
+      throw new DomainError(
+        'UNAUTHENTICATED',
+        'A verified evaluator service report is required',
+        401,
+      );
+    const result = await handleNativeRequest(engine, {
+      method,
+      url,
+      input,
+      actor,
+      principal,
+      requestHeaders: headers,
+    });
+    if (result === null)
+      throw new DomainError('NOT_FOUND', 'Evaluator report route is unavailable', 404);
     return jsonResponse(redactSensitive(result));
   }
   if (!path.startsWith('/internal/')) engine.access.require(principal, 'workspace.read');
-  const legacyRepository = path === '/api/repositories' && method === 'POST' &&
-    Object.hasOwn(input, 'name') && !Object.hasOwn(input, 'id');
+  const legacyRepository =
+    path === '/api/repositories' &&
+    method === 'POST' &&
+    Object.hasOwn(input, 'name') &&
+    !Object.hasOwn(input, 'id');
   if ((ownsNativePath(path) || servicePath(path)) && !legacyRepository) {
-    const result = await handleNativeRequest(engine, { method, url, input, actor, principal, requestHeaders: headers });
+    const result = await handleNativeRequest(engine, {
+      method,
+      url,
+      input,
+      actor,
+      principal,
+      requestHeaders: headers,
+    });
     if (result === null) throw new DomainError('NOT_FOUND', 'Endpoint not found', 404);
     return jsonResponse(redactSensitive(result));
   }
 
   if (engine.access.authorizeWorkflow({ method, url, input, principal })) {
-    if (method === 'POST' && /\/(prepare|validate)$/.test(path)) legacyReadInputs(engine, principal);
+    if (method === 'POST' && /\/(prepare|validate)$/.test(path))
+      legacyReadInputs(engine, principal);
     const workflow = await handleWorkflowRequest(engine, { method, url, input, actor, principal });
     if (workflow !== null) {
       if (path === '/api/merge-queue/process' && workflow.processed)
@@ -123,7 +186,9 @@ export async function handleCoordinatorRequest(engine, env, {
     engine.access.require(principal, 'analysis.run');
     const result = await engine.analyzeWork({ actor, refresh: input.refresh === true });
     const nativeAnalysis = await engine.analyzeNativeWork({
-      actor, trigger: input.trigger ?? {}, request_id: input.request_id,
+      actor,
+      trigger: input.trigger ?? {},
+      request_id: input.request_id,
     });
     return jsonResponse({ ...result, native_analysis: nativeAnalysis });
   }
@@ -133,12 +198,19 @@ export async function handleCoordinatorRequest(engine, env, {
     return jsonResponse(await engine.view(principal));
   }
   if (path === '/api/tasks' && method === 'GET')
-    return jsonResponse(engine.state.tasks.filter((task) =>
-      engine.access.isWorkspaceAdmin(principal) || engine.access.readable(principal, task)));
+    return jsonResponse(
+      engine.state.tasks.filter(
+        (task) =>
+          engine.access.isWorkspaceAdmin(principal) || engine.access.readable(principal, task),
+      ),
+    );
   if (path === '/api/tasks' && method === 'POST') {
     legacyReadInputs(engine, principal);
-    engine.access.require(principal, 'task.prepare',
-      engine.access.resourceRepositories(input.task ?? input));
+    engine.access.require(
+      principal,
+      'task.prepare',
+      engine.access.resourceRepositories(input.task ?? input),
+    );
     return jsonResponse(await engine.prepareTask(input.task ?? input, actor), 201);
   }
   const task = path.match(/^\/api\/tasks\/([^/]+)\/(answer|assume)$/);
@@ -151,7 +223,13 @@ export async function handleCoordinatorRequest(engine, env, {
   if (path === '/api/diff' && method === 'GET') {
     const revision = engine.revision(url.searchParams.get('revision'));
     engine.access.require(principal, 'repository.read', [revision.repo]);
-    return jsonResponse({ diff: await engine.git.diff(engine.repo(revision.repo), revision.base_commit, revision.head_commit) });
+    return jsonResponse({
+      diff: await engine.git.diff(
+        engine.repo(revision.repo),
+        revision.base_commit,
+        revision.head_commit,
+      ),
+    });
   }
   if (path === '/api/repositories' && method === 'POST') {
     engine.access.require(principal, 'repository.create');
@@ -166,11 +244,17 @@ export async function handleCoordinatorRequest(engine, env, {
   if (decision && method === 'POST') {
     const component = engine.component(decision[1]);
     legacyReadInputs(engine, principal);
-    engine.access.require(principal, decision[2] === 'resolve' ? 'decision.resolve' : 'decision.prepare',
-      engine.access.resourceRepositories(component));
+    engine.access.require(
+      principal,
+      decision[2] === 'resolve' ? 'decision.resolve' : 'decision.prepare',
+      engine.access.resourceRepositories(component),
+    );
     if (decision[2] === 'refresh') return jsonResponse(await engine.refreshDecision(decision[1]));
     const result = await engine.resolve(decision[1], input, actor);
-    const analysis = await scheduleAnalysis(env, { decision: result.decision_id, head: result.canonical_head });
+    const analysis = await scheduleAnalysis(env, {
+      decision: result.decision_id,
+      head: result.canonical_head,
+    });
     return jsonResponse({ ...result, analysis });
   }
   throw new DomainError('NOT_FOUND', 'Endpoint not found', 404);

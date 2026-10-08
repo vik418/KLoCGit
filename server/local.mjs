@@ -47,7 +47,11 @@ async function loadEngine() {
   }
   if (state) {
     if (state.workspace.owner_id && state.workspace.owner_id !== localActor)
-      throw new DomainError('OWNER_IDENTITY_CHANGED', 'Restore the configured owner or explicitly reconcile ownership', 503);
+      throw new DomainError(
+        'OWNER_IDENTITY_CHANGED',
+        'Restore the configured owner or explicitly reconcile ownership',
+        503,
+      );
     state.workspace.owner_id ??= localActor;
     const engine = new Engine(state, await new LocalGit(root).init(), save, engineOptions);
     await save(state);
@@ -91,17 +95,27 @@ async function handleRequest(request, response) {
 
   try {
     assertSameOrigin(request);
-    const report = request.method === 'POST' && url.pathname.match(/^\/api\/evaluation-runs\/([^/]+)\/report$/);
+    const report =
+      request.method === 'POST' && url.pathname.match(/^\/api\/evaluation-runs\/([^/]+)\/report$/);
     let principal;
     if (!report)
       principal = await authenticatedPrincipal(request, {
-        actor: localActor, ownerToken, host, identityEnv: process.env,
+        actor: localActor,
+        ownerToken,
+        host,
+        identityEnv: process.env,
       });
     const payload = ['GET', 'HEAD'].includes(request.method)
-      ? { input: {}, raw: '', bytes: 0 } : await readRequestPayload(request);
+      ? { input: {}, raw: '', bytes: 0 }
+      : await readRequestPayload(request);
     if (report) {
       const webRequest = new Request(url, { method: request.method, headers: request.headers });
-      principal = await authenticateEvaluationReport(webRequest, process.env, payload.input, report[1]);
+      principal = await authenticateEvaluationReport(
+        webRequest,
+        process.env,
+        payload.input,
+        report[1],
+      );
     }
     engine.access.assertQuota('request_bytes', 0, payload.bytes);
     const input = payload.input;
@@ -113,8 +127,11 @@ async function handleRequest(request, response) {
         {
           method: request.method,
           url,
-          input, principal, actor: principal.actor_id,
-          headers: request.headers, bytes: payload.bytes,
+          input,
+          principal,
+          actor: principal.actor_id,
+          headers: request.headers,
+          bytes: payload.bytes,
         },
         { root, save },
       ),

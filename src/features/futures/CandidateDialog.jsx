@@ -30,9 +30,14 @@ export function CandidateDialog({ id, onClose, reload, message }) {
         setReadError(candidate.reason.message);
       }
       if (evaluators.status === 'fulfilled') {
-        const current = new Set((evaluators.value.bindings ?? []).map((binding) => binding.profile_id));
-        setProfiles((evaluators.value.profiles ?? []).filter((profile) =>
-          current.has(profile.id) && profile.enabled));
+        const current = new Set(
+          (evaluators.value.bindings ?? []).map((binding) => binding.profile_id),
+        );
+        setProfiles(
+          (evaluators.value.profiles ?? []).filter(
+            (profile) => current.has(profile.id) && profile.enabled,
+          ),
+        );
         setEvaluatorError(null);
       } else {
         setProfiles([]);
@@ -106,10 +111,12 @@ export function CandidateDialog({ id, onClose, reload, message }) {
     review.heads_current &&
     review.validation_passing &&
     review.promotion_supported;
-  const changed = review?.candidate.repositories.filter((repo) => repo.tree !== repo.base_tree) ?? [];
+  const changed =
+    review?.candidate.repositories.filter((repo) => repo.tree !== repo.base_tree) ?? [];
   const requiredEvaluators = review?.external_evaluations?.configured === true;
   const eligibleProfiles = profiles.filter((profile) =>
-    review?.candidate.repositories.every((repo) => profile.repo_ids.includes(repo.repo_id)));
+    review?.candidate.repositories.every((repo) => profile.repo_ids.includes(repo.repo_id)),
+  );
   const runs = review?.external_evaluations?.runs ?? [];
 
   return (
@@ -171,13 +178,20 @@ export function CandidateDialog({ id, onClose, reload, message }) {
                 <section className="space-y-2" aria-label="Candidate context">
                   <h2 className="text-sm font-medium">Context</h2>
                   <p className="text-xs text-muted-foreground">
-                    {review.context.status === 'current' ? 'Current context' : 'Context requires review'}
-                    {review.context.requires_human_judgment ? ' · unresolved assumptions require judgment' : ''}
+                    {review.context.status === 'current'
+                      ? 'Current context'
+                      : 'Context requires review'}
+                    {review.context.requires_human_judgment
+                      ? ' · unresolved assumptions require judgment'
+                      : ''}
                   </p>
                   {review.context.snapshots?.flatMap((snapshot) =>
                     (snapshot.validity?.reasons ?? []).map((reason) => (
-                      <p key={snapshot.id + reason} className="text-xs text-muted-foreground">{reason}</p>
-                    )))}
+                      <p key={snapshot.id + reason} className="text-xs text-muted-foreground">
+                        {reason}
+                      </p>
+                    )),
+                  )}
                 </section>
               )}
               <section className="space-y-3" aria-label="Candidate evidence">
@@ -222,14 +236,20 @@ export function CandidateDialog({ id, onClose, reload, message }) {
               {(requiredEvaluators || eligibleProfiles.length > 0 || runs.length > 0) && (
                 <section className="space-y-3" aria-label="Evaluator runs">
                   <h2 className="text-sm font-medium">Evaluations</h2>
-                  {evaluatorError && <p role="status" className="text-xs text-muted-foreground">
-                    Evaluator configuration could not be read: {evaluatorError}
-                  </p>}
+                  {evaluatorError && (
+                    <p role="status" className="text-xs text-muted-foreground">
+                      Evaluator configuration could not be read: {evaluatorError}
+                    </p>
+                  )}
                   {review.external_evaluations?.reasons?.map((reason) => (
-                    <p key={reason} className="text-xs text-muted-foreground">{reason}</p>
+                    <p key={reason} className="text-xs text-muted-foreground">
+                      {reason}
+                    </p>
                   ))}
                   {eligibleProfiles.map((profile) => {
-                    const latest = runs.filter((entry) => entry.run?.profile_id === profile.id).at(-1);
+                    const latest = runs
+                      .filter((entry) => entry.run?.profile_id === profile.id)
+                      .at(-1);
                     const active = latest && ['pending', 'running'].includes(latest.state);
                     return (
                       <div key={profile.id} className="space-y-2 rounded-md border p-3">
@@ -239,7 +259,9 @@ export function CandidateDialog({ id, onClose, reload, message }) {
                           {latest ? ' · ' + latest.state : ' · no run issued'}
                         </p>
                         {latest?.validity?.reasons?.map((reason) => (
-                          <p key={reason} className="text-xs text-muted-foreground">{reason}</p>
+                          <p key={reason} className="text-xs text-muted-foreground">
+                            {reason}
+                          </p>
                         ))}
                         {latest?.event?.result?.checks?.map((check) => (
                           <p key={check.id} className="text-xs text-muted-foreground">
@@ -252,23 +274,45 @@ export function CandidateDialog({ id, onClose, reload, message }) {
                           </p>
                         )}
                         <div className="flex flex-wrap gap-2">
-                          <Button type="button" size="sm" variant="outline"
-                            disabled={busy || active || !review.sources_current || !review.heads_current}
-                            onClick={() => issue(profile)}>
+                          <Button
+                            type="button"
+                            size="sm"
+                            variant="outline"
+                            disabled={
+                              busy || active || !review.sources_current || !review.heads_current
+                            }
+                            onClick={() => issue(profile)}
+                          >
                             {latest ? 'Issue new run' : 'Issue run'}
                           </Button>
                           {profile.mode === 'builtin' && latest?.state === 'pending' && (
-                            <Button type="button" size="sm" variant="outline" disabled={busy}
-                              onClick={() => dispatch(latest.run.id)}>Run checks</Button>
+                            <Button
+                              type="button"
+                              size="sm"
+                              variant="outline"
+                              disabled={busy}
+                              onClick={() => dispatch(latest.run.id)}
+                            >
+                              Run checks
+                            </Button>
                           )}
                           {active && (
-                            <Button type="button" size="sm" variant="ghost" disabled={busy}
-                              onClick={() => cancel(latest.run.id)}>Cancel run</Button>
+                            <Button
+                              type="button"
+                              size="sm"
+                              variant="ghost"
+                              disabled={busy}
+                              onClick={() => cancel(latest.run.id)}
+                            >
+                              Cancel run
+                            </Button>
                           )}
                         </div>
-                        {latest && <p className="break-all font-mono text-xs text-muted-foreground">
-                          Run {latest.run.id}
-                        </p>}
+                        {latest && (
+                          <p className="break-all font-mono text-xs text-muted-foreground">
+                            Run {latest.run.id}
+                          </p>
+                        )}
                       </div>
                     );
                   })}

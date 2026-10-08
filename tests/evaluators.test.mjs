@@ -39,13 +39,27 @@ async function fixture(options = {}) {
   const candidate = await record('candidate', {
     selection_ids: [],
     base_heads: { app: baseline, policy: policyHead },
-    repositories: [{ repo_id: 'app', base_commit: baseline, base_tree: '6'.repeat(40), commit, tree }],
+    repositories: [
+      { repo_id: 'app', base_commit: baseline, base_tree: '6'.repeat(40), commit, tree },
+    ],
   });
   const state = {
     ...emptyState(),
     repositories: [
-      { id: 'app', head: baseline, tree: '6'.repeat(40), baseline, canonical_ref: 'refs/heads/main' },
-      { id: 'policy', head: policyHead, tree: '5'.repeat(40), baseline: policyHead, canonical_ref: 'refs/heads/main' },
+      {
+        id: 'app',
+        head: baseline,
+        tree: '6'.repeat(40),
+        baseline,
+        canonical_ref: 'refs/heads/main',
+      },
+      {
+        id: 'policy',
+        head: policyHead,
+        tree: '5'.repeat(40),
+        baseline: policyHead,
+        canonical_ref: 'refs/heads/main',
+      },
     ],
     candidateStates: [candidate],
   };
@@ -61,22 +75,41 @@ async function fixture(options = {}) {
     clock: () => clock,
     ...options,
   });
-  const profile = (await evaluator.register({
-    key: 'independent-ci',
-    repo_ids: ['app', 'policy'],
-    mode: 'external',
-    service_id: 'ci',
-    config_hash: 'ci-config-v0',
-    required_checks: ['trusted integration'],
-  }, 'owner')).profile;
+  const profile = (
+    await evaluator.register(
+      {
+        key: 'independent-ci',
+        repo_ids: ['app', 'policy'],
+        mode: 'external',
+        service_id: 'ci',
+        config_hash: 'ci-config-v0',
+        required_checks: ['trusted integration'],
+      },
+      'owner',
+    )
+  ).profile;
   let sequence = 0;
   return {
-    engine, evaluator, adapter, candidate, profile, state, services, refs, calls,
+    engine,
+    evaluator,
+    adapter,
+    candidate,
+    profile,
+    state,
+    services,
+    refs,
+    calls,
     saves: () => saves,
-    tick: (ms) => { clock += ms; },
-    sources: (current) => { sourcesCurrent = current; },
+    tick: (ms) => {
+      clock += ms;
+    },
+    sources: (current) => {
+      sourcesCurrent = current;
+    },
     async issue(profileId = profile.id, requestId = 'run-' + sequence++) {
-      return (await evaluator.run(candidate.id, { profile_id: profileId, request_id: requestId }, 'owner')).run;
+      return (
+        await evaluator.run(candidate.id, { profile_id: profileId, request_id: requestId }, 'owner')
+      ).run;
     },
     body(run, state = 'passing', event = 'callback-' + sequence++) {
       return {
@@ -85,7 +118,11 @@ async function fixture(options = {}) {
         pins: structuredClone(run.pins),
         pins_hash: run.pins_hash,
         state,
-        result: { checks: [{ id: 'trusted integration', state: state === 'passing' ? 'passing' : 'failed' }] },
+        result: {
+          checks: [
+            { id: 'trusted integration', state: state === 'passing' ? 'passing' : 'failed' },
+          ],
+        },
       };
     },
   };
@@ -93,14 +130,22 @@ async function fixture(options = {}) {
 
 async function signed(body, serviceSecret = secret, serviceId = 'ci') {
   const key = await crypto.subtle.importKey(
-    'raw', new TextEncoder().encode(serviceSecret), { name: 'HMAC', hash: 'SHA-256' }, false, ['sign'],
+    'raw',
+    new TextEncoder().encode(serviceSecret),
+    { name: 'HMAC', hash: 'SHA-256' },
+    false,
+    ['sign'],
   );
   const signature = await crypto.subtle.sign(
-    'HMAC', key, new TextEncoder().encode(stable({ run_id: body.run_id, body })),
+    'HMAC',
+    key,
+    new TextEncoder().encode(stable({ run_id: body.run_id, body })),
   );
   return {
     service_id: serviceId,
-    signature: [...new Uint8Array(signature)].map((byte) => byte.toString(16).padStart(2, '0')).join(''),
+    signature: [...new Uint8Array(signature)]
+      .map((byte) => byte.toString(16).padStart(2, '0'))
+      .join(''),
   };
 }
 
@@ -108,10 +153,22 @@ test('operator profile revisions are immutable and administration is scoped', as
   const f = await fixture();
   assert.equal(Object.isFrozen(f.state.evaluatorProfiles[0]), true);
   const calls = [];
-  f.engine.access = { require(principal, operation, ids) { calls.push({ principal, operation, ids }); } };
-  await assert.rejects(() => f.evaluator.register({
-    ...f.profile, config_hash: 'next',
-  }, 'producer'), { code: 'UNAUTHENTICATED' });
+  f.engine.access = {
+    require(principal, operation, ids) {
+      calls.push({ principal, operation, ids });
+    },
+  };
+  await assert.rejects(
+    () =>
+      f.evaluator.register(
+        {
+          ...f.profile,
+          config_hash: 'next',
+        },
+        'producer',
+      ),
+    { code: 'UNAUTHENTICATED' },
+  );
   const principal = { actor_id: 'admin', kind: 'human', auth_method: 'fixture' };
   await f.evaluator.register({ ...f.profile, config_hash: 'next' }, 'admin', principal);
   assert.equal(calls[0].operation, 'policy.write');
@@ -139,11 +196,19 @@ test('valid callbacks require real HMAC and cannot become trusted from producer 
   const f = await fixture();
   const run = await f.issue();
   const body = f.body(run);
-  await assert.rejects(async () => f.evaluator.report(run.id, body, { service_id: 'ci', signature: '0'.repeat(64) }),
-    { code: 'UNAUTHENTICATED_EVALUATOR' });
-  await assert.rejects(async () => f.evaluator.report(run.id, body, { authenticated: true, trusted: true }),
-    { code: 'UNAUTHENTICATED_EVALUATOR' });
-  await f.evaluator.declaration(f.candidate.id, { summary: 'All tests passed.', passed: true }, 'producer');
+  await assert.rejects(
+    async () => f.evaluator.report(run.id, body, { service_id: 'ci', signature: '0'.repeat(64) }),
+    { code: 'UNAUTHENTICATED_EVALUATOR' },
+  );
+  await assert.rejects(
+    async () => f.evaluator.report(run.id, body, { authenticated: true, trusted: true }),
+    { code: 'UNAUTHENTICATED_EVALUATOR' },
+  );
+  await f.evaluator.declaration(
+    f.candidate.id,
+    { summary: 'All tests passed.', passed: true },
+    'producer',
+  );
   assert.equal((await f.evaluator.eligibility(f.candidate.id)).passing, false);
   const receipt = await f.evaluator.report(run.id, body, await signed(body));
   assert.equal(receipt.evidence.basis, 'observed');
@@ -155,16 +220,30 @@ test('signed callbacks with changed tree, config, constraint or dependency pins 
   const f = await fixture();
   const run = await f.issue();
   for (const alter of [
-    (body) => { body.pins.repositories[0].tree = 'a'.repeat(40); },
-    (body) => { body.pins.evaluator_config_hash = 'different-ci-config'; },
-    (body) => { body.pins.constraint_versions = ['different-constraint']; },
-    (body) => { body.pins.dependency_heads.policy = 'b'.repeat(40); },
+    (body) => {
+      body.pins.repositories[0].tree = 'a'.repeat(40);
+    },
+    (body) => {
+      body.pins.evaluator_config_hash = 'different-ci-config';
+    },
+    (body) => {
+      body.pins.constraint_versions = ['different-constraint'];
+    },
+    (body) => {
+      body.pins.dependency_heads.policy = 'b'.repeat(40);
+    },
   ]) {
     const body = f.body(run);
     alter(body);
     body.pins_hash = await hash(body.pins);
-    await assert.rejects(async () => f.evaluator.report(run.id, body, { service_id: 'ci', signature: (await signed(body)).signature }),
-      { code: 'EVALUATION_INPUT_MISMATCH' });
+    await assert.rejects(
+      async () =>
+        f.evaluator.report(run.id, body, {
+          service_id: 'ci',
+          signature: (await signed(body)).signature,
+        }),
+      { code: 'EVALUATION_INPUT_MISMATCH' },
+    );
   }
   assert.equal(f.state.evidence.length, 0);
 });
@@ -181,8 +260,14 @@ test('lost callback acknowledgments replay without overwriting or duplicating ev
   assert.equal(duplicate.event.id, first.event.id);
   assert.equal(f.state.evidence.length, evidenceCount);
   body.result.checks[0].summary = 'Conflicting duplicate.';
-  await assert.rejects(async () => f.evaluator.report(run.id, body, { service_id: 'ci', signature: (await signed(body)).signature }),
-    { code: 'IDEMPOTENCY_CONFLICT' });
+  await assert.rejects(
+    async () =>
+      f.evaluator.report(run.id, body, {
+        service_id: 'ci',
+        signature: (await signed(body)).signature,
+      }),
+    { code: 'IDEMPOTENCY_CONFLICT' },
+  );
 });
 
 test('later pending, running, failed, cancelled and skipped reruns never reuse an older pass', async () => {
@@ -192,7 +277,8 @@ test('later pending, running, failed, cancelled and skipped reruns never reuse a
   await f.evaluator.report(first.id, pass, await signed(pass));
   for (const state of ['pending', 'running', 'failed', 'cancelled', 'skipped']) {
     const run = await f.issue();
-    if (state === 'cancelled') await f.evaluator.cancel(run.id, { reason: 'New input is required.' }, 'owner');
+    if (state === 'cancelled')
+      await f.evaluator.cancel(run.id, { reason: 'New input is required.' }, 'owner');
     else if (state !== 'pending') {
       const body = f.body(run, state);
       if (state === 'skipped') body.result.checks[0].state = 'skipped';
@@ -206,11 +292,21 @@ test('later pending, running, failed, cancelled and skipped reruns never reuse a
 
 test('stale constraints, dependencies, source versions and configuration invalidate a pass', async () => {
   for (const mutate of [
-    (f) => { f.state.constraints.push({ id: 'constraint-next', active: true }); },
-    (f) => { f.refs.policy = 'a'.repeat(40); },
-    (f) => { f.sources(false); },
-    (f) => { f.adapter.configHash = 'next-validator'; },
-    (f) => { f.services.ci.key_id = 'rotated-key'; },
+    (f) => {
+      f.state.constraints.push({ id: 'constraint-next', active: true });
+    },
+    (f) => {
+      f.refs.policy = 'a'.repeat(40);
+    },
+    (f) => {
+      f.sources(false);
+    },
+    (f) => {
+      f.adapter.configHash = 'next-validator';
+    },
+    (f) => {
+      f.services.ci.key_id = 'rotated-key';
+    },
   ]) {
     const f = await fixture();
     const run = await f.issue();
@@ -229,7 +325,8 @@ test('new profile bindings cannot revive an old pass and exact request repeats a
   assert.equal((await f.issue(f.profile.id, 'one-request')).id, run.id);
   const body = f.body(run);
   await f.evaluator.report(run.id, body, await signed(body));
-  const next = (await f.evaluator.register({ ...f.profile, config_hash: 'ci-config-v1' }, 'owner')).profile;
+  const next = (await f.evaluator.register({ ...f.profile, config_hash: 'ci-config-v1' }, 'owner'))
+    .profile;
   await assert.rejects(() => f.issue(next.id, 'one-request'), { code: 'IDEMPOTENCY_CONFLICT' });
   assert.equal((await f.evaluator.eligibility(f.candidate.id)).passing, false);
   await assert.rejects(() => f.issue(f.profile.id), { code: 'EVALUATOR_STALE' });
@@ -241,10 +338,18 @@ test('cancellation preserves history and rejects a later passing callback', asyn
   const cancelled = await f.evaluator.cancel(run.id, { reason: 'Cancel this result.' }, 'owner');
   assert.match(cancelled.event.claim, /does not claim/);
   const body = f.body(run);
-  await assert.rejects(async () => f.evaluator.report(run.id, body, { service_id: 'ci', signature: (await signed(body)).signature }),
-    { code: 'EVALUATION_COMPLETE' });
-  assert.deepEqual(f.state.evaluationEvents.filter((event) => event.run_id === run.id).map((event) => event.state),
-    ['pending', 'cancelled']);
+  await assert.rejects(
+    async () =>
+      f.evaluator.report(run.id, body, {
+        service_id: 'ci',
+        signature: (await signed(body)).signature,
+      }),
+    { code: 'EVALUATION_COMPLETE' },
+  );
+  assert.deepEqual(
+    f.state.evaluationEvents.filter((event) => event.run_id === run.id).map((event) => event.state),
+    ['pending', 'cancelled'],
+  );
 });
 
 test('missing callbacks expire and cannot authorize promotion', async () => {
@@ -254,8 +359,14 @@ test('missing callbacks expire and cannot authorize promotion', async () => {
   assert.equal((await f.evaluator.eligibility(f.candidate.id)).passing, false);
   assert.equal((await f.evaluator.review(f.candidate.id)).runs[0].state, 'stale');
   const body = f.body(run);
-  await assert.rejects(async () => f.evaluator.report(run.id, body, { service_id: 'ci', signature: (await signed(body)).signature }),
-    { code: 'EVALUATION_EXPIRED' });
+  await assert.rejects(
+    async () =>
+      f.evaluator.report(run.id, body, {
+        service_id: 'ci',
+        signature: (await signed(body)).signature,
+      }),
+    { code: 'EVALUATION_EXPIRED' },
+  );
 });
 
 test('admission budgets bound active work and charged evaluation units', async () => {
@@ -274,7 +385,13 @@ test('bounded JUnit/SARIF metadata does not ingest raw reports or authorize cont
   const run = await f.issue();
   const body = f.body(run);
   body.result.reports = [
-    { format: 'junit', tests: 3, failures: 0, artifact_sha256: 'a'.repeat(64), xml: '<do-not-store/>' },
+    {
+      format: 'junit',
+      tests: 3,
+      failures: 0,
+      artifact_sha256: 'a'.repeat(64),
+      xml: '<do-not-store/>',
+    },
     { format: 'sarif', findings: 0, sarif: { doNotStore: true } },
   ];
   const result = await f.evaluator.report(run.id, body, await signed(body));
@@ -283,12 +400,21 @@ test('bounded JUnit/SARIF metadata does not ingest raw reports or authorize cont
   const next = await f.issue();
   const contradictory = f.body(next);
   contradictory.result.reports = [{ format: 'junit', failures: 1 }];
-  await assert.rejects(async () => f.evaluator.report(next.id, contradictory, { service_id: 'ci', signature: (await signed(contradictory)).signature }),
-    { code: 'INVALID_EVALUATION_REPORT' });
+  await assert.rejects(
+    async () =>
+      f.evaluator.report(next.id, contradictory, {
+        service_id: 'ci',
+        signature: (await signed(contradictory)).signature,
+      }),
+    { code: 'INVALID_EVALUATION_REPORT' },
+  );
   const tooLarge = f.body(next);
   tooLarge.padding = 'x'.repeat(70000);
-  await assert.rejects(async () => f.evaluator.report(next.id, tooLarge, { service_id: 'ci', signature: 'a'.repeat(64) }),
-    { code: 'REPORT_TOO_LARGE' });
+  await assert.rejects(
+    async () =>
+      f.evaluator.report(next.id, tooLarge, { service_id: 'ci', signature: 'a'.repeat(64) }),
+    { code: 'REPORT_TOO_LARGE' },
+  );
 });
 
 test('required independent checks cannot be omitted and service scopes cannot be expanded', async () => {
@@ -296,19 +422,36 @@ test('required independent checks cannot be omitted and service scopes cannot be
   const run = await f.issue();
   const body = f.body(run);
   body.result.checks = [{ id: 'producer-only-test', state: 'passing' }];
-  await assert.rejects(async () => f.evaluator.report(run.id, body, { service_id: 'ci', signature: (await signed(body)).signature }),
-    { code: 'INVALID_EVALUATION_REPORT' });
+  await assert.rejects(
+    async () =>
+      f.evaluator.report(run.id, body, {
+        service_id: 'ci',
+        signature: (await signed(body)).signature,
+      }),
+    { code: 'INVALID_EVALUATION_REPORT' },
+  );
   f.services.ci.repo_ids = ['app'];
-  await assert.rejects(async () => f.evaluator.report(run.id, f.body(run), { service_id: 'ci', signature: 'a'.repeat(64) }),
-    { code: 'EVALUATOR_SERVICE_UNAVAILABLE' });
+  await assert.rejects(
+    async () =>
+      f.evaluator.report(run.id, f.body(run), { service_id: 'ci', signature: 'a'.repeat(64) }),
+    { code: 'EVALUATOR_SERVICE_UNAVAILABLE' },
+  );
 });
 
 test('built-in dispatch delegates to exact candidate dependencies and preserves canonical validity', async () => {
   const f = await fixture();
-  const profile = (await f.evaluator.register({
-    key: 'builtin-profile', repo_ids: ['app', 'policy'], mode: 'builtin',
-    config_hash: f.adapter.configHash, required_checks: ['trusted integration'],
-  }, 'owner')).profile;
+  const profile = (
+    await f.evaluator.register(
+      {
+        key: 'builtin-profile',
+        repo_ids: ['app', 'policy'],
+        mode: 'builtin',
+        config_hash: f.adapter.configHash,
+        required_checks: ['trusted integration'],
+      },
+      'owner',
+    )
+  ).profile;
   const run = await f.issue(profile.id);
   const result = await f.evaluator.dispatch(run.id);
   assert.equal(result.event.state, 'passing');
@@ -322,14 +465,24 @@ test('built-in dispatch delegates to exact candidate dependencies and preserves 
 
 test('builtin exceptions and empty assertions fail without leaking execution secrets', async () => {
   for (const validate of [
-    async () => { throw new Error(secret); },
+    async () => {
+      throw new Error(secret);
+    },
     async () => ({ passed: true, checks: [] }),
   ]) {
     const f = await fixture();
     f.adapter.validate = validate;
-    const profile = (await f.evaluator.register({
-      key: 'baseline', repo_ids: ['app'], mode: 'builtin', config_hash: 'runner-v0',
-    }, 'owner')).profile;
+    const profile = (
+      await f.evaluator.register(
+        {
+          key: 'baseline',
+          repo_ids: ['app'],
+          mode: 'builtin',
+          config_hash: 'runner-v0',
+        },
+        'owner',
+      )
+    ).profile;
     const result = await f.evaluator.dispatch((await f.issue(profile.id)).id);
     assert.equal(result.event.state, 'failed');
     assert.equal(JSON.stringify(f.evaluator.view()).includes(secret), false);
@@ -347,10 +500,14 @@ test('rollout overlays only its expected canonical vector while keeping original
     canonical_heads: { app: commit, policy: policyHead },
   });
   assert.equal(during.passing, true);
-  assert.deepEqual(during.basis.required_evaluations[0].run.pins.canonical_heads,
-    { app: baseline, policy: policyHead });
-  await assert.rejects(() => f.evaluator.eligibility(f.candidate.id, { canonical_heads: { app: commit } }),
-    { code: 'INVALID_EVALUATION_BASE' });
+  assert.deepEqual(during.basis.required_evaluations[0].run.pins.canonical_heads, {
+    app: baseline,
+    policy: policyHead,
+  });
+  await assert.rejects(
+    () => f.evaluator.eligibility(f.candidate.id, { canonical_heads: { app: commit } }),
+    { code: 'INVALID_EVALUATION_BASE' },
+  );
 });
 
 test('builtin baseline uses real Git policy validation without executing producer commands', async (t) => {
@@ -360,8 +517,10 @@ test('builtin baseline uses real Git policy validation without executing produce
   await mkdir(work);
   await mkdir(path.join(root, 'repositories'));
   await git(work, ['init', '--quiet', '-b', 'main']);
-  await writeFile(path.join(work, 'checkout-policy.json'),
-    JSON.stringify({ maxChargesPerOrder: 1, maxConfirmationsPerOrder: 1, allowed_values: [] }));
+  await writeFile(
+    path.join(work, 'checkout-policy.json'),
+    JSON.stringify({ maxChargesPerOrder: 1, maxConfirmationsPerOrder: 1, allowed_values: [] }),
+  );
   await git(work, ['add', '.']);
   await git(work, ['commit', '--quiet', '-m', 'versioned policy']);
   const head = await git(work, ['rev-parse', 'HEAD']);
@@ -370,26 +529,49 @@ test('builtin baseline uses real Git policy validation without executing produce
   adapter.configHash = 'policy-document-fixture-v0';
   await git(root, ['clone', '--bare', '--quiet', work, adapter.dir({ id: 'policy' })]);
   const candidate = await record('candidate', {
-    selection_ids: [], base_heads: { policy: head },
-    repositories: [{ repo_id: 'policy', base_commit: head, base_tree: exactTree, commit: head, tree: exactTree }],
+    selection_ids: [],
+    base_heads: { policy: head },
+    repositories: [
+      { repo_id: 'policy', base_commit: head, base_tree: exactTree, commit: head, tree: exactTree },
+    ],
   });
   const state = {
     ...emptyState(),
-    repositories: [{
-      id: 'policy', head, tree: exactTree, baseline: head, canonical_ref: 'refs/heads/main',
-      validation_profile: 'context-document-v0',
-    }],
+    repositories: [
+      {
+        id: 'policy',
+        head,
+        tree: exactTree,
+        baseline: head,
+        canonical_ref: 'refs/heads/main',
+        validation_profile: 'context-document-v0',
+      },
+    ],
     candidateStates: [candidate],
   };
   const engine = new Engine(state, adapter);
   delete engine.access;
   engine.pipeline.sourceValidity = async () => true;
   const evaluator = new Evaluators(engine);
-  const profile = (await evaluator.register({
-    key: 'policy-schema', repo_ids: ['policy'], mode: 'builtin', config_hash: adapter.configHash,
-    required_checks: ['Versioned exactly-once policy is supported'],
-  }, 'owner')).profile;
-  const run = (await evaluator.run(candidate.id, { profile_id: profile.id, request_id: 'real-policy-check' }, 'owner')).run;
+  const profile = (
+    await evaluator.register(
+      {
+        key: 'policy-schema',
+        repo_ids: ['policy'],
+        mode: 'builtin',
+        config_hash: adapter.configHash,
+        required_checks: ['Versioned exactly-once policy is supported'],
+      },
+      'owner',
+    )
+  ).profile;
+  const run = (
+    await evaluator.run(
+      candidate.id,
+      { profile_id: profile.id, request_id: 'real-policy-check' },
+      'owner',
+    )
+  ).run;
   const result = await evaluator.dispatch(run.id);
   assert.equal(result.event.state, 'passing');
   assert.equal(result.evidence[0].tree_hash, exactTree);
@@ -401,7 +583,11 @@ test('deployment observations pin exact code and version without claiming previe
   const run = await f.issue();
   const body = f.body(run);
   body.deployment = {
-    repo_id: 'app', commit, tree, version: 'deployment-001', url: 'https://candidate.example.org/',
+    repo_id: 'app',
+    commit,
+    tree,
+    version: 'deployment-001',
+    url: 'https://candidate.example.org/',
   };
   const receipt = await f.evaluator.report(run.id, body, await signed(body));
   assert.equal(receipt.evidence.deployment.basis, 'observed');
@@ -416,8 +602,9 @@ test('deployment observations pin exact code and version without claiming previe
     const next = await f.issue();
     const report = f.body(next);
     report.deployment = deployment;
-    await assert.rejects(async () => f.evaluator.report(next.id, report, await signed(report)),
-      { code: 'INVALID_EVALUATION_REPORT' });
+    await assert.rejects(async () => f.evaluator.report(next.id, report, await signed(report)), {
+      code: 'INVALID_EVALUATION_REPORT',
+    });
   }
 });
 
@@ -429,8 +616,9 @@ test('callback count budgets preserve duplicate receipts and bound repeated runn
   await f.evaluator.report(run.id, running, auth);
   assert.equal((await f.evaluator.report(run.id, running, auth)).duplicate, true);
   const another = f.body(run, 'running');
-  await assert.rejects(async () => f.evaluator.report(run.id, another, await signed(another)),
-    { code: 'REPORT_BUDGET_EXCEEDED' });
+  await assert.rejects(async () => f.evaluator.report(run.id, another, await signed(another)), {
+    code: 'REPORT_BUDGET_EXCEEDED',
+  });
   assert.equal(f.state.evaluationEvents.filter((event) => event.callback_id).length, 1);
 });
 
@@ -441,7 +629,8 @@ test('pending quotas count active runs and allow replay and completed history', 
     assertQuota(name, count) {
       assert.equal(name, 'pending_runs');
       counts.push(count);
-      if (count >= 1) throw Object.assign(new Error('Active run limit'), { code: 'QUOTA_EXCEEDED' });
+      if (count >= 1)
+        throw Object.assign(new Error('Active run limit'), { code: 'QUOTA_EXCEEDED' });
     },
   };
   const first = await f.issue(f.profile.id, 'quota-first');

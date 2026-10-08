@@ -50,7 +50,7 @@ async function fixture(t) {
   ]);
   const head = await git(source, ['rev-parse', 'HEAD']);
   await git(source, ['push', '--quiet', remote, 'HEAD:refs/heads/producer']);
-  const adapter = await new TestRemote(cache, { repositories: {} }).init();
+  const adapter = await new TestRemote(cache, { repositories: { app: {} } }).init();
   adapter.testRemote = remote;
   return {
     root,

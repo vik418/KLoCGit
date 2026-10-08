@@ -19,9 +19,14 @@ export async function scheduleAnalysis(env, trigger) {
 
 async function postInternal(stub, env, path, input, failureMessage, actor = 'coordinator') {
   const response = await stub.fetch(
-    await forwardPrincipal(new Request('https://coordinator' + path, {
-      method: 'POST', body: JSON.stringify(input),
-    }), internalPrincipal(actor), env),
+    await forwardPrincipal(
+      new Request('https://coordinator' + path, {
+        method: 'POST',
+        body: JSON.stringify(input),
+      }),
+      internalPrincipal(actor),
+      env,
+    ),
   );
   if (!response.ok) throw new Error(failureMessage);
   return response;
@@ -29,7 +34,8 @@ async function postInternal(stub, env, path, input, failureMessage, actor = 'coo
 
 async function ingestPush(event, stub, env, workspace) {
   const response = await postInternal(
-    stub, env,
+    stub,
+    env,
     '/internal/push',
     {
       event: {
@@ -39,7 +45,8 @@ async function ingestPush(event, stub, env, workspace) {
         after: event.payload.after,
       },
     },
-    'Ingestion not acknowledged', 'artifacts-ingress',
+    'Ingestion not acknowledged',
+    'artifacts-ingress',
   );
   const ingestion = await response.json();
   if (ingestion.ignored || ingestion.reason === 'OUT_OF_ORDER_EVENT') return;
@@ -74,27 +81,34 @@ async function handleEvent(event, env, workspace) {
       return;
     const stub = env.COORDINATOR.get(env.COORDINATOR.idFromName(workspace));
     await postInternal(
-      stub, env,
+      stub,
+      env,
       '/internal/merge-queue',
       {
         request_id: event.request_id,
       },
-      'Merge queue processing not acknowledged', 'merge-queue-coordinator',
+      'Merge queue processing not acknowledged',
+      'merge-queue-coordinator',
     );
     return;
   }
   if (event?.kind === 'analyze') {
     const stub = env.COORDINATOR.get(env.COORDINATOR.idFromName(workspace));
-    const trigger = event.trigger && typeof event.trigger === 'object' && !Array.isArray(event.trigger)
-      ? event.trigger : {};
+    const trigger =
+      event.trigger && typeof event.trigger === 'object' && !Array.isArray(event.trigger)
+        ? event.trigger
+        : {};
     // Redelivery names the same analysis request. Canonical/source-head changes
     // produce a different trigger and are evaluated against their own basis.
-    const requestId = 'queue:' + await hash({ workspace, trigger });
+    const requestId = 'queue:' + (await hash({ workspace, trigger }));
     await postInternal(
-      stub, env,
+      stub,
+      env,
       '/internal/analysis',
       {
-        refresh: false, trigger, request_id: requestId,
+        refresh: false,
+        trigger,
+        request_id: requestId,
       },
       'Analysis not acknowledged',
     );

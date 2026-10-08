@@ -4,6 +4,7 @@ import { promisify } from 'node:util';
 import { LocalGit, git, protectedGitArguments } from './git.mjs';
 import { DomainError } from '../core/hash.mjs';
 import { observationRef, pageRefs, gitObjectId } from '../core/git-refs.mjs';
+import { admittedSources, requestSourceBindings } from './source-authority.mjs';
 const exec = promisify(execFile);
 const commit = (value) => {
   if (!/^[a-f0-9]{40}$/.test(value ?? '') || /^0{40}$/.test(value))
@@ -14,19 +15,50 @@ const commit = (value) => {
 /**
  * Artifacts Git transport backed by a replaceable local object cache. Remotes,
  * trusted validation profiles and credential-variable names come from the owner
- * manifest; producer payloads cannot choose them. Canonical authority stays remote.
+ * manifest; producer payloads cannot choose them. Registered Future sources use
+ * request-local read tokens and inherit that canonical policy. Canonical authority stays remote.
  *
  * @param {string} root Cache workspace directory used by LocalGit.
  * @param {object} manifest Trusted repository configuration, without token values.
  */
 export class RemoteGit extends LocalGit {
-  constructor(root, manifest) {
+  #sources;
+  #readOnlySources;
+  constructor(root, manifest, sources = new Map(), readOnlySources = new Set()) {
     super(root);
     this.manifest = manifest;
+    this.#sources = sources;
+    this.#readOnlySources = readOnlySources;
+  }
+  /** A request-local view; credentials never enter the shared adapter or manifest. */
+  forRequest(operation, input) {
+    const sources = admittedSources(this.manifest, operation, input);
+    const readOnly = new Set(requestSourceBindings(operation, input).map((entry) => entry.id));
+    const adapter = new RemoteGit(this.root, this.manifest, sources, readOnly);
+    adapter.configHash = this.configHash;
+    return adapter;
+  }
+  requireCanonicalAuthority(repo) {
+    if (this.#readOnlySources.has(repo.id) || !Object.hasOwn(this.manifest.repositories ?? {}, repo.id) ||
+        (repo.canonical_repo && repo.canonical_repo !== repo.id))
+      throw new DomainError('SOURCE_WRITE_FORBIDDEN', 'Isolated source credentials cannot write canonical Git', 403);
   }
   entry(id) {
     if (!/^[A-Za-z0-9][A-Za-z0-9._-]{0,99}$/.test(id ?? ''))
       throw new DomainError('INVALID_REPO', 'Executor repository identifiers are bounded names');
+    const source = this.#sources.get(id);
+    if (source) {
+      if (Date.parse(source.expiresAt) <= Date.now())
+        throw new DomainError('SOURCE_CREDENTIAL_EXPIRED', 'The private source credential expired', 403);
+      return {
+        id: source.id,
+        remote: source.remote,
+        canonical_repo: source.canonical_repo,
+        validation_profile: source.validation_profile,
+        context_repo: source.context_repo,
+        readonly: true,
+      };
+    }
     const entry = this.manifest.repositories?.[id];
     let remote;
     try {
@@ -50,6 +82,8 @@ export class RemoteGit extends LocalGit {
   }
   configured(repo) {
     const entry = this.entry(repo.id);
+    if (entry.readonly && entry.canonical_repo !== repo.canonical_repo)
+      throw new DomainError('SOURCE_AUTHORITY_INVALID', 'Source canonical pairing differs from the private authority', 403);
     return {
       ...repo,
       validation_profile: entry.validation_profile,
@@ -57,8 +91,10 @@ export class RemoteGit extends LocalGit {
     };
   }
   async remote(id, args) {
-    const entry = this.entry(id),
-      transportEnvironment = Object.fromEntries(
+    const entry = this.entry(id);
+    if ((entry.readonly || this.#readOnlySources.has(id)) && !['fetch', 'ls-remote'].includes(args[0]))
+      throw new DomainError('SOURCE_WRITE_FORBIDDEN', 'Isolated source credentials permit Git reads only', 403);
+    const transportEnvironment = Object.fromEntries(
         [
           'HTTP_PROXY',
           'HTTPS_PROXY',
@@ -83,7 +119,7 @@ export class RemoteGit extends LocalGit {
       GIT_CONFIG_GLOBAL: '/dev/null',
       GIT_CONFIG_COUNT: '1',
       GIT_CONFIG_KEY_0: 'http.extraHeader',
-      GIT_CONFIG_VALUE_0: 'Authorization: Bearer ' + process.env[entry.tokenEnv],
+      GIT_CONFIG_VALUE_0: 'Authorization: Bearer ' + (this.#sources.get(id)?.plaintext ?? process.env[entry.tokenEnv]),
     };
     try {
       return (
@@ -197,6 +233,10 @@ export class RemoteGit extends LocalGit {
     if (!Array.isArray(objects) || !objects.length || objects.length > 2)
       throw new DomainError('INVALID_RETENTION', 'Retain the exact ref object and commit');
     const archive = { id: repo.canonical_repo ?? repo.id };
+    this.requireCanonicalAuthority(archive);
+    const source = this.entry(repo.id);
+    if (source.readonly && source.canonical_repo !== archive.id)
+      throw new DomainError('SOURCE_AUTHORITY_INVALID', 'Archive must match the admitted source canonical repository', 403);
     await this.prepareCache(repo.id);
     await this.prepareCache(archive.id);
     for (const oid of [...new Set(objects)]) {
@@ -249,6 +289,7 @@ export class RemoteGit extends LocalGit {
     );
   }
   async retainCandidate(repo, result) {
+    this.requireCanonicalAuthority(repo);
     commit(result.commit);
     const ref = `refs/klocgit/candidates/${result.commit}`;
     await this.remote(repo.id, [
@@ -267,6 +308,7 @@ export class RemoteGit extends LocalGit {
     return { ...result, retention_ref: ref };
   }
   async compose(repo, head, revisions) {
+    this.requireCanonicalAuthority(repo);
     commit(head);
     await this.ensureCommit(repo.id, head);
     for (const revision of revisions) {
@@ -284,6 +326,7 @@ export class RemoteGit extends LocalGit {
     return this.retainCandidate(repo, result);
   }
   async composeSelections(repo, head, selections) {
+    this.requireCanonicalAuthority(repo);
     commit(head);
     await this.ensureCommit(repo.id, head);
     if (!Array.isArray(selections) || selections.length > 100)
@@ -303,6 +346,7 @@ export class RemoteGit extends LocalGit {
     );
   }
   async revert(repo, currentHead, targetCommit, mainline) {
+    this.requireCanonicalAuthority(repo);
     commit(currentHead);
     commit(targetCommit);
     await this.ensureGraphCommit(repo, currentHead);
@@ -351,6 +395,7 @@ export class RemoteGit extends LocalGit {
    * @throws {Error} Local candidate-cache preparation fails before the push.
    */
   async cas(repo, expected, target) {
+    this.requireCanonicalAuthority(repo);
     commit(expected);
     commit(target);
     if (

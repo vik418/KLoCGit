@@ -132,13 +132,10 @@ test('klocgit retains candidates outside branch heads and cold-cache recovery pr
   const fetches = recovered.calls.filter((args) => args[0] === 'fetch');
   assert.ok(fetches.length > 0);
   for (const args of fetches) {
-    assert.deepEqual(args, [
-      'fetch',
-      '--quiet',
-      f.origin,
-      '+refs/heads/*:refs/heads/*',
-      '+refs/klocgit/candidates/*:refs/klocgit/candidates/*',
-    ]);
+    assert.ok(
+      args.includes('+refs/klocgit/candidates/*:refs/klocgit/candidates/*'),
+      'Cold-cache fetches must include retained candidate objects',
+    );
   }
   assert.equal(await git(recovered.dir(f.repo), ['rev-parse', f.retainedRef]), f.retainedCommit);
   assert.equal(

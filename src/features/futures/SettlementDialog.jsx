@@ -14,8 +14,13 @@ export function SettlementDialog({
   message,
 }) {
   // Pin the observations the operator saw. A rerender must not silently change consent.
-  const [observed] = useState(() => (repositories.length ? repositories : repository ? [repository] : [])
-    .map((entry) => ({ id: entry.id, head: entry.head, unavailable: !!entry.unavailable })));
+  const [observed] = useState(() =>
+    (repositories.length ? repositories : repository ? [repository] : []).map((entry) => ({
+      id: entry.id,
+      head: entry.head,
+      unavailable: !!entry.unavailable,
+    })),
+  );
   const stages = operation.stages ?? [];
   const uncertain = stages.filter((stage) => stage.status === 'uncertain');
   const [repoId, setRepoId] = useState(uncertain[0]?.repo ?? operation.repo);
@@ -26,17 +31,26 @@ export function SettlementDialog({
   const { busy, error, mutate } = useNativeMutation(reload, message);
   const selected = observed.find((entry) => entry.id === repoId);
   const expectedHeads = Object.fromEntries(observed.map((entry) => [entry.id, entry.head]));
-  const unresolved = stages.some((stage) => stage.status === 'uncertain' ||
-    (stage.status === 'prepared' && stage.dispatch_state === 'issued'));
-  const fullVector = observed.length > 0 &&
+  const unresolved = stages.some(
+    (stage) =>
+      stage.status === 'uncertain' ||
+      (stage.status === 'prepared' && stage.dispatch_state === 'issued'),
+  );
+  const fullVector =
+    observed.length > 0 &&
     Object.keys(operation.reviewed_heads ?? {}).every((id) => expectedHeads[id]) &&
     observed.every((entry) => entry.head && !entry.unavailable);
-  const canAbandon = stages.length > 0 && operation.status === 'recovery-required' &&
-    !unresolved && fullVector;
-  const ready = confirmed && rationale.trim() && (abandon
-    ? canAbandon
-    : selected?.head && !selected.unavailable && outcome &&
-      (!stages.length || uncertain.some((stage) => stage.repo === repoId)));
+  const canAbandon =
+    stages.length > 0 && operation.status === 'recovery-required' && !unresolved && fullVector;
+  const ready =
+    confirmed &&
+    rationale.trim() &&
+    (abandon
+      ? canAbandon
+      : selected?.head &&
+        !selected.unavailable &&
+        outcome &&
+        (!stages.length || uncertain.some((stage) => stage.repo === repoId)));
 
   async function submit(event) {
     event.preventDefault();
@@ -78,25 +92,33 @@ export function SettlementDialog({
                   <p className="break-all font-medium">{stage.repo}</p>
                   <p className="text-xs text-muted-foreground">
                     {stage.status}
-                    {stage.status === 'applied' && stage.current === false ? ' · ref moved after application' : ''}
+                    {stage.status === 'applied' && stage.current === false
+                      ? ' · ref moved after application'
+                      : ''}
                   </p>
                 </div>
               ))}
             </section>
             <label className="grid gap-2 text-sm">
               Recovery action
-              <NativeSelect aria-label="Recovery action" value={abandon ? 'abandon' : 'settle'}
+              <NativeSelect
+                aria-label="Recovery action"
+                value={abandon ? 'abandon' : 'settle'}
                 onChange={(event) => {
                   setAbandon(event.target.value === 'abandon');
                   setConfirmed(false);
-                }}>
+                }}
+              >
                 <option value="settle">Confirm an uncertain repository outcome</option>
-                <option value="abandon" disabled={!canAbandon}>Keep partial state and abandon the remainder</option>
+                <option value="abandon" disabled={!canAbandon}>
+                  Keep partial state and abandon the remainder
+                </option>
               </NativeSelect>
             </label>
             {!canAbandon && (
               <p className="text-xs leading-6 text-muted-foreground">
-                Reconcile repository refs and settle every uncertain stage before abandoning the remainder.
+                Reconcile repository refs and settle every uncertain stage before abandoning the
+                remainder.
               </p>
             )}
           </>
@@ -120,14 +142,21 @@ export function SettlementDialog({
             {stages.length > 0 && (
               <label className="grid gap-2 text-sm">
                 Uncertain repository
-                <NativeSelect aria-label="Uncertain repository" value={repoId ?? ''}
+                <NativeSelect
+                  aria-label="Uncertain repository"
+                  value={repoId ?? ''}
                   onChange={(event) => {
                     setRepoId(event.target.value);
                     setConfirmed(false);
                     setOutcome('');
-                  }}>
+                  }}
+                >
                   {!uncertain.length && <option value="">No uncertain repository</option>}
-                  {uncertain.map((stage) => <option key={stage.repo} value={stage.repo}>{stage.repo}</option>)}
+                  {uncertain.map((stage) => (
+                    <option key={stage.repo} value={stage.repo}>
+                      {stage.repo}
+                    </option>
+                  ))}
                 </NativeSelect>
               </label>
             )}
@@ -135,7 +164,10 @@ export function SettlementDialog({
               <dt>Repository</dt>
               <dd>{repoId}</dd>
               <dt>Prepared target</dt>
-              <dd>{stages.find((stage) => stage.repo === repoId)?.target_commit ?? operation.target_commit}</dd>
+              <dd>
+                {stages.find((stage) => stage.repo === repoId)?.target_commit ??
+                  operation.target_commit}
+              </dd>
               <dt>Observed canonical head</dt>
               <dd>{selected?.head ?? 'Unavailable'}</dd>
             </dl>
@@ -171,8 +203,8 @@ export function SettlementDialog({
             : 'I checked Git history and confirmed this outcome.'}
         </label>
         <p className="text-xs leading-6 text-muted-foreground">
-          Your attestation is declared information. Current refs are separate observations and
-          do not prove whether the earlier write landed.
+          Your attestation is declared information. Current refs are separate observations and do
+          not prove whether the earlier write landed.
         </p>
       </div>
     </NativeFormDialog>

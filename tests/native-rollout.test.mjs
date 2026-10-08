@@ -96,7 +96,7 @@ async function fixture(t) {
   }
   return {
     root, state, facts, engine, adapter, saved, validations,
-    selection, candidate, review, prepared,
+    selection, candidate, composeCandidate: candidate, review, prepared,
     async head(id) { return adapter.ref({ id }, ref); },
     async externalPush(id) {
       await git(adapter.dir({ id }), ['update-ref', ref, facts[id].external]);
@@ -301,7 +301,7 @@ test('later external movement is not proof of non-application and settlement sta
 
 test('explicit continuation requires fresh full-vector validation and never repeats applied stages', async (t) => {
   const f = await partial(t);
-  const candidate = await f.candidate(f.selections);
+  const candidate = await f.composeCandidate(f.selections);
   const input = await f.review(candidate, f.operation);
   const continued = await f.engine.pipeline.continuePromotion(f.operation.id, input, actor);
   assert.equal(continued.operation.status, 'applied');
@@ -320,7 +320,7 @@ test('explicit continuation requires fresh full-vector validation and never repe
 
 test('continuation cannot use a normal review hash or hide changed configuration, constraints or sources', async (t) => {
   const f = await partial(t);
-  const candidate = await f.candidate(f.selections);
+  const candidate = await f.composeCandidate(f.selections);
   const normal = await f.review(candidate);
   await assert.rejects(() => f.engine.pipeline.continuePromotion(f.operation.id, normal, actor),
     { code: 'DECISION_STALE' });
@@ -343,7 +343,7 @@ test('continuation cannot use a normal review hash or hide changed configuration
 
 test('continuation hashes partial-stage state and stale canonical vectors explicitly', async (t) => {
   const f = await partial(t);
-  const candidate = await f.candidate(f.selections);
+  const candidate = await f.composeCandidate(f.selections);
   let input = await f.review(candidate, f.operation);
   f.operation.stop_reason = 'operator-inspected';
   await assert.rejects(() => f.engine.pipeline.continuePromotion(f.operation.id, input, actor),
@@ -376,7 +376,7 @@ test('changed constraints before the second dispatch leave an explicit non-issue
 
 test('single-repository operation shape and retry receipts remain compatible', async (t) => {
   const f = await fixture(t);
-  const candidate = await f.candidate([await f.selection('alpha')]);
+  const candidate = await f.composeCandidate([await f.selection('alpha')]);
   const input = await f.review(candidate);
   const result = await f.engine.pipeline.promote(candidate.id, input, actor);
   assert.equal(result.operation.stages, undefined);
@@ -391,7 +391,7 @@ test('single-repository operation shape and retry receipts remain compatible', a
 
 test('a failed continuation retains the partial-rollout block and can be freshly reviewed again', async (t) => {
   const f = await partial(t);
-  const candidate = await f.candidate(f.selections);
+  const candidate = await f.composeCandidate(f.selections);
   const input = await f.review(candidate, f.operation);
   const cas = f.adapter.cas.bind(f.adapter);
   f.adapter.cas = async (repo, expected, target) => {
@@ -408,7 +408,7 @@ test('a failed continuation retains the partial-rollout block and can be freshly
   assert.equal(attempted.stages[0].status, 'rejected');
   await f.engine.recover();
   assert.equal(attempted.status, 'recovery-required');
-  const next = await f.candidate(f.selections);
+  const next = await f.composeCandidate(f.selections);
   const nextInput = await f.review(next, attempted);
   f.adapter.cas = async (repo, expected, target) => {
     f.attempts.push(repo.id);

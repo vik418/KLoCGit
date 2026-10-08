@@ -11,7 +11,9 @@ export function observationRef(value) {
     /[\x00-\x20\x7f~^:?*\[\\]/.test(value) ||
     value.includes('..') ||
     value.includes('@{') ||
-    value.split('/').some((part) => !part || part.startsWith('.') || part.endsWith('.') || part.endsWith('.lock'))
+    value
+      .split('/')
+      .some((part) => !part || part.startsWith('.') || part.endsWith('.') || part.endsWith('.lock'))
   )
     throw new DomainError('INVALID_REF', 'Use a valid full branch or tag ref');
   return value;
@@ -27,8 +29,18 @@ export function refPage(input = {}) {
 export function pageRefs(refs, input = {}) {
   const { limit, cursor } = refPage(input);
   if (!Array.isArray(refs) || refs.length > 1000)
-    throw new DomainError('REF_BUDGET', 'More than 1000 refs require asynchronous enumeration', 422);
-  const eligible = refs.filter((entry) => entry.ref > cursor).sort((a, b) => a.ref < b.ref ? -1 : a.ref > b.ref ? 1 : 0);
+    throw new DomainError(
+      'REF_BUDGET',
+      'More than 1000 refs require asynchronous enumeration',
+      422,
+    );
+  const eligible = refs
+    .filter((entry) => entry.ref > cursor)
+    .sort((a, b) => (a.ref < b.ref ? -1 : a.ref > b.ref ? 1 : 0));
   const page = eligible.slice(0, limit);
-  return { refs: page, has_more: eligible.length > limit, next_cursor: eligible.length > limit ? page.at(-1).ref : null };
+  return {
+    refs: page,
+    has_more: eligible.length > limit,
+    next_cursor: eligible.length > limit ? page.at(-1).ref : null,
+  };
 }

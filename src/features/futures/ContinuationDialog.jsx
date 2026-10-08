@@ -15,14 +15,21 @@ export function ContinuationDialog({ operation, candidates = [], onClose, reload
   const [version, setVersion] = useState(0);
   const [rationale, setRationale] = useState('');
   const { busy, error, mutate } = useNativeMutation(reload, message);
-  const unresolved = operation.stages?.some((stage) => stage.status === 'uncertain' ||
-    (stage.status === 'prepared' && stage.dispatch_state === 'issued'));
+  const unresolved = operation.stages?.some(
+    (stage) =>
+      stage.status === 'uncertain' ||
+      (stage.status === 'prepared' && stage.dispatch_state === 'issued'),
+  );
 
   useEffect(() => {
     let cancelled = false;
     if (!candidateId) return;
-    apiRequest('/promotions/' + encodeURIComponent(operation.id) + '/review?candidate_id=' +
-      encodeURIComponent(candidateId)).then(
+    apiRequest(
+      '/promotions/' +
+        encodeURIComponent(operation.id) +
+        '/review?candidate_id=' +
+        encodeURIComponent(candidateId),
+    ).then(
       (result) => {
         if (!cancelled) {
           setReview(result);
@@ -73,11 +80,22 @@ export function ContinuationDialog({ operation, candidates = [], onClose, reload
     if (result) onClose();
   }
 
-  const ready = !unresolved && review?.sources_current && review.heads_current &&
-    review.validation_passing && review.promotion_supported && rationale.trim();
+  const ready =
+    !unresolved &&
+    review?.sources_current &&
+    review.heads_current &&
+    review.validation_passing &&
+    review.promotion_supported &&
+    rationale.trim();
 
   return (
-    <Dialog onClose={() => { if (!busy) onClose(); }} className="max-w-xl" hasDescription>
+    <Dialog
+      onClose={() => {
+        if (!busy) onClose();
+      }}
+      className="max-w-xl"
+      hasDescription
+    >
       <div className="dialog-header">
         <div>
           <DialogTitle>Continue partial rollout</DialogTitle>
@@ -86,14 +104,24 @@ export function ContinuationDialog({ operation, candidates = [], onClose, reload
             in Git; only remaining repositories can advance.
           </DialogDescription>
         </div>
-        <Button type="button" variant="ghost" size="icon-sm" disabled={busy} onClick={onClose}
-          aria-label="Close continuation">
+        <Button
+          type="button"
+          variant="ghost"
+          size="icon-sm"
+          disabled={busy}
+          onClick={onClose}
+          aria-label="Close continuation"
+        >
           <X aria-hidden="true" />
         </Button>
       </div>
       <form onSubmit={submit} aria-busy={busy}>
         <div className="native-body space-y-5">
-          {(error || readError) && <p role="alert" className="error-banner">{error || readError}</p>}
+          {(error || readError) && (
+            <p role="alert" className="error-banner">
+              {error || readError}
+            </p>
+          )}
           <section className="space-y-2" aria-label="Partial rollout">
             {operation.stages?.map((stage) => (
               <div key={stage.repo} className="rounded-md border p-3">
@@ -103,11 +131,20 @@ export function ContinuationDialog({ operation, candidates = [], onClose, reload
                   {stage.current === false ? ' · canonical ref moved' : ''}
                 </p>
                 <details className="mt-2">
-                  <summary className="cursor-pointer text-xs text-muted-foreground">Prepared Git state</summary>
+                  <summary className="cursor-pointer text-xs text-muted-foreground">
+                    Prepared Git state
+                  </summary>
                   <dl className="mt-2 space-y-2 break-all font-mono text-xs text-muted-foreground">
-                    <dt>Reviewed base</dt><dd>{stage.expected_head}</dd>
-                    <dt>Target</dt><dd>{stage.target_commit}</dd>
-                    {stage.observed_head && <><dt>Observed head</dt><dd>{stage.observed_head}</dd></>}
+                    <dt>Reviewed base</dt>
+                    <dd>{stage.expected_head}</dd>
+                    <dt>Target</dt>
+                    <dd>{stage.target_commit}</dd>
+                    {stage.observed_head && (
+                      <>
+                        <dt>Observed head</dt>
+                        <dd>{stage.observed_head}</dd>
+                      </>
+                    )}
                   </dl>
                 </details>
               </div>
@@ -120,19 +157,25 @@ export function ContinuationDialog({ operation, candidates = [], onClose, reload
           )}
           <label className="grid gap-2 text-sm">
             New candidate
-            <NativeSelect aria-label="Continuation candidate" value={candidateId} disabled={busy}
+            <NativeSelect
+              aria-label="Continuation candidate"
+              value={candidateId}
+              disabled={busy}
               onChange={(event) => {
                 setCandidateId(event.target.value);
                 setReview(null);
                 setReadError(null);
                 setRationale('');
-              }}>
+              }}
+            >
               <option value="">Choose a candidate composed from current heads</option>
-              {candidates.filter((candidate) => candidate.id !== operation.candidate_id).map((candidate) => (
-                <option key={candidate.id} value={candidate.id}>
-                  {candidate.id.slice(0, 20)} · {candidate.repositories.length} repositories
-                </option>
-              ))}
+              {candidates
+                .filter((candidate) => candidate.id !== operation.candidate_id)
+                .map((candidate) => (
+                  <option key={candidate.id} value={candidate.id}>
+                    {candidate.id.slice(0, 20)} · {candidate.repositories.length} repositories
+                  </option>
+                ))}
             </NativeSelect>
           </label>
           {candidateId && !review && !readError && (
@@ -152,14 +195,21 @@ export function ContinuationDialog({ operation, candidates = [], onClose, reload
                         {' · '}
                         {evidence?.validity.status === 'current' && validationPassed(evidence)
                           ? 'Finite checks passed'
-                          : evidence?.validity.status === 'stale' ? 'Evidence stale' : 'Validation required'}
+                          : evidence?.validity.status === 'stale'
+                            ? 'Evidence stale'
+                            : 'Validation required'}
                       </p>
                       <details>
-                        <summary className="cursor-pointer text-xs text-muted-foreground">Exact candidate state</summary>
+                        <summary className="cursor-pointer text-xs text-muted-foreground">
+                          Exact candidate state
+                        </summary>
                         <dl className="mt-2 space-y-2 break-all font-mono text-xs text-muted-foreground">
-                          <dt>Base</dt><dd>{repo.base_commit}</dd>
-                          <dt>Candidate</dt><dd>{repo.commit}</dd>
-                          <dt>Tree</dt><dd>{repo.tree}</dd>
+                          <dt>Base</dt>
+                          <dd>{repo.base_commit}</dd>
+                          <dt>Candidate</dt>
+                          <dd>{repo.commit}</dd>
+                          <dt>Tree</dt>
+                          <dd>{repo.tree}</dd>
                         </dl>
                       </details>
                     </div>
@@ -169,14 +219,19 @@ export function ContinuationDialog({ operation, candidates = [], onClose, reload
               {review.external_evaluations?.configured && (
                 <section className="space-y-2" aria-label="Required continuation evaluations">
                   <p className="text-sm">
-                    {review.external_evaluations.passing ? 'Required evaluations passed.' : 'Required evaluations must pass.'}
+                    {review.external_evaluations.passing
+                      ? 'Required evaluations passed.'
+                      : 'Required evaluations must pass.'}
                   </p>
                   {review.external_evaluations.reasons?.map((reason) => (
-                    <p key={reason} className="text-xs text-muted-foreground">{reason}</p>
+                    <p key={reason} className="text-xs text-muted-foreground">
+                      {reason}
+                    </p>
                   ))}
                   {!review.external_evaluations.passing && (
                     <p className="text-xs leading-6 text-muted-foreground">
-                      Issue and run the required evaluators from this candidate’s review, then refresh here.
+                      Issue and run the required evaluators from this candidate’s review, then
+                      refresh here.
                     </p>
                   )}
                 </section>
@@ -188,8 +243,12 @@ export function ContinuationDialog({ operation, candidates = [], onClose, reload
               )}
               <label className="grid gap-2 text-sm">
                 Why continue with this candidate?
-                <Textarea value={rationale} onChange={(event) => setRationale(event.target.value)}
-                  maxLength={4000} disabled={busy} />
+                <Textarea
+                  value={rationale}
+                  onChange={(event) => setRationale(event.target.value)}
+                  maxLength={4000}
+                  disabled={busy}
+                />
               </label>
             </>
           )}
@@ -207,7 +266,9 @@ export function ContinuationDialog({ operation, candidates = [], onClose, reload
               Run validation
             </Button>
           )}
-          <Button type="submit" disabled={busy || !ready}>Continue rollout</Button>
+          <Button type="submit" disabled={busy || !ready}>
+            Continue rollout
+          </Button>
         </div>
       </form>
     </Dialog>

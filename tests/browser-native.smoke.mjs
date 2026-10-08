@@ -429,7 +429,10 @@ try {
   await inspect.click();
   const provenanceDialog = page.getByRole('dialog', { name: 'Provenance', exact: true });
   await provenanceDialog.waitFor();
-  const revisionSummary = provenanceDialog.getByText('revision · ' + tagRevision.revision.id, { exact: true });
+  const revisionSummary = provenanceDialog
+    .getByRole('region', { name: 'Provenance records', exact: true })
+    .locator('summary')
+    .filter({ hasText: 'revision · ' + tagRevision.revision.id });
   await revisionSummary.click();
   await revisionSummary.locator('..').getByText('Basis: observed', { exact: true }).waitFor();
   await assertFitsViewport(page);

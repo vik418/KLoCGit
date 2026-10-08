@@ -32,8 +32,9 @@ export function ObjectiveContextDialog({
   const pending = useRef(false);
   const { busy, error, mutate } = useNativeMutation(reload, message);
   const working = busy || submitting || reading;
-  const eligible = repositories.filter((repository) =>
-    repository.status === 'ready' && repository.head && repository.tree);
+  const eligible = repositories.filter(
+    (repository) => repository.status === 'ready' && repository.head && repository.tree,
+  );
   const preparation = review?.preparation;
   const questions = preparation?.questions ?? [];
   const question = questions[questionIndex];
@@ -47,7 +48,9 @@ export function ObjectiveContextDialog({
       (result) => {
         if (controller.signal.aborted) return;
         setReview(result);
-        setSources(result.preparation.sources.map(({ repo_id, path, ref }) => ({ repo_id, path, ref })));
+        setSources(
+          result.preparation.sources.map(({ repo_id, path, ref }) => ({ repo_id, path, ref })),
+        );
         setHypothesis(result.preparation.hypothesis?.label ?? '');
         setReadError(null);
         setReading(false);
@@ -62,8 +65,9 @@ export function ObjectiveContextDialog({
   }, [currentId, readVersion]);
 
   function changeSource(index, fields) {
-    setSources((values) => values.map((value, position) =>
-      position === index ? { ...value, ...fields } : value));
+    setSources((values) =>
+      values.map((value, position) => (position === index ? { ...value, ...fields } : value)),
+    );
   }
 
   function resetAnswers() {
@@ -78,7 +82,9 @@ export function ObjectiveContextDialog({
       '/objectives/' + encodeURIComponent(objective.id) + '/context',
       {
         sources: sources.map(({ repo_id, path, ref }) => ({
-          repo_id, path: path.trim(), ...(ref ? { ref } : {}),
+          repo_id,
+          path: path.trim(),
+          ...(ref ? { ref } : {}),
         })),
         ...(hypothesis.trim() ? { hypothesis: hypothesis.trim() } : {}),
       },
@@ -94,8 +100,13 @@ export function ObjectiveContextDialog({
   async function submit(event) {
     event.preventDefault();
     if (working || pending.current) return;
-    if (preparation && !review.snapshot && current && question &&
-        questionIndex < questions.length - 1) {
+    if (
+      preparation &&
+      !review.snapshot &&
+      current &&
+      question &&
+      questionIndex < questions.length - 1
+    ) {
       if (answers[question.id]) setQuestionIndex((index) => index + 1);
       return;
     }
@@ -115,7 +126,9 @@ export function ObjectiveContextDialog({
         '/context/' + encodeURIComponent(preparation.id) + '/resolve',
         {
           expected_basis_hash: preparation.basis_hash,
-          mode, answers, ...(rationale.trim() ? { rationale: rationale.trim() } : {}),
+          mode,
+          answers,
+          ...(rationale.trim() ? { rationale: rationale.trim() } : {}),
         },
         mode === 'assumption' ? 'Assumptions recorded.' : 'Answers recorded.',
       );
@@ -137,22 +150,29 @@ export function ObjectiveContextDialog({
     if (working || pending.current) return;
     pending.current = true;
     setSubmitting(true);
-    try { await prepare(); }
-    finally {
+    try {
+      await prepare();
+    } finally {
       pending.current = false;
       setSubmitting(false);
     }
   }
 
-  const sourceInputsValid = sources.every((source) =>
-    source.path.trim() && eligible.some((repository) => repository.id === source.repo_id));
+  const sourceInputsValid = sources.every(
+    (source) =>
+      source.path.trim() && eligible.some((repository) => repository.id === source.repo_id),
+  );
   const lastQuestion = questionIndex === questions.length - 1;
   const answersComplete = questions.every((entry) => answers[entry.id]);
-  const disabled = Boolean(readError) || (preparation
-    ? !current || (!review.snapshot &&
-      (!question || !answers[question.id] ||
-        (lastQuestion && (!answersComplete || (mode === 'assumption' && !rationale.trim())))))
-    : !sourceInputsValid);
+  const disabled =
+    Boolean(readError) ||
+    (preparation
+      ? !current ||
+        (!review.snapshot &&
+          (!question ||
+            !answers[question.id] ||
+            (lastQuestion && (!answersComplete || (mode === 'assumption' && !rationale.trim())))))
+      : !sourceInputsValid);
   const submitLabel = !preparation
     ? 'Retrieve context'
     : review.snapshot
@@ -166,7 +186,10 @@ export function ObjectiveContextDialog({
   return (
     <NativeFormDialog
       title="Context before work"
-      description={objective.statement || 'Retrieve relevant constraints and previous decisions before forking.'}
+      description={
+        objective.statement ||
+        'Retrieve relevant constraints and previous decisions before forking.'
+      }
       onClose={onClose}
       onSubmit={submit}
       busy={working}
@@ -178,7 +201,8 @@ export function ObjectiveContextDialog({
       {!preparation && !reading && (
         <div className="space-y-4">
           <p className="text-sm text-muted-foreground">
-            Existing constraints and decisions are included. Add repository files when they contain relevant context.
+            Existing constraints and decisions are included. Add repository files when they contain
+            relevant context.
           </p>
           {sources.map((source, index) => (
             <section key={index} className="space-y-3 rounded-md border p-3">
@@ -187,11 +211,15 @@ export function ObjectiveContextDialog({
                 <NativeSelect
                   aria-label={'Repository for source ' + (index + 1)}
                   value={source.repo_id}
-                  onChange={(event) => changeSource(index, { repo_id: event.target.value, ref: undefined })}
+                  onChange={(event) =>
+                    changeSource(index, { repo_id: event.target.value, ref: undefined })
+                  }
                 >
                   <option value="">Choose repository</option>
                   {eligible.map((repository) => (
-                    <option key={repository.id} value={repository.id}>{repository.id}</option>
+                    <option key={repository.id} value={repository.id}>
+                      {repository.id}
+                    </option>
                   ))}
                 </NativeSelect>
               </label>
@@ -208,7 +236,9 @@ export function ObjectiveContextDialog({
                 type="button"
                 size="sm"
                 variant="ghost"
-                onClick={() => setSources((values) => values.filter((_, position) => position !== index))}
+                onClick={() =>
+                  setSources((values) => values.filter((_, position) => position !== index))
+                }
                 aria-label={'Remove source ' + (index + 1)}
               >
                 <Trash2 aria-hidden="true" /> Remove
@@ -225,10 +255,16 @@ export function ObjectiveContextDialog({
             <Plus aria-hidden="true" /> Add context file
           </Button>
           <details>
-            <summary className="cursor-pointer text-xs text-muted-foreground">Compare an alternative approach</summary>
+            <summary className="cursor-pointer text-xs text-muted-foreground">
+              Compare an alternative approach
+            </summary>
             <label className="mt-3 grid gap-2 text-sm">
               Approach name (optional)
-              <Input value={hypothesis} onChange={(event) => setHypothesis(event.target.value)} maxLength={100} />
+              <Input
+                value={hypothesis}
+                onChange={(event) => setHypothesis(event.target.value)}
+                maxLength={100}
+              />
             </label>
           </details>
           <p className="text-xs leading-6 text-muted-foreground">
@@ -237,7 +273,9 @@ export function ObjectiveContextDialog({
         </div>
       )}
       {reading && !preparation && (
-        <p role="status" className="text-sm text-muted-foreground">Reading the saved context…</p>
+        <p role="status" className="text-sm text-muted-foreground">
+          Reading the saved context…
+        </p>
       )}
       {preparation && (
         <div className="space-y-5">
@@ -247,7 +285,9 @@ export function ObjectiveContextDialog({
                 Context changed. Retrieve the new basis and review it before answering.
               </p>
               {review.validity?.reasons.map((reason) => (
-                <p key={reason} className="text-xs text-muted-foreground">{reason}</p>
+                <p key={reason} className="text-xs text-muted-foreground">
+                  {reason}
+                </p>
               ))}
               <Button type="button" variant="outline" onClick={refreshContext} disabled={working}>
                 <RefreshCw aria-hidden="true" /> Refresh context
@@ -256,45 +296,67 @@ export function ObjectiveContextDialog({
           )}
           <section className="space-y-3" aria-label="Retrieved context">
             <h2 className="text-sm font-medium">Retrieved constraints and decisions</h2>
-            {preparation.items.filter((item) => item.type === 'constraint' || item.type === 'decision').map((item) => (
-              <div key={item.id} className="space-y-2 rounded-md border p-3">
-                <p className="text-xs text-muted-foreground">{item.type} · {item.basis}</p>
-                <p className="text-sm">{item.value.statement || item.value.rationale}</p>
-                {item.value.application_state && (
-                  <p className="text-xs text-muted-foreground">Application: {item.value.application_state}</p>
-                )}
-              </div>
-            ))}
-            {!preparation.items.some((item) => item.type === 'constraint' || item.type === 'decision') && (
-              <p className="text-sm text-muted-foreground">No scoped constraints or previous decisions were retrieved.</p>
+            {preparation.items
+              .filter((item) => item.type === 'constraint' || item.type === 'decision')
+              .map((item) => (
+                <div key={item.id} className="space-y-2 rounded-md border p-3">
+                  <p className="text-xs text-muted-foreground">
+                    {item.type} · {item.basis}
+                  </p>
+                  <p className="text-sm">{item.value.statement || item.value.rationale}</p>
+                  {item.value.application_state && (
+                    <p className="text-xs text-muted-foreground">
+                      Application: {item.value.application_state}
+                    </p>
+                  )}
+                </div>
+              ))}
+            {!preparation.items.some(
+              (item) => item.type === 'constraint' || item.type === 'decision',
+            ) && (
+              <p className="text-sm text-muted-foreground">
+                No scoped constraints or previous decisions were retrieved.
+              </p>
             )}
           </section>
           {!review.snapshot && question && current && (
             <section className="space-y-4" aria-label="Material clarification">
               <p className="text-xs text-muted-foreground">
-                Question {questionIndex + 1} of {questions.length} · inferred from declared option effects
+                Question {questionIndex + 1} of {questions.length} · inferred from declared option
+                effects
               </p>
               <label className="grid gap-2 text-sm font-medium">
                 {question.question}
                 <NativeSelect
                   aria-label={question.question}
                   value={answers[question.id] ?? ''}
-                  onChange={(event) => setAnswers((values) => ({ ...values, [question.id]: event.target.value }))}
+                  onChange={(event) =>
+                    setAnswers((values) => ({ ...values, [question.id]: event.target.value }))
+                  }
                 >
                   <option value="">Choose an option</option>
                   {question.options.map((option) => (
-                    <option key={option.id} value={option.id}>{option.label}</option>
+                    <option key={option.id} value={option.id}>
+                      {option.label}
+                    </option>
                   ))}
                 </NativeSelect>
               </label>
               {question.options.map((option) => (
                 <div key={option.id} className="space-y-1 text-xs text-muted-foreground">
                   <p className="font-medium">{option.label}</p>
-                  {option.effects.map((effect) => <p key={effect}>{effect}</p>)}
+                  {option.effects.map((effect) => (
+                    <p key={effect}>{effect}</p>
+                  ))}
                 </div>
               ))}
               {questionIndex > 0 && (
-                <Button type="button" variant="ghost" size="sm" onClick={() => setQuestionIndex((index) => index - 1)}>
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="sm"
+                  onClick={() => setQuestionIndex((index) => index - 1)}
+                >
                   Previous question
                 </Button>
               )}
@@ -302,13 +364,19 @@ export function ObjectiveContextDialog({
                 <>
                   <label className="grid gap-2 text-sm">
                     Record as
-                    <NativeSelect aria-label="Record as" value={mode} onChange={(event) => setMode(event.target.value)}>
+                    <NativeSelect
+                      aria-label="Record as"
+                      value={mode}
+                      onChange={(event) => setMode(event.target.value)}
+                    >
                       <option value="answer">Declared answer</option>
                       <option value="assumption">Unconfirmed assumption</option>
                     </NativeSelect>
                   </label>
                   <label className="grid gap-2 text-sm">
-                    {mode === 'assumption' ? 'Why proceed under this assumption?' : 'Rationale (optional)'}
+                    {mode === 'assumption'
+                      ? 'Why proceed under this assumption?'
+                      : 'Rationale (optional)'}
                     <Textarea
                       value={rationale}
                       onChange={(event) => setRationale(event.target.value)}
@@ -318,7 +386,8 @@ export function ObjectiveContextDialog({
                     />
                   </label>
                   <p className="text-xs leading-6 text-muted-foreground">
-                    Assumptions stay unresolved and require human judgment. Other producers can work without this context.
+                    Assumptions stay unresolved and require human judgment. Other producers can work
+                    without this context.
                   </p>
                 </>
               )}
@@ -329,23 +398,31 @@ export function ObjectiveContextDialog({
               <h2 className="text-sm font-medium">Context recorded</h2>
               {review.snapshot.resolutions.map((resolution) => (
                 <p key={resolution.id} className="text-sm">
-                  {resolution.value.key}: {resolution.value.option_id} · {resolution.type} · {resolution.basis}
+                  {resolution.value.key}: {resolution.value.option_id} · {resolution.type} ·{' '}
+                  {resolution.basis}
                 </p>
               ))}
               {!review.snapshot.resolutions.length && (
-                <p className="text-sm text-muted-foreground">No annotated material ambiguity was found.</p>
+                <p className="text-sm text-muted-foreground">
+                  No annotated material ambiguity was found.
+                </p>
               )}
               <p className="text-xs leading-6 text-muted-foreground">
-                This snapshot follows the Future revision, selected Git material and the eventual decision.
+                This snapshot follows the Future revision, selected Git material and the eventual
+                decision.
               </p>
             </section>
           )}
           <details>
-            <summary className="cursor-pointer text-xs text-muted-foreground">Exact source versions</summary>
+            <summary className="cursor-pointer text-xs text-muted-foreground">
+              Exact source versions
+            </summary>
             <div className="mt-3 space-y-3 break-all text-xs text-muted-foreground">
               {preparation.sources.map((source) => (
                 <dl key={source.id} className="space-y-1">
-                  <dt>{source.repo_id}/{source.path}</dt>
+                  <dt>
+                    {source.repo_id}/{source.path}
+                  </dt>
                   <dd>Commit: {source.commit}</dd>
                   <dd>Tree: {source.tree}</dd>
                 </dl>

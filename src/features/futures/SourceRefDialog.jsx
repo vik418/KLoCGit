@@ -62,7 +62,7 @@ export function SourceRefDialog({ future, repositories, onClose, reload, message
     // Ref listings are read-only, but a large Future must not fan out hundreds of requests at once.
     void Promise.all(Array.from({ length: Math.min(4, pending.length) }, readNext));
     return () => {
-      generation.current++;
+      if (generation.current === current) generation.current = current + 1;
       controller.abort();
     };
   }, [future.id, future.repositories]);

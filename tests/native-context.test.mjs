@@ -131,8 +131,12 @@ test('plain Objectives retrieve exact cross-repository context and ask only a ma
   assert.ok(preparation.items.some((item) => item.type === 'constraint' && item.basis === 'retrieved'));
   assert.ok(preparation.items.some((item) => item.type === 'git-state' && item.basis === 'observed'));
   assert.equal((await f.prepare('same-stable-inputs')).preparation.id, preparation.id);
-  assert.ok(Object.isFrozen(preparation));
-  assert.ok(Object.isFrozen(preparation.questions[0].options));
+  const stored = f.state.nativeContextPreparations.find((entry) => entry.id === preparation.id);
+  assert.ok(Object.isFrozen(stored));
+  assert.ok(Object.isFrozen(stored.questions[0].options));
+  const question = structuredClone(stored.questions[0]);
+  preparation.questions[0].options[0].label = 'Changed response copy';
+  assert.deepEqual(stored.questions[0], question, 'Mutating a response cannot rewrite stored context');
 });
 
 test('answers bind immutable snapshots; provenance does not claim unknown producers were identified', async (t) => {

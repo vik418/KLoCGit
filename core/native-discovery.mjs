@@ -8,6 +8,14 @@ const sorted = (values) => [...new Set(values)].sort();
 const sameHeads = (left, right) => JSON.stringify(Object.entries(left ?? {}).sort(([a], [b]) => a.localeCompare(b))) === JSON.stringify(Object.entries(right ?? {}).sort(([a], [b]) => a.localeCompare(b)));
 const pairKey = (a, b) => sorted([a, b]).join(':');
 const fail = (code, message, status = 400) => { throw new DomainError(code, message, status); };
+function validationFailed(evidence) {
+  const result = evidence?.result;
+  const unfinished = new Set(['pending', 'queued', 'running', 'cancelled', 'skipped', 'unknown', 'passing', 'passed', 'success', 'succeeded']);
+  if (!result || [evidence.state, evidence.status, result.state, result.status].some((state) => unfinished.has(state))) return false;
+  return result.passed === false && Array.isArray(result.checks) && result.checks.some((check) =>
+    check.passed === false && check.skipped !== true &&
+    ![check.state, check.status].some((state) => unfinished.has(state)));
+}
 function identity(actor) {
   if (typeof actor !== 'string' || !actor.trim() || actor.length > 200)
     fail('UNAUTHENTICATED', 'An authenticated actor is required', 401);
@@ -229,7 +237,7 @@ export class NativeDiscovery {
     return evidence.length === candidate.repositories.length && evidence.every((entry) => entry &&
       entry.source === 'platform-owned checks' && entry.type === 'trusted-validation' &&
       candidate.repositories.some((repo) => entry.subject_ref === candidate.id + ':' + repo.repo_id && entry.tree_hash === repo.tree) &&
-      sameHeads(entry.validity_heads, proof.base_heads)) && evidence.some((entry) => !validationPassed(entry));
+      sameHeads(entry.validity_heads, proof.base_heads)) && evidence.some(validationFailed);
   }
   relationStale(relation) {
     if (!relation.evidence_refs.length) return false;
@@ -341,7 +349,7 @@ export class NativeDiscovery {
         const versionKey = 'native-pair:' + pairKey(left.id, right.id);
         if (!isolated.every((entry) => entry.evidence.every(validationPassed)) ||
           !repoIds.every((id) => validationPassed(baseline.get(id).evidence))) {
-          stats.diagnostics.push({ code: 'ISOLATION_NOT_PASSING', revision_ids: ids, message: 'Baseline or isolated checks failed; a composed failure would not establish an interaction.' });
+          stats.diagnostics.push({ code: 'ISOLATION_NOT_PASSING', revision_ids: ids, message: 'Baseline or isolated checks are not passing; a composed failure would not establish an interaction.' });
           continue;
         }
         let candidate;
@@ -357,7 +365,12 @@ export class NativeDiscovery {
         const { evidence } = await this.engine.pipeline.validateCandidate(candidate.id, {
           request_id: 'discovery-pair-check-' + await hash({ runId, candidate: candidate.id }),
         }, 'discovery-engine'); stats.validation_runs += evidence.length;
-        const passed = evidence.every(validationPassed);
+        const passed = evidence.length > 0 && evidence.every(validationPassed);
+        if (!passed && !evidence.some(validationFailed)) {
+          stats.diagnostics.push({ code: 'COMPOSITION_OUTCOME_UNKNOWN', revision_ids: ids,
+            message: 'The composed run did not establish a finite failing check or a passing result; previous conflicts remain review requirements.' });
+          continue;
+        }
         const proof = {
           kind: 'isolated-composed-interaction', revision_ids: ids, base_heads: heads,
           baseline_subject: baseline.get(repoIds[0]).subject,
@@ -374,7 +387,12 @@ export class NativeDiscovery {
             'The baseline and each change pass alone on the same canonical base; their clean Git composition fails a trusted check.',
         });
       }
-      stats.comparisons_avoided = Math.max(0, stats.possible_comparisons - stats.comparisons);
+      // A budget stop is not an indexing win. Without enumerating the remaining
+      // bucket union we only know a conservative lower bound for avoided work.
+      stats.comparisons_avoided = index.exhausted ? 0 : Math.max(0, stats.possible_comparisons - stats.comparisons);
+      stats.comparisons_avoided_is_lower_bound = index.exhausted;
+      stats.comparison_budget_exhausted = index.exhausted;
+      stats.unexamined_pair_comparisons = Math.max(0, stats.possible_comparisons - stats.comparisons);
       const run = await this.put('nativeDiscoveryRuns', 'native-discovery-run', {
         system_id: input.system_id ?? null, revision_ids: revisions.map((entry) => entry.id), base_heads: heads, ...stats, created_at: now(),
       });
@@ -390,11 +408,11 @@ export class NativeDiscovery {
       for (const head of revision.repository_heads) {
         try {
           if (typeof this.engine.git.readRef === 'function') {
-            const observed = await this.engine.git.readRef({ id: head.source_repo_id }, head.ref);
+            const observed = await this.engine.git.readRef({ id: head.source_repo_id, canonical_repo: head.repo_id }, head.ref);
             if (observed.commit !== head.commit || observed.object_id !== (head.object_id ?? head.commit)) return false;
           } else if ((head.object_id && head.object_id !== head.commit) ||
-            (await this.engine.git.ref({ id: head.source_repo_id }, head.ref)) !== head.commit) return false;
-          const facts = await this.engine.git.facts({ id: head.source_repo_id }, head.commit, head.commit);
+            (await this.engine.git.ref({ id: head.source_repo_id, canonical_repo: head.repo_id }, head.ref)) !== head.commit) return false;
+          const facts = await this.engine.git.facts({ id: head.source_repo_id, canonical_repo: head.repo_id }, head.commit, head.commit);
           if (facts.head !== head.commit || facts.tree !== revision.tree_hashes.find((entry) => entry.repo_id === head.repo_id)?.tree) return false;
         } catch (error) { if (error.code === 'REF_NOT_FOUND') return false; throw error; }
       }
@@ -501,6 +519,8 @@ export class NativeDiscovery {
     const accepted = sorted(input.dispositions.filter((entry) => entry.outcome === 'accept').map((entry) => entry.future_revision_id));
     let candidateReview = null;
     if (accepted.length) {
+      if (reviewed.group.conventional_review_required)
+        fail('CONVENTIONAL_REVIEW_REQUIRED', 'This oversized component requires explicit conventional candidate review', 409);
       const operationId = 'promotion_' + await hash({ actor, request_id: input.request_id });
       if (this.state.operations.some((operation) => operation.id === operationId))
         fail('IDEMPOTENCY_CONFLICT', 'This identity already belongs to a different promotion', 409);

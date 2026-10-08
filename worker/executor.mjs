@@ -33,7 +33,8 @@ async function authorized(request, secret) {
 
 /**
  * Private service gateway to one serialized trusted Git Container. Repository
- * credentials enter trusted processes only at Container startup; the validator
+ * canonical credentials enter trusted processes only at Container startup. Registered
+ * Future read credentials live only in one private forwarded request; the validator
  * separately isolates candidate code from them. Cache disk is replaceable, so
  * prepared-write recovery belongs to the workspace coordinator and remote Git.
  *
