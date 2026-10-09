@@ -34,7 +34,7 @@ import { WorkspaceHeader } from './WorkspaceHeader.jsx';
 const tabs = [
   ['attention', 'Attention', CircleHelp],
   ['futures', 'Futures', GitFork],
-  ['systems', 'Systems', Layers3],
+  ['systems', 'Repositories', Layers3],
 ];
 const secondaryViews = [
   ['work', 'Git workflows'],
@@ -50,7 +50,7 @@ function pageTitle(activeTab) {
 function pageDescription(activeTab) {
   if (activeTab === 'attention') return 'Questions, choices and operations requiring judgment.';
   if (activeTab === 'futures') return 'Isolated repositories derived from exact Git baselines.';
-  if (activeTab === 'systems') return 'Repositories and optional system groupings.';
+  if (activeTab === 'systems') return 'Repositories and optional groups.';
   if (activeTab === 'work') return 'Compatibility workflows for merge requests and branch changes.';
   if (activeTab === 'evidence') return 'Checks tied to exact code and configuration.';
   return 'Recorded decisions and Git updates.';

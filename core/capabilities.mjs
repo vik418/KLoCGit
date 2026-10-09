@@ -23,7 +23,7 @@ const registry = {
     {
       id: 'state.systems',
       category: 'Native state',
-      title: 'Systems and Objectives',
+      title: 'Groups and objectives',
       status: 'PARTIAL',
       tests: [
         'tests/native-state.test.mjs',
@@ -31,7 +31,7 @@ const registry = {
         'tests/native-discovery.test.mjs',
       ],
       scope:
-        'Systems group repositories; optional Objectives retain outcomes, immutable context and explicit unresolved assumptions.',
+        'Groups collect repositories; optional objectives retain outcomes, immutable context and explicit unresolved assumptions.',
       limits:
         'Context clarification uses annotated choices. Arbitrary prose understanding and automatic semantic correctness are not established.',
     },
@@ -90,7 +90,8 @@ const registry = {
       tests: ['tests/ingress.test.mjs', 'tests/acceptance.test.mjs'],
       scope:
         'Authoritative branch heads version force-pushes and rebases; duplicate, obsolete and deletion events are gated.',
-      limits: 'Dedicated tag metadata and arbitrary non-branch ref coordination are absent.',
+      limits:
+        'Compatibility ingestion accepts producer refs supported by its Git adapter. Native Futures support branch/tag observation and selection; other namespaces are unsupported in Native Futures.',
     },
     {
       id: 'mr.lifecycle',
@@ -111,7 +112,7 @@ const registry = {
       tests: ['tests/merge-requests.test.mjs'],
       scope:
         'Approvals, requested changes, dismissals, batch reviews and anchored discussion threads retain exact revision pins.',
-      limits: 'One configured owner identity; unresolved discussion threads do not gate merging.',
+      limits: 'Unresolved discussion threads do not gate merging.',
     },
     {
       id: 'dependencies.stacks',

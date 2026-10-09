@@ -149,9 +149,9 @@ export function SystemsView({
           ))}
         </div>
       </section>
-      <section aria-label="Systems">
+      <section aria-label="Groups">
         <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
-          <h2 className="text-base font-semibold">Systems</h2>
+          <h2 className="text-base font-semibold">Groups</h2>
           <Button type="button" size="sm" variant="outline" onClick={onNewSystem} disabled={!ready}>
             <Plus aria-hidden="true" />
             Group repositories
@@ -159,7 +159,7 @@ export function SystemsView({
         </div>
         {!nativeState.systems.length && (
           <p className="text-sm leading-6 text-muted-foreground">
-            Systems group related repositories. You can also open work directly from a repository.
+            Groups collect related repositories. You can also start work from one repository.
           </p>
         )}
         <div className="grid gap-4 md:grid-cols-2">
@@ -214,7 +214,7 @@ export function SystemsView({
         <h2 className="mb-4 text-base font-semibold">Objectives</h2>
         {!nativeState.objectives.length && (
           <p className="text-sm leading-6 text-muted-foreground">
-            Record an outcome in a system, then prepare context before starting work.
+            Record an outcome for a group, then prepare context before starting work.
           </p>
         )}
         <div className="grid gap-4 md:grid-cols-2">

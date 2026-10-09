@@ -664,14 +664,14 @@ export class NativeState {
 
   async createSystem(input, actor) {
     const value = {
-      name: bounded(input.name, 'System name', 100),
+      name: bounded(input.name, 'Group name', 100),
       description: bounded(input.description, 'Description', 2000, true),
       repository_ids: nameList(input.repository_ids, 'Repositories'),
       request_id: input.request_id,
     };
     return this.request('system.create', value, actor, async (request) => {
       if (!value.repository_ids.length)
-        throw new DomainError('INVALID_NATIVE_INPUT', 'A System needs at least one repository');
+        throw new DomainError('INVALID_NATIVE_INPUT', 'A group needs at least one repository');
       const system = this.createSystemRecord(
         request,
         value.repository_ids,
@@ -703,7 +703,7 @@ export class NativeState {
 
   async createObjective(input, actor) {
     const value = {
-      system_id: bounded(input.system_id, 'System identity', 200),
+      system_id: bounded(input.system_id, 'Group identity', 200),
       statement: bounded(input.statement, 'Objective', 2000),
       scope: nameList(input.scope, 'Scope', true),
       request_id: input.request_id,
@@ -764,7 +764,7 @@ export class NativeState {
     if (!producer || typeof producer !== 'object' || Array.isArray(producer))
       throw new DomainError('INVALID_NATIVE_INPUT', 'Producer must be metadata');
     const value = {
-      system_id: bounded(input.system_id, 'System identity', 200, true),
+      system_id: bounded(input.system_id, 'Group identity', 200, true),
       objective_id: bounded(input.objective_id, 'Objective identity', 200, true),
       name: bounded(input.name, 'Future name', 100, true),
       statement: bounded(input.statement, 'Objective', 2000, true),
@@ -798,12 +798,12 @@ export class NativeState {
       if (objective && objective.system_id !== system.id)
         throw new DomainError(
           'OBJECTIVE_SYSTEM_MISMATCH',
-          'The Objective belongs to another System',
+          'The objective belongs to another group',
           409,
         );
       if (!system) {
         if (!value.repository_ids.length)
-          throw new DomainError('INVALID_NATIVE_INPUT', 'Choose a System or repository');
+          throw new DomainError('INVALID_NATIVE_INPUT', 'Choose a group or repository');
         system = this.state.systems.find(
           (item) =>
             item.repository_refs.length === value.repository_ids.length &&
@@ -826,7 +826,7 @@ export class NativeState {
       if (ids.some((id) => !system.repository_refs.some((ref) => ref.repo_id === id)))
         throw new DomainError(
           'INVALID_NATIVE_INPUT',
-          'Future repositories must belong to the System',
+          'Future repositories must belong to the group',
         );
       const baseline = await this.canonicalVector(system, ids);
       if (!objective) {

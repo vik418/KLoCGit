@@ -89,7 +89,7 @@ async function authenticate(page, url) {
   await page.goto(url);
   await page.getByLabel('Owner credential', { exact: true }).fill(credential);
   await page.getByRole('button', { name: 'Connect to workspace', exact: true }).click();
-  await page.getByRole('button', { name: 'Systems', exact: true }).waitFor();
+  await page.getByRole('button', { name: 'Repositories', exact: true }).waitFor();
 }
 
 async function waitForFocus(page, control) {
@@ -162,7 +162,7 @@ try {
   );
   await assertFitsViewport(page);
 
-  await page.getByRole('button', { name: 'Systems', exact: true }).click();
+  await page.getByRole('button', { name: 'Repositories', exact: true }).click();
   const addRepository = page
     .getByRole('button', { name: /^(Add|Create) (a )?repository$/i })
     .first();
@@ -243,7 +243,7 @@ try {
   assert.equal(future.status, 'active');
   await dialog.waitFor({ state: 'hidden' });
 
-  // System and Objective metadata are optional at entry, not additional forms.
+  // Groups and objectives are optional at entry, not additional forms.
   let native = await api('/native-state');
   assert.equal(native.systems.length, 1);
   assert.equal(native.objectives.length, 1);
@@ -563,7 +563,7 @@ try {
     'Deleting source refs must not discard objects referenced by historical revisions',
   );
 
-  // A System can contain repositories whose current Git state is not ready.
+  // A group can contain repositories whose current Git state is not ready.
   await api('/repositories', { id: 'empty-member', request_id: 'empty-member' });
   await api('/systems', {
     name: 'Mixed readiness',
@@ -571,7 +571,7 @@ try {
     request_id: 'mixed-system',
   });
   await authenticate(page, url);
-  await page.getByRole('button', { name: 'Systems', exact: true }).click();
+  await page.getByRole('button', { name: 'Repositories', exact: true }).click();
   const systemCard = page.locator('[data-slot="card"]').filter({
     has: page.getByRole('heading', { name: 'Mixed readiness', exact: true }),
   });
@@ -602,7 +602,7 @@ try {
   await page.keyboard.press('Escape');
   await mobileSourceDialog.waitFor({ state: 'hidden' });
   await waitForFocus(page, mobileSourceControl);
-  await page.getByRole('button', { name: 'Systems', exact: true }).click();
+  await page.getByRole('button', { name: 'Repositories', exact: true }).click();
   await addRepository.click();
   dialog = page.getByRole('dialog', { name: 'Add a repository', exact: true });
   await dialog.waitFor();
@@ -692,7 +692,7 @@ try {
   });
   const futureCountBeforeContext = contextState.futures.length;
   await authenticate(page, url);
-  await page.getByRole('button', { name: 'Systems', exact: true }).click();
+  await page.getByRole('button', { name: 'Repositories', exact: true }).click();
   const objectiveCard = page
     .getByRole('region', { name: 'Objectives', exact: true })
     .locator('[data-slot="card"]')
