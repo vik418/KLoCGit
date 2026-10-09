@@ -50,3 +50,8 @@ jobs:
       - run: npm run format:check
       - run: npm run lint
       - run: npm run test:v1
+      - name: Show formatting differences
+        if: failure()
+        run: |
+          npx --no-install prettier . --write
+          git diff --exit-code
