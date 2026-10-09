@@ -8,6 +8,7 @@ import { DomainError } from '../core/hash.mjs';
 import { redactSensitive } from '../core/access.mjs';
 import { authenticateEvaluationReport, evaluatorServices } from '../worker/identity.mjs';
 import { LocalGit } from './git.mjs';
+import { localConfiguration } from '../adapters/local/config.mjs';
 import { handleLocalRequest } from './local-api.mjs';
 import {
   readRequestPayload,
@@ -17,19 +18,14 @@ import {
 } from './local-http.mjs';
 
 const project = fileURLToPath(new URL('../', import.meta.url));
-const root = process.env.KLOCGIT_ROOT
-  ? path.resolve(process.env.KLOCGIT_ROOT)
-  : path.join(project, '.klocgit-workspace');
+const {
+  root,
+  actor: localActor,
+  ownerToken,
+  host,
+  port,
+} = localConfiguration(process.env, project);
 const stateFile = path.join(root, 'state.json');
-const localActor = process.env.LOCAL_ACTOR_ID;
-if (typeof localActor !== 'string' || !localActor.trim())
-  throw new DomainError(
-    'ACTOR_NOT_CONFIGURED',
-    'Set LOCAL_ACTOR_ID to your development identity',
-    503,
-  );
-const ownerToken = process.env.LOCAL_OWNER_TOKEN;
-const host = process.env.HOST ?? '127.0.0.1';
 const engineOptions = { evaluators: { services: evaluatorServices(process.env) } };
 
 async function save(state) {
@@ -149,7 +145,6 @@ async function handleRequest(request, response) {
 }
 
 const server = http.createServer(handleRequest);
-const port = Number(process.env.PORT ?? 43187);
 server.listen(port, host, () => {
   console.log('klocgit workspace: http://localhost:' + server.address().port);
   console.log('Canonical repositories: ' + path.join(root, 'repositories'));

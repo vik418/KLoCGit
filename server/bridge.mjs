@@ -6,6 +6,7 @@ import { promisify } from 'node:util';
 import { fileURLToPath } from 'node:url';
 import { hash, DomainError } from '../core/hash.mjs';
 import { RemoteGit } from './remote-git.mjs';
+import { executorAddress } from '../adapters/local/config.mjs';
 export { RemoteGit } from './remote-git.mjs';
 const exec = promisify(execFile);
 
@@ -160,14 +161,12 @@ export async function createBridge({ manifest, token = process.env.GIT_BRIDGE_TO
   return { server, adapter, sandbox };
 }
 if (process.argv[1] && fileURLToPath(import.meta.url) === process.argv[1]) {
+  const { host, port } = executorAddress(process.env);
   if (!process.env.GIT_EXECUTOR_MANIFEST || !process.env.GIT_BRIDGE_TOKEN)
     throw new Error('GIT_EXECUTOR_MANIFEST and GIT_BRIDGE_TOKEN must be configured.');
   const manifest = JSON.parse(await readFile(process.env.GIT_EXECUTOR_MANIFEST, 'utf8')),
     { server, adapter, sandbox } = await createBridge({ manifest });
-  server.listen(
-    Number(process.env.GIT_EXECUTOR_PORT ?? 8788),
-    process.env.GIT_EXECUTOR_HOST ?? '127.0.0.1',
-    () =>
-      console.log(JSON.stringify({ executor: 'ready', configHash: adapter.configHash, sandbox })),
+  server.listen(port, host, () =>
+    console.log(JSON.stringify({ executor: 'ready', configHash: adapter.configHash, sandbox })),
   );
 }
