@@ -24,27 +24,15 @@ jobs:
           cache: npm
       - name: Install sandbox tools
         run: sudo apt-get update && sudo apt-get install -y bubblewrap util-linux
-      - name: Configure test commit identity
+      - name: Install browser system libraries
         run: |
-          git config --global user.name "klocgit tests"
-          git config --global user.email "tests@localhost"
-      - run: npm ci
-      - run: npm run check
-
-  browser:
-    runs-on: ubuntu-22.04
-    timeout-minutes: 10
-    steps:
-      - uses: actions/checkout@v7
-      - uses: actions/setup-node@v7
-        with:
-          node-version-file: .nvmrc
-          cache: npm
-      - name: Configure test commit identity
+          npm ci
+          npx --no-install playwright install-deps chromium
+      - name: Verify checkout
+        id: verify
+        run: npm run verify
+      - name: Show formatting differences
+        if: failure() && steps.verify.outcome == 'failure'
         run: |
-          git config --global user.name "klocgit tests"
-          git config --global user.email "tests@localhost"
-      - run: npm ci
-      - name: Install browser
-        run: npx playwright install --with-deps chromium
-      - run: npm run test:browser
+          npx --no-install prettier . --write
+          git diff --exit-code

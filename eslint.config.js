@@ -28,6 +28,33 @@ export default [
     },
   },
   {
+    files: ['core/**/*.{js,mjs}'],
+    rules: {
+      'no-restricted-imports': [
+        'error',
+        {
+          patterns: [
+            {
+              group: ['cloudflare:*', '@cloudflare/*', 'wrangler', 'miniflare'],
+              message: 'Cloudflare dependencies belong in provider adapters, not the domain.',
+            },
+            {
+              group: [
+                '**/server/**',
+                '**/worker/**',
+                '**/adapters/**',
+                '**/api/**',
+                '**/src/**',
+                '**/fixtures/**',
+              ],
+              message: 'Domain modules cannot depend on adapters, API handlers, UI or fixtures.',
+            },
+          ],
+        },
+      ],
+    },
+  },
+  {
     files: ['src/**/*.{js,jsx}', 'fixtures/checkout-api/**/*.{js,mjs}'],
     languageOptions: {
       globals: { ...globals.browser, ...globals.node },

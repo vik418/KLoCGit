@@ -24,10 +24,14 @@ The sample application is optional. Stop the server, run `npm run demo:reset`, t
 ## Develop
 
 ```sh
-npm run check
+npm run verify
 ```
 
-The [design document](docs/design.md) contains the system diagram, core contracts and safety boundaries. The authenticated capability registry distinguishes verified local behavior from partial, experimental and unsupported workflows.
+Verification requires Linux or WSL, Node.js 24, Git, bubblewrap, util-linux and Chromium system libraries. On a new host, install the system libraries with Playwright's `install-deps chromium` command. Verification installs locked npm dependencies and Chromium, then runs every local check, including browser smoke tests.
+
+The v1 implementation follows [CODEX.md](CODEX.md), the frozen [architecture](ARCHITECTURE.md), the ordered [backlog](TASKS.md), [validation gates](VALIDATION.md) and [implementation decisions](DECISIONS.md). Existing v0 features do not establish v1 completion.
+
+The [v0 design document](docs/design.md) contains the system diagram, core contracts and safety boundaries. The authenticated capability registry distinguishes verified local behavior from partial, experimental and unsupported workflows.
 
 Cloudflare runs the API Worker, Durable Object, Artifacts repositories, Queue and private Git executor. The UI is React; the backend is JavaScript. Cloudflare integration remains experimental until the complete live path is verified.
 
