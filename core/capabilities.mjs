@@ -23,7 +23,7 @@ const registry = {
     {
       id: 'state.systems',
       category: 'Native state',
-      title: 'Systems and Objectives',
+      title: 'Groups and objectives',
       status: 'PARTIAL',
       tests: [
         'tests/native-state.test.mjs',
@@ -31,7 +31,7 @@ const registry = {
         'tests/native-discovery.test.mjs',
       ],
       scope:
-        'Systems group repositories; optional Objectives retain outcomes, immutable context and explicit unresolved assumptions.',
+        'Groups collect repositories; optional objectives retain outcomes, immutable context and explicit unresolved assumptions.',
       limits:
         'Context clarification uses annotated choices. Arbitrary prose understanding and automatic semantic correctness are not established.',
     },

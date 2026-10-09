@@ -47,14 +47,14 @@ export function NewObjective({
       pendingLabel="Recording…"
     >
       <label className="field">
-        System
+        Group
         <NativeSelect
           value={systemId}
           onChange={(event) => setSystemId(event.target.value)}
           required
         >
           <option value="" disabled>
-            Choose a system
+            Choose a group
           </option>
           {nativeState.systems.map((system) => (
             <option key={system.id} value={system.id}>

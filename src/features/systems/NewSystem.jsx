@@ -26,21 +26,21 @@ export function NewSystem({ nativeState, onClose, onCreated, reload, message }) 
         description: description.trim(),
         repository_ids: [...repositoryIds].sort(),
       },
-      'System created.',
+      'Group created.',
     );
     if (result) onCreated(result.system);
   }
 
   return (
     <NativeFormDialog
-      title="Create a system"
-      description="A system groups the repositories that make one product."
+      title="Create a group"
+      description="Keep related repositories together."
       onClose={onClose}
       onSubmit={submit}
       busy={busy}
       error={error}
       disabled={!name.trim() || !repositoryIds.length}
-      submitLabel="Create system"
+      submitLabel="Create group"
       pendingLabel="Creating…"
     >
       <label className="field">

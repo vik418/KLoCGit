@@ -32,7 +32,7 @@ after repository-scoped delivery is read back; uncertain delivery is reconciled.
 
 | Object             | Responsibility                                                           |
 | ------------------ | ------------------------------------------------------------------------ |
-| System             | Groups repositories belonging to one product.                            |
+| Group              | Groups repositories belonging to one product.                            |
 | Objective          | Records a requested outcome; optional for incoming Git work.             |
 | Future             | Isolated repository copies with pinned baselines and a current revision. |
 | FutureRevision     | Immutable observed commit/tree vector and provenance.                    |
