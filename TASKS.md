@@ -4,7 +4,8 @@ Complete in dependency order. Do not skip acceptance criteria.
 
 ## Progress
 
-- T000: IN PROGRESS. Acceptance validation pending.
+- T000: COMPLETE. [Passing verification](https://github.com/vik418/KLoCGit/actions/runs/37960093987) on `c72610ce`.
+- Next incomplete task: T001.
 - All remaining tasks: INCOMPLETE.
 
 Existing v0 behavior does not establish v1 completion. Task completion requires the tests and acceptance criteria below.
@@ -27,6 +28,8 @@ Acceptance:
 
 - clean checkout can run all local checks with one command
 - domain package has no Cloudflare SDK dependency
+
+T000 validation on 2026-10-09: `npm run verify` passed 487 tests, browser smoke checks, formatting, lint, builds and Worker/executor dry runs. Domain dependency checks passed. ARCHITECTURE.md remained unchanged.
 
 ### T001 - Define schema/version conventions
 
