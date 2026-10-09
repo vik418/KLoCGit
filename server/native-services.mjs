@@ -143,6 +143,22 @@ function tracePresentation(engine, trace) {
       'context_snapshot',
       'observed',
     );
+    for (const resolution of snapshot.resolutions ?? []) {
+      add(
+        'context-item',
+        resolution,
+        resolution.basis,
+        resolution.value?.key + ': ' + resolution.value?.option_id,
+      );
+      link(
+        'context-item',
+        resolution.id,
+        'snapshot',
+        snapshot.id,
+        'context_resolution',
+        resolution.basis,
+      );
+    }
   }
   for (const preparation of trace.preparations) {
     add('preparation', preparation, 'observed', 'Pinned retrieved context.');

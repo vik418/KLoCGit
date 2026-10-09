@@ -1,18 +1,21 @@
 /* global document, window, getComputedStyle */
 import assert from 'node:assert/strict';
 import { execFile, spawn } from 'node:child_process';
+import { createHmac } from 'node:crypto';
 import { mkdir, mkdtemp, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { promisify } from 'node:util';
 import { chromium } from 'playwright';
+import { stable } from '../core/hash.mjs';
 
 const exec = promisify(execFile);
 const project = fileURLToPath(new URL('../', import.meta.url));
 const root = await mkdtemp(path.join(tmpdir(), 'klocgit-browser-'));
 const workspaceRoot = path.join(root, 'workspace');
 const credential = 'ui-check';
+const evaluatorSecret = 'browser-ci-fixture-secret';
 let server;
 let browser;
 let serverOutput = '';
@@ -38,6 +41,9 @@ function startServer() {
         KLOCGIT_ROOT: workspaceRoot,
         LOCAL_ACTOR_ID: 'browser-tests',
         LOCAL_OWNER_TOKEN: credential,
+        EVALUATOR_SERVICES: JSON.stringify({
+          'browser-ci': { secret: evaluatorSecret, key_id: 'browser-key', repo_ids: ['app'] },
+        }),
         HOST: '127.0.0.1',
         PORT: '0',
       },
@@ -331,9 +337,67 @@ try {
     (await api('/native-state')).repositories.find((entry) => entry.id === 'app').head,
     baselineCommit,
   );
-  await assertFitsViewport(page);
-  await page.keyboard.press('Escape');
+  // An admitted evaluator checks the composed tree independently of the producer.
+  await api('/evaluators', {
+    key: 'browser-ci',
+    repo_ids: ['app'],
+    mode: 'external',
+    service_id: 'browser-ci',
+    config_hash: 'browser-composed-file-v0',
+    required_checks: ['selected-content'],
+  });
+  await dialog.getByRole('button', { name: 'Refresh review', exact: true }).click();
+  const issued = waitForMutation(page, '/evaluation-runs');
+  await dialog.getByRole('button', { name: 'Issue run', exact: true }).click();
+  const issuedResponse = await issued;
+  assert.equal(issuedResponse.status(), 200, await issuedResponse.text());
+  const { run } = await issuedResponse.json();
+  const composedRepository = candidate.repositories.find((entry) => entry.repo_id === 'app');
+  assert.equal(
+    await git(repository.remote, 'show', composedRepository.commit + ':app.mjs'),
+    'export const value = 1;',
+  );
+  assert.equal(
+    await git(repository.remote, 'rev-parse', composedRepository.commit + '^{tree}'),
+    composedRepository.tree,
+  );
+  const report = {
+    event_id: 'browser-composition-checked',
+    run_id: run.id,
+    pins: run.pins,
+    pins_hash: run.pins_hash,
+    state: 'passing',
+    result: {
+      checks: [{ id: 'selected-content', state: 'passing' }],
+    },
+  };
+  const signature = createHmac('sha256', evaluatorSecret)
+    .update(stable({ run_id: run.id, body: report }))
+    .digest('hex');
+  const reported = await fetch(url + '/api/evaluation-runs/' + run.id + '/report', {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      'X-Klocgit-Evaluator-Service': 'browser-ci',
+      'X-Klocgit-Evaluator-Signature': signature,
+    },
+    body: JSON.stringify(report),
+  });
+  assert.equal(reported.status, 200, await reported.text());
+  await page.waitForFunction(() => !document.querySelector('[aria-busy="true"]'));
+  await dialog.getByRole('button', { name: 'Refresh review', exact: true }).click();
+  await dialog
+    .getByLabel('Why choose this candidate?', { exact: true })
+    .fill('The admitted evaluator checked the selected content on this exact tree.');
+  const promoted = waitForMutation(page, '/candidates/' + candidate.id + '/promote');
+  await dialog.getByRole('button', { name: 'Apply candidate', exact: true }).click();
+  const promotedResponse = await promoted;
+  assert.equal(promotedResponse.status(), 200, await promotedResponse.text());
+  const promotedHead = await git(repository.remote, 'rev-parse', 'refs/heads/main');
+  assert.equal(promotedHead, composedRepository.commit);
+  await git(repository.remote, 'fsck', '--full');
   await dialog.waitFor({ state: 'hidden' });
+  await assertFitsViewport(page);
   await page.getByRole('button', { name: 'Futures', exact: true }).click();
 
   // A rewind is another observation; it must not overwrite the first A revision.
@@ -396,7 +460,7 @@ try {
   assert.equal(tagRevision.revision.repository_heads[0].commit, changedCommit);
   assert.notEqual(tagRevision.revision.id, branchRevision.revision.id);
   native = await api('/native-state');
-  assert.equal(native.repositories.find((item) => item.id === 'app').head, baselineCommit);
+  assert.equal(native.repositories.find((item) => item.id === 'app').head, promotedHead);
   assert.deepEqual(native.futureRevisions[0], firstRevision);
   assert.equal(native.futureRevisions.length, 5);
   const retainedTag = native.retentions.find(
@@ -685,7 +749,7 @@ try {
   );
   assert.equal(
     (await api('/native-state')).repositories.find((entry) => entry.id === 'app').head,
-    baselineCommit,
+    promotedHead,
   );
   await assertFitsViewport(page);
   assert.deepEqual(pageErrors, [], 'Context workflow must not throw browser errors');
@@ -697,7 +761,7 @@ try {
   await capture('context-desktop');
 
   console.log(
-    'Browser workflow passed: authenticated repository creation, ordinary Git push, isolated Future, immutable revision history, selected-commit composition, untrusted validation blocking, rewind, branch/tag selection, structured provenance, historical object retention, cross-repo context and one declared answer before forking, keyboard focus, mobile layout.',
+    'Browser workflow passed: authenticated repository creation, ordinary Git push, isolated Future, immutable revision history, selected-commit composition, untrusted validation blocking, admitted CI and reviewed Git promotion, rewind, branch/tag selection, structured provenance, historical object retention, cross-repo context and one declared answer before forking, keyboard focus, mobile layout.',
   );
 } catch (error) {
   console.error(serverOutput);

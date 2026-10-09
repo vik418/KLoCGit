@@ -446,8 +446,15 @@ test('provenance preserves unknown intent and code facts while enforcing retriev
     id: 'revision',
     future_id: 'future',
     provenance_state: 'unknown',
+    snapshot_id: 'snapshot',
     repository_heads: [{ repo_id: 'app', commit: 'a'.repeat(40) }],
     tree_hashes: [{ repo_id: 'app', tree: 'b'.repeat(40) }],
+  };
+  const answer = {
+    id: 'answer',
+    type: 'answer',
+    basis: 'declared',
+    value: { key: 'retry', option_id: 'once' },
   };
   engine.native.future = () => ({ id: 'future', objective_id: 'objective' });
   engine.objectiveContext.trace = () => ({
@@ -455,7 +462,7 @@ test('provenance preserves unknown intent and code facts while enforcing retriev
     selections: [],
     candidates: [],
     decisions: [],
-    snapshots: [],
+    snapshots: [{ id: 'snapshot', preparation_id: preparation.id, resolutions: [answer] }],
     preparations: [preparation],
     code_provenance: [],
   });
@@ -464,6 +471,13 @@ test('provenance preserves unknown intent and code facts while enforcing retriev
     { code: 'FORBIDDEN' },
   );
   const trace = await request(engine, '/api/provenance/revision/revision');
+  assert.equal(trace.records.find((record) => record.id === answer.id).basis, 'declared');
+  assert.deepEqual(trace.links.find((link) => link.type === 'context_resolution'), {
+    from: { kind: 'context-item', id: answer.id },
+    to: { kind: 'snapshot', id: 'snapshot' },
+    type: 'context_resolution',
+    basis: 'declared',
+  });
   assert.equal(trace.records.find((record) => record.kind === 'revision').basis, 'observed');
   assert.equal(
     trace.records.find((record) => record.kind === 'revision').provenance_state,
