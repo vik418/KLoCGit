@@ -91,7 +91,7 @@ const registry = {
       scope:
         'Authoritative branch heads version force-pushes and rebases; duplicate, obsolete and deletion events are gated.',
       limits:
-        'This adapter tracks branch pushes. Native Futures separately support branch/tag observation and selection; arbitrary ref namespaces remain unsupported.',
+        'Compatibility ingestion accepts producer refs supported by its Git adapter. Native Futures support branch/tag observation and selection; other namespaces are unsupported in Native Futures.',
     },
     {
       id: 'mr.lifecycle',
