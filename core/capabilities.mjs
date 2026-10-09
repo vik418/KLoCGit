@@ -90,7 +90,8 @@ const registry = {
       tests: ['tests/ingress.test.mjs', 'tests/acceptance.test.mjs'],
       scope:
         'Authoritative branch heads version force-pushes and rebases; duplicate, obsolete and deletion events are gated.',
-      limits: 'Dedicated tag metadata and arbitrary non-branch ref coordination are absent.',
+      limits:
+        'This adapter tracks branch pushes. Native Futures separately support branch/tag observation and selection; arbitrary ref namespaces remain unsupported.',
     },
     {
       id: 'mr.lifecycle',
@@ -111,7 +112,7 @@ const registry = {
       tests: ['tests/merge-requests.test.mjs'],
       scope:
         'Approvals, requested changes, dismissals, batch reviews and anchored discussion threads retain exact revision pins.',
-      limits: 'One configured owner identity; unresolved discussion threads do not gate merging.',
+      limits: 'Unresolved discussion threads do not gate merging.',
     },
     {
       id: 'dependencies.stacks',
