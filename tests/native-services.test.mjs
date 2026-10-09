@@ -472,7 +472,8 @@ test('provenance preserves unknown intent and code facts while enforcing retriev
   );
   const trace = await request(engine, '/api/provenance/revision/revision');
   assert.equal(trace.records.find((record) => record.id === answer.id).basis, 'declared');
-  assert.deepEqual(trace.links.find((link) => link.type === 'context_resolution'), {
+  const resolutionLink = trace.links.find((link) => link.type === 'context_resolution');
+  assert.deepEqual(resolutionLink, {
     from: { kind: 'context-item', id: answer.id },
     to: { kind: 'snapshot', id: 'snapshot' },
     type: 'context_resolution',
