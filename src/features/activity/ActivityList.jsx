@@ -2,6 +2,12 @@ import { GitFork, GitCommitHorizontal, Layers } from 'lucide-react';
 import { Badge } from '../../ui/Badge.jsx';
 import { shortId } from '../../lib/format.js';
 
+function activityLabel(type) {
+  // Historical event types stay intact when the displayed product name changes.
+  const label = type.replace(/^system\./, 'group.');
+  return label.replaceAll('.', ' · ').replaceAll('-', ' ');
+}
+
 export function ActivityList({ workspace }) {
   return (
     <div className="activity-list">
@@ -20,7 +26,7 @@ export function ActivityList({ workspace }) {
               )}
             </span>
             <div>
-              <b>{a.type.replaceAll('.', ' · ').replaceAll('-', ' ')}</b>
+              <b>{activityLabel(a.type)}</b>
               <p>
                 {a.actor} <span>·</span> {new Date(a.created_at).toLocaleTimeString()}
               </p>
