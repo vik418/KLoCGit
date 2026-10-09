@@ -122,10 +122,9 @@ test('domain and kind grammar excludes separator and Unicode ambiguity', async (
 
 test('lexical validators require the entire input including line terminators', async () => {
   for (const terminator of ['\n', '\r', '\u2028', '\u2029']) {
-    await assert.rejects(
-      digestBytes('object-candidate' + terminator, new Uint8Array()),
-      { code: 'INVALID_ARGUMENT' },
-    );
+    await assert.rejects(digestBytes('object-candidate' + terminator, new Uint8Array()), {
+      code: 'INVALID_ARGUMENT',
+    });
     assert.throws(() => objectId('candidate' + terminator, candidateVector.digest), {
       code: 'INVALID_ARGUMENT',
     });

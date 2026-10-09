@@ -77,8 +77,7 @@ export function assertSchemaVersion(record) {
 
 const namePattern = /^[a-z][a-z0-9]*(?:-[a-z0-9]+)*$/;
 const digestPattern = /^sha256:([a-z][a-z0-9]*(?:-[a-z0-9]+)*):v([1-9][0-9]*):([a-f0-9]{64})$/;
-const idPattern =
-  /^klocgit:([a-z][a-z0-9]*(?:-[a-z0-9]+)*):v([1-9][0-9]*):sha256:([a-f0-9]{64})$/;
+const idPattern = /^klocgit:([a-z][a-z0-9]*(?:-[a-z0-9]+)*):v([1-9][0-9]*):sha256:([a-f0-9]{64})$/;
 const encoder = new TextEncoder();
 
 function assertName(value, maximum) {
