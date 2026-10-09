@@ -192,16 +192,25 @@ test('caller mutations cannot change accepted nested snapshots', () => {
 test('parent order and ordered composition and release steps survive persistence', () => {
   const records = fixtures();
   assert.deepEqual(domain.FutureRevision(records.FutureRevision).parent_oids, [oid('c'), oid('d')]);
-  assert.deepEqual(domain.CandidateSpec(records.CandidateSpec).selections, records.CandidateSpec.selections);
+  assert.deepEqual(
+    domain.CandidateSpec(records.CandidateSpec).selections,
+    records.CandidateSpec.selections,
+  );
   assert.deepEqual(
     domain.Candidate(records.Candidate).materialization_record.steps,
     records.Candidate.materialization_record.steps,
   );
   const release = {
     ...records.ReleaseConstraints,
-    ordering_constraints: [{ before: 'b', after: 'c' }, { before: 'a', after: 'b' }],
+    ordering_constraints: [
+      { before: 'b', after: 'c' },
+      { before: 'a', after: 'b' },
+    ],
   };
-  assert.deepEqual(domain.ReleaseConstraints(release).ordering_constraints, release.ordering_constraints);
+  assert.deepEqual(
+    domain.ReleaseConstraints(release).ordering_constraints,
+    release.ordering_constraints,
+  );
 });
 
 test('unknown provenance is valid and claimed provenance is not promoted to trust', () => {
@@ -304,25 +313,46 @@ test('Extractor capability and status remain explicit, including failures with n
   const input = fixtures().EffectSet;
   for (const capability of domain.ANALYSIS_CAPABILITIES) {
     for (const status of domain.ANALYSIS_STATUSES) {
-      const accepted = domain.EffectSet({ ...input, capability, status, effects: [], security_effects: [] });
+      const accepted = domain.EffectSet({
+        ...input,
+        capability,
+        status,
+        effects: [],
+        security_effects: [],
+      });
       assert.equal(accepted.capability, capability);
       assert.equal(accepted.status, status);
     }
   }
-  assert.throws(() => domain.EffectSet({ ...input, status: 'UNKNOWN' }), { code: 'INVALID_ARGUMENT' });
-  assert.throws(() => domain.EffectSet({ ...input, capability: 'AST' }), { code: 'INVALID_ARGUMENT' });
-  assert.throws(() => domain.EffectSet({ ...input, effects: ['a path'] }), { code: 'INVALID_ARGUMENT' });
+  assert.throws(() => domain.EffectSet({ ...input, status: 'UNKNOWN' }), {
+    code: 'INVALID_ARGUMENT',
+  });
+  assert.throws(() => domain.EffectSet({ ...input, capability: 'AST' }), {
+    code: 'INVALID_ARGUMENT',
+  });
+  assert.throws(() => domain.EffectSet({ ...input, effects: ['a path'] }), {
+    code: 'INVALID_ARGUMENT',
+  });
 });
 
 test('CandidateSpec preserves whole-Future selections and rejects duplicate set references', () => {
   const input = fixtures().CandidateSpec;
   assert.deepEqual(domain.CandidateSpec({ ...input, selections: [] }).selections, []);
-  const baseOnly = { ...input, selected_future_revisions: [], selections: [], required_dependencies: [] };
+  const baseOnly = {
+    ...input,
+    selected_future_revisions: [],
+    selections: [],
+    required_dependencies: [],
+  };
   assert.deepEqual(domain.CandidateSpec(baseOnly).selected_future_revisions, []);
   for (const field of ['selected_future_revisions', 'required_dependencies']) {
-    assert.throws(() => domain.CandidateSpec({ ...input, [field]: [id('future-revision'), id('future-revision')] }), {
-      code: 'INVALID_ARGUMENT',
-    });
+    assert.throws(
+      () =>
+        domain.CandidateSpec({ ...input, [field]: [id('future-revision'), id('future-revision')] }),
+      {
+        code: 'INVALID_ARGUMENT',
+      },
+    );
   }
   assert.throws(() => domain.CandidateSpec({ ...input, base_revision: id('future-revision') }), {
     code: 'INTEGRITY_MISMATCH',
@@ -331,7 +361,10 @@ test('CandidateSpec preserves whole-Future selections and rejects duplicate set 
 
 test('Candidate and SystemRevision require nonempty exact state, with independent repo object formats', () => {
   const records = fixtures();
-  for (const [type, field] of [['Candidate', 'repo_tree_oids'], ['SystemRevision', 'repositories']]) {
+  for (const [type, field] of [
+    ['Candidate', 'repo_tree_oids'],
+    ['SystemRevision', 'repositories'],
+  ]) {
     assert.doesNotThrow(() => domain[type](records[type]));
     for (const mapping of [{}, { 'repo-a': 'main' }, { 'repo-a': oid('0') }]) {
       assert.throws(() => domain[type]({ ...records[type], [field]: mapping }), {
@@ -343,18 +376,29 @@ test('Candidate and SystemRevision require nonempty exact state, with independen
 
 test('explicit object IDs and digests must agree without claiming content verification', () => {
   const records = fixtures();
-  for (const type of ['Candidate', 'SystemRevision', 'DeploymentObservation', 'DeploymentAttestation']) {
+  for (const type of [
+    'Candidate',
+    'SystemRevision',
+    'DeploymentObservation',
+    'DeploymentAttestation',
+  ]) {
     const input = records[type];
-    assert.throws(() => domain[type]({ ...input, digest: input.digest.replace(/1{64}$/, '2'.repeat(64)) }), {
-      code: 'INTEGRITY_MISMATCH',
-    });
+    assert.throws(
+      () => domain[type]({ ...input, digest: input.digest.replace(/1{64}$/, '2'.repeat(64)) }),
+      {
+        code: 'INTEGRITY_MISMATCH',
+      },
+    );
   }
   assert.throws(() => domain.FutureRevision({ ...records.FutureRevision, id: id('candidate') }), {
     code: 'INTEGRITY_MISMATCH',
   });
-  assert.throws(() => domain.EffectSet({ ...records.EffectSet, digest: digest('decision-basis') }), {
-    code: 'INTEGRITY_MISMATCH',
-  });
+  assert.throws(
+    () => domain.EffectSet({ ...records.EffectSet, digest: digest('decision-basis') }),
+    {
+      code: 'INTEGRITY_MISMATCH',
+    },
+  );
 });
 
 test('Evidence preserves observations and requires an evaluator and retention class', () => {
@@ -379,15 +423,28 @@ test('Evidence preserves observations and requires an evaluator and retention cl
 
 test('DecisionBasis rejects wrong digest namespaces and nonexact canonical refs', () => {
   const input = fixtures().DecisionBasis;
-  assert.throws(() => domain.DecisionBasis({ ...input, candidate_digests: [digest('object-evidence')] }), {
-    code: 'INTEGRITY_MISMATCH',
-  });
-  assert.throws(() => domain.DecisionBasis({ ...input, evidence_digests: [digest('object-candidate')] }), {
-    code: 'INTEGRITY_MISMATCH',
-  });
-  assert.throws(() => domain.DecisionBasis({ ...input, candidate_digests: [input.candidate_digests[0], input.candidate_digests[0]] }), {
-    code: 'INVALID_ARGUMENT',
-  });
+  assert.throws(
+    () => domain.DecisionBasis({ ...input, candidate_digests: [digest('object-evidence')] }),
+    {
+      code: 'INTEGRITY_MISMATCH',
+    },
+  );
+  assert.throws(
+    () => domain.DecisionBasis({ ...input, evidence_digests: [digest('object-candidate')] }),
+    {
+      code: 'INTEGRITY_MISMATCH',
+    },
+  );
+  assert.throws(
+    () =>
+      domain.DecisionBasis({
+        ...input,
+        candidate_digests: [input.candidate_digests[0], input.candidate_digests[0]],
+      }),
+    {
+      code: 'INVALID_ARGUMENT',
+    },
+  );
   for (const canonical_ref_oids of [
     { 'repo-a': {} },
     { 'repo-a': { main: oid('a') } },
@@ -399,9 +456,12 @@ test('DecisionBasis rejects wrong digest namespaces and nonexact canonical refs'
       code: 'INVALID_ARGUMENT',
     });
   }
-  assert.throws(() => domain.DecisionBasis({ ...input, required_analysis_status: { semantic: 'UNKNOWN' } }), {
-    code: 'INVALID_ARGUMENT',
-  });
+  assert.throws(
+    () => domain.DecisionBasis({ ...input, required_analysis_status: { semantic: 'UNKNOWN' } }),
+    {
+      code: 'INVALID_ARGUMENT',
+    },
+  );
 });
 
 test('PARTIAL remains reviewable but explicitly required incomplete statuses cannot be resolvable', () => {
@@ -410,7 +470,8 @@ test('PARTIAL remains reviewable but explicitly required incomplete statuses can
     const basis = { ...input.basis, required_analysis_status: { semantic: status } };
     assert.equal(domain.Decision({ ...input, basis }).state, 'REVIEWABLE');
     for (const state of ['RESOLVABLE', 'RESOLVED']) {
-      const resolution = state === 'RESOLVED' ? { candidate_digest: input.basis.candidate_digests[0] } : null;
+      const resolution =
+        state === 'RESOLVED' ? { candidate_digest: input.basis.candidate_digests[0] } : null;
       assert.throws(() => domain.Decision({ ...input, state, basis, resolution }), {
         code: 'INVALID_ARGUMENT',
       });
@@ -422,7 +483,10 @@ test('empty declared analysis requirements are preserved, without inventing poli
   const input = fixtures().Decision;
   const basis = { ...input.basis, required_analysis_status: {} };
   assert.deepEqual(domain.Decision({ ...input, basis }).basis.required_analysis_status, {});
-  assert.deepEqual(domain.Decision({ ...input, state: 'RESOLVABLE', basis }).basis.required_analysis_status, {});
+  assert.deepEqual(
+    domain.Decision({ ...input, state: 'RESOLVABLE', basis }).basis.required_analysis_status,
+    {},
+  );
   const missing = { ...basis };
   delete missing.required_analysis_status;
   assert.throws(() => domain.Decision({ ...input, basis: missing }), { code: 'INVALID_ARGUMENT' });
@@ -430,33 +494,66 @@ test('empty declared analysis requirements are preserved, without inventing poli
 
 test('Decision snapshots bind resolution to a reviewed alternative and forbid impossible combinations', () => {
   const input = fixtures().Decision;
-  const resolution = { candidate_digest: input.basis.candidate_digests[0], actor: 'human-a', rationale: 'Choose this approach.' };
-  assert.equal(domain.Decision({ ...input, state: 'RESOLVED', resolution }).resolution.candidate_digest, resolution.candidate_digest);
+  const resolution = {
+    candidate_digest: input.basis.candidate_digests[0],
+    actor: 'human-a',
+    rationale: 'Choose this approach.',
+  };
+  assert.equal(
+    domain.Decision({ ...input, state: 'RESOLVED', resolution }).resolution.candidate_digest,
+    resolution.candidate_digest,
+  );
   assert.equal(domain.Decision({ ...input, state: 'DISCOVERED', basis: null }).basis, null);
   for (const state of ['REVIEWABLE', 'RESOLVABLE', 'RESOLVED', 'STALE']) {
-    assert.throws(() => domain.Decision({ ...input, state, basis: null, resolution: state === 'RESOLVED' ? resolution : null }), {
-      code: 'INVALID_ARGUMENT',
-    });
+    assert.throws(
+      () =>
+        domain.Decision({
+          ...input,
+          state,
+          basis: null,
+          resolution: state === 'RESOLVED' ? resolution : null,
+        }),
+      {
+        code: 'INVALID_ARGUMENT',
+      },
+    );
   }
   for (const state of ['DISCOVERED', 'REVIEWABLE', 'RESOLVABLE', 'STALE']) {
-    assert.throws(() => domain.Decision({ ...input, state, resolution }), { code: 'INVALID_ARGUMENT' });
+    assert.throws(() => domain.Decision({ ...input, state, resolution }), {
+      code: 'INVALID_ARGUMENT',
+    });
   }
   for (const invalid of [null, {}, { candidate_digest: digest('object-candidate', 'f') }]) {
     assert.throws(() => domain.Decision({ ...input, state: 'RESOLVED', resolution: invalid }), {
       code: 'INVALID_ARGUMENT',
     });
   }
-  assert.throws(() => domain.Decision({ ...input, state: 'RESOLVABLE', basis: { ...input.basis, candidate_digests: [] } }), {
-    code: 'INVALID_ARGUMENT',
-  });
+  assert.throws(
+    () =>
+      domain.Decision({
+        ...input,
+        state: 'RESOLVABLE',
+        basis: { ...input.basis, candidate_digests: [] },
+      }),
+    {
+      code: 'INVALID_ARGUMENT',
+    },
+  );
 });
 
 test('SystemRevision retains configuration digests and unique accepted Decision IDs', () => {
   const input = fixtures().SystemRevision;
-  assert.deepEqual(domain.SystemRevision({ ...input, configuration_digests: {}, accepted_decisions: [] }).accepted_decisions, []);
-  assert.throws(() => domain.SystemRevision({ ...input, accepted_decisions: [id('decision'), id('decision')] }), {
-    code: 'INVALID_ARGUMENT',
-  });
+  assert.deepEqual(
+    domain.SystemRevision({ ...input, configuration_digests: {}, accepted_decisions: [] })
+      .accepted_decisions,
+    [],
+  );
+  assert.throws(
+    () => domain.SystemRevision({ ...input, accepted_decisions: [id('decision'), id('decision')] }),
+    {
+      code: 'INVALID_ARGUMENT',
+    },
+  );
   assert.throws(() => domain.SystemRevision({ ...input, accepted_decisions: [id('candidate')] }), {
     code: 'INTEGRITY_MISMATCH',
   });
@@ -465,27 +562,50 @@ test('SystemRevision retains configuration digests and unique accepted Decision 
 test('ReleaseConstraints allow empty provider-neutral lists and preserve ordered predicates', () => {
   const input = fixtures().ReleaseConstraints;
   const empty = { ...input };
-  for (const field of ['ordering_constraints', 'compatibility_requirements', 'preconditions', 'postconditions', 'forward_only_operations']) {
+  for (const field of [
+    'ordering_constraints',
+    'compatibility_requirements',
+    'preconditions',
+    'postconditions',
+    'forward_only_operations',
+  ]) {
     empty[field] = [];
   }
   assert.deepEqual(domain.ReleaseConstraints(empty), empty);
-  assert.throws(() => domain.ReleaseConstraints({ ...input, system_revision_digest: digest('object-candidate') }), {
-    code: 'INTEGRITY_MISMATCH',
-  });
+  assert.throws(
+    () =>
+      domain.ReleaseConstraints({ ...input, system_revision_digest: digest('object-candidate') }),
+    {
+      code: 'INTEGRITY_MISMATCH',
+    },
+  );
 });
 
 test('deployment observation states remain distinct and attestations retain exact bindings', () => {
   const records = fixtures();
   for (const status of domain.DEPLOYMENT_STATUSES) {
-    assert.equal(domain.DeploymentObservation({ ...records.DeploymentObservation, status }).status, status);
+    assert.equal(
+      domain.DeploymentObservation({ ...records.DeploymentObservation, status }).status,
+      status,
+    );
   }
-  assert.throws(() => domain.DeploymentObservation({ ...records.DeploymentObservation, status: 'TIMED_OUT' }), {
-    code: 'INVALID_ARGUMENT',
-  });
+  assert.throws(
+    () => domain.DeploymentObservation({ ...records.DeploymentObservation, status: 'TIMED_OUT' }),
+    {
+      code: 'INVALID_ARGUMENT',
+    },
+  );
   assert.equal(domain.DeploymentObservation(records.DeploymentObservation).status, 'UNKNOWN');
-  assert.throws(() => domain.DeploymentAttestation({ ...records.DeploymentAttestation, observation_digest: digest('object-candidate') }), {
-    code: 'INTEGRITY_MISMATCH',
-  });
+  assert.throws(
+    () =>
+      domain.DeploymentAttestation({
+        ...records.DeploymentAttestation,
+        observation_digest: digest('object-candidate'),
+      }),
+    {
+      code: 'INTEGRITY_MISMATCH',
+    },
+  );
   // A constructor preserves a claimed proof reference; T096 verifies its authority.
   const claimed = { ...records.DeploymentAttestation, proof_ref: 'object://unverified-claim' };
   assert.equal(domain.DeploymentAttestation(claimed).proof_ref, claimed.proof_ref);
@@ -506,7 +626,11 @@ test('lossy or executable JSON values are rejected rather than dropped or coerce
     new Date(now),
     new Uint8Array([1]),
     { omitted: undefined },
-    { toJSON() { throw new Error('must not run'); } },
+    {
+      toJSON() {
+        throw new Error('must not run');
+      },
+    },
     '\ud800',
     { '\udfff': true },
   ]) {
@@ -518,9 +642,21 @@ test('getters are rejected without invocation, including inherited and array acc
   const input = fixtures().Evidence;
   let calls = 0;
   const accessor = {};
-  Object.defineProperty(accessor, 'value', { enumerable: true, get() { calls += 1; return true; } });
+  Object.defineProperty(accessor, 'value', {
+    enumerable: true,
+    get() {
+      calls += 1;
+      return true;
+    },
+  });
   const arrayAccessor = [true];
-  Object.defineProperty(arrayAccessor, '0', { enumerable: true, get() { calls += 1; return true; } });
+  Object.defineProperty(arrayAccessor, '0', {
+    enumerable: true,
+    get() {
+      calls += 1;
+      return true;
+    },
+  });
   const inherited = Object.create({ value: true });
   const nonenumerable = {};
   Object.defineProperty(nonenumerable, 'value', { value: true });
@@ -560,23 +696,32 @@ test('cycles fail while shared JSON subobjects are copied independently', () => 
 
 test('opaque map keys cannot pollute prototypes and identity strings are preserved', () => {
   const input = fixtures().SystemRevision;
-  const repositories = JSON.parse('{"__proto__":"' + oid('a') + '","constructor":"' + oid('b') + '"}');
+  const repositories = JSON.parse(
+    '{"__proto__":"' + oid('a') + '","constructor":"' + oid('b') + '"}',
+  );
   const record = domain.SystemRevision({ ...input, repositories });
   assert.equal(Object.getPrototypeOf(record.repositories), Object.prototype);
   assert.equal(Object.hasOwn(record.repositories, '__proto__'), true);
   assert.equal(record.repositories.__proto__, oid('a'));
   assert.equal({}.polluted, undefined);
-  assert.deepEqual(domain.deserializeDomain('SystemRevision', domain.serializeDomain('SystemRevision', record)), record);
+  assert.deepEqual(
+    domain.deserializeDomain('SystemRevision', domain.serializeDomain('SystemRevision', record)),
+    record,
+  );
   const future = fixtures().FutureRevision;
   assert.equal(domain.FutureRevision({ ...future, repo_id: 'répo-A' }).repo_id, 'répo-A');
 });
 
 test('JSON persistence rejects malformed text and unknown types without dispatching prototypes', () => {
   for (const type of ['__proto__', 'constructor', 'NotAType', null]) {
-    assert.throws(() => domain.serializeDomain(type, fixtures().FutureRevision), { code: 'INVALID_ARGUMENT' });
+    assert.throws(() => domain.serializeDomain(type, fixtures().FutureRevision), {
+      code: 'INVALID_ARGUMENT',
+    });
     assert.throws(() => domain.deserializeDomain(type, '{}'), { code: 'INVALID_ARGUMENT' });
   }
   for (const encoded of ['', '{', 'null', '[]', 1]) {
-    assert.throws(() => domain.deserializeDomain('FutureRevision', encoded), { code: 'INVALID_ARGUMENT' });
+    assert.throws(() => domain.deserializeDomain('FutureRevision', encoded), {
+      code: 'INVALID_ARGUMENT',
+    });
   }
 });

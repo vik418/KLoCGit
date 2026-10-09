@@ -82,7 +82,9 @@ function copyJson(value, ancestors = new Set()) {
   assertValid(!ancestors.has(value));
   const isArray = Array.isArray(value);
   const prototype = Object.getPrototypeOf(value);
-  assertValid(isArray ? prototype === Array.prototype : prototype === Object.prototype || prototype === null);
+  assertValid(
+    isArray ? prototype === Array.prototype : prototype === Object.prototype || prototype === null,
+  );
   ancestors.add(value);
   const descriptors = Object.getOwnPropertyDescriptors(value);
   const keys = Reflect.ownKeys(descriptors);
@@ -165,9 +167,7 @@ function digests(value, domain) {
 function oid(value, length) {
   assertValid(typeof value === 'string');
   assertValid(
-    (value.length === 40 || value.length === 64) &&
-      !/[^a-f0-9]/.test(value) &&
-      !/^0+$/.test(value),
+    (value.length === 40 || value.length === 64) && !/[^a-f0-9]/.test(value) && !/^0+$/.test(value),
   );
   assertValid(length === undefined || value.length === length);
   return value;
@@ -179,7 +179,11 @@ function ref(value) {
   assertValid(value.startsWith('refs/') && !value.endsWith('/') && !value.endsWith('.'));
   assertValid(!/[\u0000-\u0020\u007f~^:?*\[\\]/.test(value));
   assertValid(!value.includes('..') && !value.includes('@{') && !value.includes('//'));
-  assertValid(value.split('/').every((part) => part.length > 0 && !part.startsWith('.') && !part.endsWith('.lock')));
+  assertValid(
+    value
+      .split('/')
+      .every((part) => part.length > 0 && !part.startsWith('.') && !part.endsWith('.lock')),
+  );
   return value;
 }
 
@@ -361,7 +365,9 @@ export function Decision(input) {
   if (value.state === 'RESOLVABLE' || value.state === 'RESOLVED') {
     assertValid(value.basis.candidate_digests.length > 0);
     // This checks only listed requirements. Policy must establish completeness.
-    assertValid(Object.values(value.basis.required_analysis_status).every((status) => status === 'COMPLETE'));
+    assertValid(
+      Object.values(value.basis.required_analysis_status).every((status) => status === 'COMPLETE'),
+    );
   }
   if (value.state === 'RESOLVED') {
     plain(value.resolution);
@@ -489,4 +495,3 @@ export function deserializeDomain(type, encoded) {
   }
   return constructor(type)(input);
 }
-
