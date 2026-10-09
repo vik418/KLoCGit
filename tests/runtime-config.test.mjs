@@ -77,10 +77,9 @@ test('absent and blank development identity retain the existing failure code', (
 
 test('explicit blank hosts and workspace paths are not replaced with defaults', () => {
   for (const value of ['', ' ', null]) {
-    assert.throws(
-      () => localConfiguration({ LOCAL_ACTOR_ID: 'developer', HOST: value }, project),
-      { code: 'INVALID_CONFIGURATION' },
-    );
+    assert.throws(() => localConfiguration({ LOCAL_ACTOR_ID: 'developer', HOST: value }, project), {
+      code: 'INVALID_CONFIGURATION',
+    });
     assert.throws(
       () => localConfiguration({ LOCAL_ACTOR_ID: 'developer', KLOCGIT_ROOT: value }, project),
       { code: 'INVALID_CONFIGURATION' },

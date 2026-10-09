@@ -18,10 +18,13 @@ import {
 } from './local-http.mjs';
 
 const project = fileURLToPath(new URL('../', import.meta.url));
-const { root, actor: localActor, ownerToken, host, port } = localConfiguration(
-  process.env,
-  project,
-);
+const {
+  root,
+  actor: localActor,
+  ownerToken,
+  host,
+  port,
+} = localConfiguration(process.env, project);
 const stateFile = path.join(root, 'state.json');
 const engineOptions = { evaluators: { services: evaluatorServices(process.env) } };
 
