@@ -385,7 +385,15 @@ try {
   });
   assert.equal(reported.status, 200, await reported.text());
   await page.waitForFunction(() => !document.querySelector('[aria-busy="true"]'));
+  const refreshedReview = page.waitForResponse(
+    (response) =>
+      new URL(response.url()).pathname === '/api/candidates/' + candidate.id + '/review' &&
+      response.request().method() === 'GET',
+  );
   await dialog.getByRole('button', { name: 'Refresh review', exact: true }).click();
+  const refreshedResponse = await refreshedReview;
+  assert.equal(refreshedResponse.status(), 200, await refreshedResponse.text());
+  assert.deepEqual(pageErrors, [], 'Candidate review must not throw browser errors');
   await dialog
     .getByLabel('Why choose this candidate?', { exact: true })
     .fill('The admitted evaluator checked the selected content on this exact tree.');
