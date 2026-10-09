@@ -6,6 +6,7 @@ import os from 'node:os';
 import { git, LocalGit } from '../server/git.mjs';
 import { RemoteGit } from '../server/remote-git.mjs';
 import { ArtifactsGit } from '../worker/artifacts.mjs';
+import { SOURCE_TOKEN_TTL } from '../server/source-authority.mjs';
 
 async function fixture(t) {
   const root = await mkdtemp(path.join(os.tmpdir(), 'klocgit-revert-'));
@@ -278,12 +279,47 @@ test('remote revert retains an authoritative immutable candidate ref before retu
 
 test('Artifacts delegates immutable ancestry, base and inverse candidates with the repository validation descriptor', async () => {
   const calls = [],
+    leases = [],
+    lifecycle = [],
     ancestor = 'a'.repeat(40),
     descendant = 'b'.repeat(40),
     candidate = 'c'.repeat(40);
   const adapter = new ArtifactsGit({
     VALIDATION_CONFIG_HASH: 'validation-v0',
     GIT_BRIDGE_TOKEN: 'scoped-test-service',
+    ARTIFACTS: {
+      async get(id) {
+        assert.equal(id, 'application');
+        const lease = {
+          id: 'read-lease-' + leases.length,
+          scope: 'read',
+          plaintext: 'inert-test-read-credential-' + leases.length,
+          expiresAt: new Date(Date.now() + SOURCE_TOKEN_TTL * 1000).toISOString(),
+        };
+        leases.push(lease);
+        lifecycle.push('opened:' + lease.id);
+        return {
+          async info() {
+            return {
+              remote: 'https://fixture.artifacts.cloudflare.net/git/klocgit/application.git',
+            };
+          },
+          async createToken(scope, ttl) {
+            assert.equal(scope, 'read');
+            assert.equal(ttl, SOURCE_TOKEN_TTL);
+            lifecycle.push('issued:' + lease.id);
+            return lease;
+          },
+          async revokeToken(tokenId) {
+            assert.equal(tokenId, lease.id);
+            lifecycle.push('revoked:' + lease.id);
+          },
+          [Symbol.dispose]() {
+            lifecycle.push('disposed:' + lease.id);
+          },
+        };
+      },
+    },
     GIT_EXECUTOR: {
       async fetch(request) {
         const input = await request.json();
@@ -311,7 +347,10 @@ test('Artifacts delegates immutable ancestry, base and inverse candidates with t
   };
   assert.equal(await adapter.isAncestor(repo, ancestor, descendant), true);
   assert.equal(await adapter.mergeBase(repo, descendant, ancestor), ancestor);
-  assert.equal((await adapter.revert(repo, descendant, ancestor, 1)).commit, candidate);
+  // An isolated source is read-only. Inverse candidates are retained at the
+  // canonical destination, using its trusted validation descriptor.
+  const canonical = { ...repo, id: repo.canonical_repo };
+  assert.equal((await adapter.revert(canonical, descendant, ancestor, 1)).commit, candidate);
   assert.deepEqual(
     calls.map((call) => call.operation),
     ['/is-ancestor', '/merge-base', '/revert'],
@@ -323,6 +362,39 @@ test('Artifacts delegates immutable ancestry, base and inverse candidates with t
     assert.equal(input.configHash, 'validation-v0');
   }
   assert.equal(calls[2].input.mainline, 1);
+  assert.deepEqual(
+    calls.map((call) => call.input.repo),
+    ['application', 'application', 'canonical'],
+  );
+  for (const [index, { input }] of calls.slice(0, 2).entries()) {
+    assert.deepEqual(input.source_credentials, [
+      {
+        id: 'application',
+        canonical_repo: 'canonical',
+        remote: 'https://fixture.artifacts.cloudflare.net/git/klocgit/application.git',
+        scope: 'read',
+        plaintext: leases[index].plaintext,
+        expiresAt: leases[index].expiresAt,
+      },
+    ]);
+  }
+  assert.equal(Object.hasOwn(calls[2].input, 'source_credentials'), false);
+  assert.deepEqual(
+    lifecycle,
+    leases.flatMap((lease) => [
+      'opened:' + lease.id,
+      'issued:' + lease.id,
+      'revoked:' + lease.id,
+      'disposed:' + lease.id,
+    ]),
+  );
+  assert.equal(leases.length, 2);
+  await assert.rejects(
+    () => adapter.revert(repo, descendant, ancestor, 1),
+    (error) => error.code === 'SOURCE_WRITE_FORBIDDEN',
+  );
+  assert.equal(calls.length, 3);
+  assert.equal(leases.length, 2);
   await assert.rejects(
     () => adapter.revert(repo, 'main', ancestor),
     (error) => error.code === 'INVALID_COMMIT',

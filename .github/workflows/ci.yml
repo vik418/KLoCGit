@@ -30,6 +30,21 @@ jobs:
           git config --global user.email "tests@localhost"
       - run: npm ci
       - run: npm run check
+
+  browser:
+    runs-on: ubuntu-22.04
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v7
+        with:
+          node-version-file: .nvmrc
+          cache: npm
+      - name: Configure test commit identity
+        run: |
+          git config --global user.name "klocgit tests"
+          git config --global user.email "tests@localhost"
+      - run: npm ci
       - name: Install browser
         run: npx playwright install --with-deps chromium
       - run: npm run test:browser

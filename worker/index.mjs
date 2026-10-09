@@ -4,6 +4,10 @@ import { handlePublicRequest, jsonResponse } from './http.mjs';
 import { handleCoordinatorRequest } from './routes.mjs';
 import { consumeEvents } from './events.mjs';
 import { configuredWorkspace } from './config.mjs';
+import { DomainError } from '../core/hash.mjs';
+import { redactSensitive } from '../core/access.mjs';
+import { trustedPrincipal, evaluatorServices } from './identity.mjs';
+import { readBoundedRequest } from './http.mjs';
 
 /**
  * Workspace metadata and operation serialization live in one Durable Object.
@@ -26,12 +30,23 @@ export class WorkspaceCoordinator {
     state.workspace.name = state.workspace.id;
     state.workspace.mode = 'artifacts';
     state.workspace.producers ??= [];
-    if (typeof this.env.ACTOR_ID === 'string' && this.env.ACTOR_ID.trim()) {
-      state.workspace.owner_id = this.env.ACTOR_ID;
-    }
-    this.engine = new Engine(state, new ArtifactsGit(this.env), (state) =>
-      this.ctx.storage.put('state', state),
+    const owner = this.env.ACTOR_ID;
+    if (typeof owner !== 'string' || !owner.trim())
+      throw new DomainError('ACTOR_NOT_CONFIGURED', 'Configure the bootstrap owner identity', 503);
+    if (state.workspace.owner_id && state.workspace.owner_id !== owner)
+      throw new DomainError(
+        'OWNER_IDENTITY_CHANGED',
+        'Restore the configured owner or explicitly reconcile ownership',
+        503,
+      );
+    state.workspace.owner_id ??= owner;
+    this.engine = new Engine(
+      state,
+      new ArtifactsGit(this.env),
+      (state) => this.ctx.storage.put('state', state),
+      { evaluators: { services: evaluatorServices(this.env) } },
     );
+    await this.ctx.storage.put('state', state);
     await this.engine.recover();
   }
 
@@ -49,19 +64,34 @@ export class WorkspaceCoordinator {
     await this.ready;
     return this.engine.serial(async () => {
       try {
+        const principal = await trustedPrincipal(request, this.env);
         const url = new URL(request.url);
-        const input = request.method === 'GET' ? {} : await request.json();
+        const payload = await readBoundedRequest(request);
+        this.engine.access.assertQuota('request_bytes', 0, payload.bytes);
+        let input = {};
+        if (payload.raw) {
+          try {
+            input = JSON.parse(payload.raw);
+          } catch {
+            throw new DomainError('INVALID_JSON', 'Request body must be JSON');
+          }
+        }
+        if (!input || typeof input !== 'object' || Array.isArray(input))
+          throw new DomainError('INVALID_REQUEST', 'Request body must be an object');
         return await handleCoordinatorRequest(this.engine, this.env, {
           method: request.method,
           url,
           input,
+          principal,
+          actor: principal.actor_id,
+          headers: request.headers,
         });
       } catch (error) {
         return jsonResponse(
           {
             error: error.code ?? 'INTERNAL_ERROR',
             message: error.status ? error.message : 'Coordination failed. Git remains available.',
-            details: error.details ?? {},
+            details: redactSensitive(error.details ?? {}),
           },
           error.status ?? 500,
         );

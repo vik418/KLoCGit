@@ -7,6 +7,19 @@ import { NativeState } from '../core/native-state.mjs';
 import { DomainError } from '../core/hash.mjs';
 import { registerRepository } from '../worker/repositories.mjs';
 import { scheduleAnalysis } from '../worker/events.mjs';
+import { forwardPrincipal, internalPrincipal } from '../worker/identity.mjs';
+
+const coordinatorSecret = 'private-test-coordinator-auth-secret-32-bytes';
+
+async function fetchCoordinator(coordinator, request, principal = null) {
+  principal ??= {
+    actor_id: coordinator.env.ACTOR_ID,
+    kind: 'human',
+    auth_method: 'owner-token',
+  };
+  return coordinator.fetch(await forwardPrincipal(request, principal, coordinator.env));
+}
+
 test('untrusted __proto__ filenames remain visible in observed affected scope', async () => {
   const binding = {
     get: async () => ({
@@ -39,7 +52,11 @@ test('canonical Artifacts operations fail closed without a trusted Git executor'
 test('production API requires authenticated identity before forwarding mutations', async () => {
   const response = await worker.fetch(
     new Request('https://example/api/decisions/x/resolve', { method: 'POST', body: '{}' }),
-    { AUTH_TOKEN: 'configured-owner-token', ACTOR_ID: 'owner' },
+    {
+      AUTH_TOKEN: 'configured-owner-token',
+      ACTOR_ID: 'owner',
+      COORDINATOR_AUTH_SECRET: coordinatorSecret,
+    },
   );
   assert.equal(response.status, 401);
   assert.equal((await response.json()).error, 'UNAUTHENTICATED');
@@ -61,6 +78,7 @@ test('production authentication distinguishes incomplete runtime configuration f
   };
   const configured = {
     WORKSPACE_ID: 'klocgit',
+    COORDINATOR_AUTH_SECRET: coordinatorSecret,
     AUTH_TOKEN: ownerToken,
     ACTOR_ID: 'configured-owner',
     INGEST_TOKEN: ingressToken,
@@ -129,7 +147,12 @@ test('production ingress authentication depends only on its own configured token
         headers: { Authorization: 'Bearer ' + token },
         body: '{}',
       }),
-      { WORKSPACE_ID: 'klocgit', ...env, COORDINATOR: coordinator },
+      {
+        WORKSPACE_ID: 'klocgit',
+        COORDINATOR_AUTH_SECRET: coordinatorSecret,
+        ...env,
+        COORDINATOR: coordinator,
+      },
     );
   for (const value of [undefined, ' \t', 123]) {
     const response = await call(
@@ -265,6 +288,7 @@ test('internal queue jobs cannot target a missing or different workspace', async
     retried = 0;
   const env = {
     WORKSPACE_ID: 'klocgit',
+    COORDINATOR_AUTH_SECRET: coordinatorSecret,
     COORDINATOR: {
       idFromName: (name) => {
         selected.push(name);
@@ -348,6 +372,7 @@ test('native push ingestion is acknowledged only after separate analysis is queu
     retried = 0;
   const env = {
     WORKSPACE_ID: 'klocgit',
+    COORDINATOR_AUTH_SECRET: coordinatorSecret,
     ARTIFACTS_NAMESPACE: 'test',
     COORDINATOR: {
       idFromName: (name) => name,
@@ -392,6 +417,7 @@ test('queued analysis uses generic discovery rather than an owner-supplied compo
   let ack = 0;
   const env = {
     WORKSPACE_ID: 'klocgit',
+    COORDINATOR_AUTH_SECRET: coordinatorSecret,
     COORDINATOR: {
       idFromName: (n) => n,
       get: () => ({
@@ -431,6 +457,7 @@ test('authenticated repository registration preserves the selected trusted valid
   };
   const env = {
     WORKSPACE_ID: 'klocgit',
+    COORDINATOR_AUTH_SECRET: coordinatorSecret,
     ACTOR_ID: 'owner',
     VALIDATION_CONFIG_HASH: 'test-config',
     GIT_BRIDGE_TOKEN: 'test-bridge',
@@ -451,7 +478,18 @@ test('authenticated repository registration preserves the selected trusted valid
   };
   const coordinator = new WorkspaceCoordinator(ctx, env);
   await coordinator.ready;
-  const response = await coordinator.fetch(
+  const unsigned = await coordinator.fetch(
+    new Request('https://coordinator/api/repositories', {
+      method: 'POST',
+      headers: { 'X-Actor-Id': 'owner' },
+      body: JSON.stringify({ name: 'app' }),
+    }),
+  );
+  assert.equal(unsigned.status, 401);
+  assert.equal((await unsigned.json()).error, 'UNAUTHENTICATED');
+  assert.equal(state.repositories.length, 1);
+  const response = await fetchCoordinator(
+    coordinator,
     new Request('https://coordinator/api/repositories', {
       method: 'POST',
       body: JSON.stringify({
@@ -465,7 +503,8 @@ test('authenticated repository registration preserves the selected trusted valid
   const registered = await response.json();
   assert.equal(registered.validation_profile, 'checkout-effects-v0');
   assert.equal(registered.context_repo, 'policy');
-  const mismatched = await coordinator.fetch(
+  const mismatched = await fetchCoordinator(
+    coordinator,
     new Request('https://coordinator/api/repositories', {
       method: 'POST',
       body: JSON.stringify({ name: 'app-two', validation_profile: 'context-document-v0' }),
@@ -475,7 +514,8 @@ test('authenticated repository registration preserves the selected trusted valid
   assert.equal((await mismatched.json()).error, 'VALIDATION_PROFILE_MISMATCH');
   assert.equal(
     (
-      await coordinator.fetch(
+      await fetchCoordinator(
+        coordinator,
         new Request('https://coordinator/api/decisions', { method: 'POST', body: '{}' }),
       )
     ).status,
@@ -487,6 +527,7 @@ test('production middleware isolates ingress credentials, enforces origin and bo
   const forwarded = [];
   const env = {
     WORKSPACE_ID: 'klocgit',
+    COORDINATOR_AUTH_SECRET: coordinatorSecret,
     AUTH_TOKEN: 'test-owner-token',
     INGEST_TOKEN: 'test-ingress-token',
     ACTOR_ID: 'configured-owner',
@@ -714,6 +755,7 @@ test('legacy fork requests fail before invoking Artifacts or mutating fork histo
     },
     {
       WORKSPACE_ID: 'klocgit',
+      COORDINATOR_AUTH_SECRET: coordinatorSecret,
       ACTOR_ID: 'owner',
       ARTIFACTS: {
         get: async () => {
@@ -724,10 +766,11 @@ test('legacy fork requests fail before invoking Artifacts or mutating fork histo
     },
   );
   await coordinator.ready;
-  const response = await coordinator.fetch(
+  const response = await fetchCoordinator(
+    coordinator,
     new Request('https://coordinator/api/repositories/fork', {
       method: 'POST',
-      body: JSON.stringify({ source: 'app', name: 'work', request_id: 'fork-work' }),
+      body: JSON.stringify({ repo: 'app', name: 'work', request_id: 'fork-work' }),
     }),
   );
   assert.equal(response.status, 409);
@@ -748,7 +791,11 @@ test('historical fork push mappings remain ingestible without creating another p
       storage: { get: async () => state, put: async () => {} },
       blockConcurrencyWhile: (fn) => fn(),
     },
-    { WORKSPACE_ID: 'klocgit' },
+    {
+      WORKSPACE_ID: 'klocgit',
+      ACTOR_ID: 'owner',
+      COORDINATOR_AUTH_SECRET: coordinatorSecret,
+    },
   );
   await coordinator.ready;
   const ingested = [];
@@ -757,33 +804,48 @@ test('historical fork push mappings remain ingestible without creating another p
     return { revision_id: 'revision-from-fork' };
   };
   const push = { repo: 'work', ref: 'refs/heads/work', after: 'b'.repeat(40) };
-  const pushed = await coordinator.fetch(
+  const pushed = await fetchCoordinator(
+    coordinator,
     new Request('https://coordinator/internal/push', {
       method: 'POST',
       body: JSON.stringify({ event: push }),
     }),
+    internalPrincipal('artifacts-ingress'),
   );
   assert.equal(pushed.status, 200);
   assert.deepEqual(ingested, [{ ...push, repo: 'app', source_repo: 'work' }]);
-  const unknown = await coordinator.fetch(
+  const unknown = await fetchCoordinator(
+    coordinator,
     new Request('https://coordinator/internal/push', {
       method: 'POST',
       body: JSON.stringify({ event: { ...push, repo: 'unregistered' } }),
     }),
+    internalPrincipal('artifacts-ingress'),
   );
   assert.deepEqual(await unknown.json(), { ignored: true, reason: 'UNREGISTERED_REPOSITORY' });
   assert.equal(ingested.length, 1);
 });
 
-test('native ingress uses its service identity without an owner or producer claim', async () => {
+test('native ingress uses its service identity without an owner credential or producer claim', async () => {
   const coordinator = new WorkspaceCoordinator(
     {
       storage: { get: async () => undefined, put: async () => {} },
       blockConcurrencyWhile: (fn) => fn(),
     },
-    { WORKSPACE_ID: 'klocgit' },
+    {
+      WORKSPACE_ID: 'klocgit',
+      ACTOR_ID: 'owner',
+      COORDINATOR_AUTH_SECRET: coordinatorSecret,
+    },
   );
   await coordinator.ready;
+  const head = 'a'.repeat(40);
+  coordinator.engine.state.repositories.push({
+    id: 'work',
+    head,
+    baseline: head,
+    canonical_ref: 'refs/heads/main',
+  });
   const calls = [];
   coordinator.engine.native.observeRepositoryPush = async (event, actor) => {
     calls.push({ event, actor });
@@ -791,11 +853,15 @@ test('native ingress uses its service identity without an owner or producer clai
   };
   const event = { repo: 'work', ref: 'refs/heads/main', after: 'b'.repeat(40) };
   for (const path of ['/internal/push', '/api/events']) {
-    const response = await coordinator.fetch(
+    const response = await fetchCoordinator(
+      coordinator,
       new Request('https://coordinator' + path, {
         method: 'POST',
         body: JSON.stringify({ event, actor: 'forged-producer' }),
       }),
+      path === '/internal/push'
+        ? internalPrincipal('artifacts-ingress')
+        : { actor_id: 'git-ingress', kind: 'service', auth_method: 'ingest-token' },
     );
     assert.equal(response.status, 200);
     assert.equal((await response.json()).revision_id, 'observed-native-revision');
@@ -814,6 +880,7 @@ test('canonical resolution reports durable success after enqueue failure and pre
     },
     {
       WORKSPACE_ID: 'klocgit',
+      COORDINATOR_AUTH_SECRET: coordinatorSecret,
       ACTOR_ID: 'configured-owner',
       ANALYSIS_QUEUE: {
         send: async () => {
@@ -831,19 +898,17 @@ test('canonical resolution reports durable success after enqueue failure and pre
       rationale: 'Reviewed',
       actor: 'forged',
     };
-  coordinator.engine = {
-    serial: async (fn) => fn(),
-    resolve: async (...args) => {
-      calls.push(args);
-      return { decision_id: 'immutable-decision', canonical_head: 'applied-head' };
-    },
+  coordinator.engine.state.decisionComponents.push({ id: 'component', revision_ids: [] });
+  coordinator.engine.resolve = async (...args) => {
+    calls.push(args);
+    return { decision_id: 'immutable-decision', canonical_head: 'applied-head' };
   };
   const request = () =>
     new Request('https://coordinator/api/decisions/component/resolve', {
       method: 'POST',
       body: JSON.stringify(input),
     });
-  const resolved = await coordinator.fetch(request());
+  const resolved = await fetchCoordinator(coordinator, request());
   assert.equal(resolved.status, 200);
   assert.deepEqual(await resolved.json(), {
     decision_id: 'immutable-decision',
@@ -851,13 +916,12 @@ test('canonical resolution reports durable success after enqueue failure and pre
     analysis: 'enqueue-failed',
   });
   assert.deepEqual(calls, [['component', input, 'configured-owner']]);
-  const { DomainError } = await import('../core/hash.mjs');
   coordinator.engine.resolve = async () => {
     throw new DomainError('DECISION_STALE', 'Review the changed basis', 409, {
       canonical_head: 'new-head',
     });
   };
-  const stale = await coordinator.fetch(request());
+  const stale = await fetchCoordinator(coordinator, request());
   assert.equal(stale.status, 409);
   assert.deepEqual(await stale.json(), {
     error: 'DECISION_STALE',

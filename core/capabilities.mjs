@@ -25,11 +25,15 @@ const registry = {
       category: 'Native state',
       title: 'Systems and Objectives',
       status: 'PARTIAL',
-      tests: ['tests/native-state.test.mjs', 'tests/native-api.test.mjs'],
+      tests: [
+        'tests/native-state.test.mjs',
+        'tests/native-context.test.mjs',
+        'tests/native-discovery.test.mjs',
+      ],
       scope:
-        'Systems retain repository membership; optional Objectives record requested outcomes without requiring setup forms.',
+        'Systems group repositories; optional Objectives retain outcomes, immutable context and explicit unresolved assumptions.',
       limits:
-        'Repository state and Future observation are the delivered slice. General context discovery and Objective-driven decisions are not delivered.',
+        'Context clarification uses annotated choices. Arbitrary prose understanding and automatic semantic correctness are not established.',
     },
     {
       id: 'git.repositories',
@@ -47,11 +51,15 @@ const registry = {
       category: 'Native state',
       title: 'Isolated Futures',
       status: 'PARTIAL',
-      tests: ['tests/native-state.test.mjs', 'tests/native-api.test.mjs'],
+      tests: [
+        'tests/native-state.test.mjs',
+        'tests/native-refs.test.mjs',
+        'tests/native-pipeline.test.mjs',
+      ],
       scope:
-        'A Future forks ready repositories from pinned commit/tree baselines and retains producer identity or unknown provenance.',
+        'Futures fork ready repositories from pinned baselines; ordinary Git pushes form immutable revision vectors and whole-Future or commit selections.',
       limits:
-        'Native composition, evaluation and promotion are not delivered. New repositories require an operator-configured trusted validation profile and scoped credentials.',
+        'Missing provenance is accepted and remains unknown. Scoped provider credentials and trusted validation still require operator configuration.',
     },
     {
       id: 'state.observation',
@@ -206,7 +214,7 @@ const registry = {
       scope:
         'Authenticated serialized updates compare both canonical Git head and the decision basis before applying a selected composition.',
       limits:
-        'Stale decisions return 409 and require review. Each operation advances one repository, with no distributed ref transaction.',
+        'Stale decisions return 409 and require review. Multi-repository operations use explicit non-atomic stages; there is no distributed ref transaction.',
     },
     {
       id: 'canonical.revert',
@@ -244,12 +252,17 @@ const registry = {
     {
       id: 'security.identity',
       category: 'Trust boundaries',
-      title: 'Owner and service authentication',
+      title: 'Verified identity and repository permissions',
       status: 'PARTIAL',
-      tests: ['tests/workflow-api.test.mjs', 'tests/artifacts.test.mjs'],
+      tests: [
+        'tests/identity-access.test.mjs',
+        'tests/identity-transport.test.mjs',
+        'tests/native-services.test.mjs',
+      ],
       scope:
-        'One configured owner identity and separate authenticated service boundaries select actors independently of producer input.',
-      limits: 'No multi-user authentication, organizational membership or repository RBAC.',
+        'Admitted JWT issuers, owner tokens and evaluator services select authenticated actors. Versioned workspace/repository grants protect reads and mutations; internal transport signs exact bodies.',
+      limits:
+        'Organizations, team directories and independently anchored audit retention are absent. Production identity integration and a comprehensive security audit remain unverified.',
     },
     {
       id: 'ui.decisions',
@@ -280,13 +293,15 @@ const registry = {
       status: 'EXPERIMENTAL',
       tests: [
         'tests/artifacts.test.mjs',
+        'tests/artifact-subscriptions.test.mjs',
+        'tests/source-authority.test.mjs',
         'tests/native-state.test.mjs',
         'tests/native-api.test.mjs',
       ],
       scope:
-        'Provider adapters create, import, inspect and fork repositories while returning token-free descriptors.',
+        'Provider adapters create, import, inspect and fork repositories. Scoped read leases admit isolated sources; journaled repository subscriptions gate activation. Returned descriptors contain no credentials.',
       limits:
-        'API and executor tests do not verify live Artifacts lifecycle, scoped credential provisioning, imports, native push delivery or recovery.',
+        'Live lifecycle, credential issuance, imports, native push delivery and recovery remain unverified. Subscription discovery is bounded to 1,000 entries per queue.',
     },
     {
       id: 'cloudflare.live',
@@ -304,51 +319,59 @@ const registry = {
       category: 'Native state',
       title: 'Native selection, composition and promotion',
       status: 'PARTIAL',
-      tests: ['tests/native-pipeline.test.mjs', 'tests/browser-native.smoke.mjs'],
+      tests: [
+        'tests/native-pipeline.test.mjs',
+        'tests/native-rollout.test.mjs',
+        'tests/browser-native.smoke.mjs',
+      ],
       scope:
-        'Pinned whole-Future and ordered non-merge commit selections produce retained Git candidates. Exact-tree trusted validation gates single-repository promotion through the shared basis/head CAS and recovery journal.',
+        'Whole-Future and ordered non-merge commits produce actual Git candidates, exact-tree evidence, reviewed basis/head CAS and recorded multi-repository stages.',
       limits:
-        'No file/hunk selection, proven semantic dependency closure or multi-repository promotion. Live Artifacts execution requires operator-admitted source repositories and trusted validation profiles.',
+        'No file/hunk selection or proven semantic dependency closure. Live Artifacts execution requires scoped credentials and admitted trusted validation.',
     },
     {
       id: 'evaluation.general',
       category: 'Undelivered product capabilities',
-      title: 'General evaluation and executable previews',
-      status: 'UNSUPPORTED',
+      title: 'Pinned evaluation and external CI',
+      status: 'PARTIAL',
+      tests: ['tests/evaluators.test.mjs', 'tests/native-services.test.mjs'],
       scope:
-        'The specified evaluation stages include builds, security checks, external attestations, runtime previews and targeted experiments.',
+        'Operator profiles issue immutable evaluations; signed repository-scoped callbacks retain running, terminal and stale histories. Latest required results and budgets gate promotion.',
       limits:
-        'Configured local application checks exist. General evaluator registration, arbitrary toolchains and Worker Preview lifecycle integration are not delivered.',
+        'Producer checks are never sole verification. Signed deployment observations do not provision Worker Previews; universal toolchains and live preview lifecycle remain absent.',
     },
     {
       id: 'context.general',
       category: 'Undelivered product capabilities',
-      title: 'General context and architectural memory',
-      status: 'UNSUPPORTED',
+      title: 'Context and decision provenance',
+      status: 'PARTIAL',
+      tests: ['tests/native-context.test.mjs', 'tests/native-services.test.mjs'],
       scope:
-        'Relevant historical constraints, existing capabilities and cross-repository context should inform material clarification.',
+        'Cross-repository Git retrieval pins constraints and decisions, asks material annotated choices, preserves answers or assumptions, and provides scoped search/export and code provenance.',
       limits:
-        'Only the configured retry task exists. General retrieval, duplicate-work prevention and organizational decision search are not delivered.',
+        'General semantic interpretation and duplicate-work prevention before execution are not established. Curated coordination metadata remains sensitive.',
     },
     {
       id: 'decisions.semantic',
       category: 'Undelivered product capabilities',
-      title: 'General decision discovery',
-      status: 'UNSUPPORTED',
+      title: 'Native decision discovery',
+      status: 'PARTIAL',
+      tests: ['tests/native-discovery.test.mjs'],
       scope:
-        'Unseen concurrent work should expose material alternatives and interactions without hand-authored grouping.',
+        'Revision-level declarations and observed composition failures form decision components. Exact implementations preserve distinct intent/provenance histories; comparisons use bounded indexes.',
       limits:
-        'Configured deterministic grouping exists. General semantic discovery, symbol analysis and measured grouping precision or recall are not delivered.',
+        'Inferred overlaps and unknown work remain visible and separate. Finite interaction checks do not establish arbitrary compatibility; representative precision/recall and review-time studies remain absent.',
     },
     {
       id: 'canonical.multi',
       category: 'Undelivered product capabilities',
-      title: 'Coordinated multi-repository promotion',
-      status: 'UNSUPPORTED',
+      title: 'Recorded multi-repository promotion',
+      status: 'PARTIAL',
+      tests: ['tests/native-rollout.test.mjs', 'tests/native-pipeline.test.mjs'],
       scope:
-        'The specified rollout model includes explicit partial application and recovery across repository vectors.',
+        'Serialized per-repository stages retain receipts, partial or uncertain outcomes, fresh continuation review, explicit settlement and reconciled abandonment.',
       limits:
-        'Existing canonical operations advance one repository. A multi-repository Future does not provide atomic or coordinated multi-repository promotion.',
+        'Updates are non-atomic. Recovery never repeats uncertain CAS, and abandoning remaining stages does not undo already applied Git history.',
     },
     {
       id: 'providers.sync',
@@ -363,22 +386,28 @@ const registry = {
     {
       id: 'platform.protocol',
       category: 'Undelivered product capabilities',
-      title: 'Stable protocol and SDKs',
-      status: 'UNSUPPORTED',
+      title: 'Native HTTP contracts and client',
+      status: 'PARTIAL',
+      tests: ['tests/client.test.mjs', 'tests/native-services.test.mjs'],
       scope:
-        'The specification calls for versioned schemas, OpenAPI, CloudEvents and optional ecosystem SDKs.',
+        'OpenAPI describes native state and service endpoints. A Fetch client preserves caller operation identities and never silently retries canonical writes.',
       limits:
-        'OpenAPI 3.1 documents the current v0 native HTTP subset. A stable Futures Protocol, SDK distribution and versioned native CloudEvents are not delivered.',
+        'v0 contracts may evolve. Published SDK packages, universal provider adapters and ecosystem compatibility certification are absent.',
     },
     {
       id: 'enterprise.governance',
       category: 'Undelivered product capabilities',
-      title: 'Organizational governance',
-      status: 'UNSUPPORTED',
+      title: 'Versioned access and quotas',
+      status: 'PARTIAL',
+      tests: [
+        'tests/identity-access.test.mjs',
+        'tests/identity-transport.test.mjs',
+        'tests/evaluators.test.mjs',
+      ],
       scope:
-        'Organizations, SSO, repository authorization, policy, quotas, retention and audit export belong to the product plan.',
+        'Repository roles, policy-version review invalidation, actor auditing and bounded evaluation/request admission protect the native coordination model.',
       limits:
-        'The current single-owner trust model does not provide these workflows or independently enforced immutable audit storage.',
+        'Organization provisioning, billing, residency enforcement, disaster recovery and independently immutable audit storage are not delivered.',
     },
     {
       id: 'scale.benchmarks',

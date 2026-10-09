@@ -1,4 +1,12 @@
+import { ArtifactSubscriptions } from './artifact-subscriptions.mjs';
 import { DomainError } from '../core/hash.mjs';
+import { observationRef } from '../core/git-refs.mjs';
+import {
+  artifactRemote,
+  requestSourceBindings,
+  SOURCE_TOKEN_TTL,
+  validSourceToken,
+} from '../server/source-authority.mjs';
 import {
   artifactRepositoryCreate,
   artifactRepositoryFork,
@@ -18,6 +26,15 @@ export class ArtifactsGit {
   constructor(env) {
     this.env = env;
     this.configHash = env.VALIDATION_CONFIG_HASH;
+  }
+  repositorySubscriptionPreflight() {
+    return new ArtifactSubscriptions(this.env).preflight();
+  }
+  repositorySubscribe(input) {
+    return new ArtifactSubscriptions(this.env).ensure(input);
+  }
+  repositorySubscriptionInfo(input) {
+    return new ArtifactSubscriptions(this.env).inspect(input);
   }
   repositoryCreate(input) {
     return artifactRepositoryCreate(this.env, input);
@@ -39,12 +56,35 @@ export class ArtifactsGit {
       capability[Symbol.dispose]?.();
     }
   }
-  async ref(repo, ref) {
+  async readRef(repo, ref) {
+    observationRef(ref);
+    if (ref.startsWith('refs/tags/'))
+      return this.execute('read-ref', { ...this.descriptor(repo), ref });
     return this.withRepo(repo, async (r) => {
       const log = await r.log({ ref, limit: 1 });
       if (!log.length) throw new DomainError('REF_NOT_FOUND', 'Git ref does not exist', 404);
-      return log[0].hash;
+      return {
+        ref,
+        kind: 'branch',
+        object_id: log[0].hash,
+        object_type: 'commit',
+        commit: log[0].hash,
+        available_for_future: true,
+      };
     });
+  }
+  async ref(repo, ref) {
+    const value = await this.readRef(repo, ref);
+    if (!value.available_for_future)
+      throw new DomainError('REF_NOT_COMMIT', 'This ref does not resolve to a commit', 422);
+    return value.commit;
+  }
+  async retainObservation(repo, objects) {
+    return this.execute('retain-observation', { ...this.descriptor(repo), objects });
+  }
+  async listRefs(repo, input = {}) {
+    // The binding's commit log cannot prove a tag's object identity or enumerate refs.
+    return this.execute('list-refs', { ...this.descriptor(repo), ...input });
   }
   async flatten(r, tree, prefix = '', budget = { count: 0 }) {
     if (++budget.count > 20000)
@@ -107,7 +147,7 @@ export class ArtifactsGit {
     });
   }
   async trailers(repo, commit) {
-    const values = await this.execute('trailers', { repo: repo.id, commit });
+    const values = await this.execute('trailers', { ...this.descriptor(repo), commit });
     return values.map((t) => `${t.key}: ${t.value}`).join('\n');
   }
   suitesForScope(repo, scope) {
@@ -140,27 +180,99 @@ export class ArtifactsGit {
         'A trusted Git executor and versioned validation configuration must be configured. Git ingestion remains available.',
         503,
       );
-    const response = await this.env.GIT_EXECUTOR.fetch(
-      new Request('https://git-executor.internal/' + operation, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          Authorization: 'Bearer ' + this.env.GIT_BRIDGE_TOKEN,
-        },
-        body: JSON.stringify({ ...payload, configHash: this.configHash }),
-      }),
-    );
-    const data = await response.json();
-    if (!response.ok)
+    if (Object.hasOwn(payload, 'source_credentials'))
       throw new DomainError(
-        data.error ?? 'GIT_EXECUTOR_FAILED',
-        data.message ?? 'Git executor failed',
-        response.status,
+        'SOURCE_AUTHORITY_INVALID',
+        'Executor credentials are selected by the adapter',
+        403,
       );
-    return data;
+    const bindings = requestSourceBindings(operation, payload);
+    const handles = [];
+    try {
+      const credentials = [];
+      for (const binding of bindings) {
+        let capability;
+        try {
+          capability = await this.env.ARTIFACTS.get(binding.id);
+          const handle = { capability, token: null };
+          handles.push(handle);
+          const info = await capability.info();
+          const remote = artifactRemote(info.remote, binding.id);
+          handle.token = await capability.createToken('read', SOURCE_TOKEN_TTL);
+          if (!validSourceToken(handle.token))
+            throw new DomainError(
+              'SOURCE_CREDENTIAL_INVALID',
+              'Artifacts returned invalid scoped credentials',
+              503,
+            );
+          credentials.push({
+            ...binding,
+            remote: remote.remote,
+            scope: 'read',
+            plaintext: handle.token.plaintext,
+            expiresAt: handle.token.expiresAt,
+          });
+        } catch {
+          throw new DomainError(
+            'SOURCE_CREDENTIAL_UNAVAILABLE',
+            'A short-lived read credential could not be established for the registered source',
+            503,
+          );
+        }
+      }
+      const response = await this.env.GIT_EXECUTOR.fetch(
+        new Request('https://git-executor.internal/' + operation, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            Authorization: 'Bearer ' + this.env.GIT_BRIDGE_TOKEN,
+          },
+          body: JSON.stringify({
+            ...payload,
+            configHash: this.configHash,
+            ...(credentials.length ? { source_credentials: credentials } : {}),
+          }),
+        }),
+      );
+      const data = await response.json();
+      if (credentials.some((entry) => JSON.stringify(data).includes(entry.plaintext)))
+        throw new DomainError(
+          'SOURCE_CREDENTIAL_LEAK',
+          'Executor returned private credential material',
+          503,
+        );
+      if (!response.ok)
+        throw new DomainError(
+          data.error ?? 'GIT_EXECUTOR_FAILED',
+          data.message ?? 'Git executor failed',
+          response.status,
+        );
+      return data;
+    } catch (error) {
+      if (error instanceof DomainError) throw error;
+      throw new DomainError(
+        'GIT_EXECUTOR_UNAVAILABLE',
+        'Trusted Git transport requires reconciliation; private credentials are excluded from diagnostics',
+        503,
+      );
+    } finally {
+      // Revocation is best effort after the one RPC. Bounded read-only expiry is
+      // the failure floor if the coordinator or provider disappears mid-call.
+      for (const { capability, token } of handles) {
+        if (token) {
+          try {
+            await capability.revokeToken(token.id || token.plaintext);
+          } catch {}
+        }
+        try {
+          capability[Symbol.dispose]?.();
+        } catch {}
+      }
+    }
   }
+
   async profile(repo) {
-    return this.execute('profile', { repo: repo.id });
+    return this.execute('profile', this.descriptor(repo));
   }
   descriptor(repo) {
     return {
@@ -233,7 +345,7 @@ export class ArtifactsGit {
     return result.updated === true;
   }
   async diff(repo, base, head) {
-    const result = await this.execute('diff', { repo: repo.id, base, head });
+    const result = await this.execute('diff', { ...this.descriptor(repo), base, head });
     return result.diff;
   }
 }
