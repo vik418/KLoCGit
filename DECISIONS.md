@@ -4,6 +4,8 @@ These are not architecture questions. Resolve with an ADR and evidence before de
 
 ## D001 - Control-plane language/runtime
 
+Status: RESOLVED by [ADR 0002](docs/adr/0002-control-plane-runtime.md).
+
 Evaluate:
 
 - Cloudflare platform fit

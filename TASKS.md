@@ -5,6 +5,7 @@ Complete in dependency order. Do not skip acceptance criteria.
 ## Progress
 
 - T000: COMPLETE. [Passing verification](https://github.com/vik418/KLoCGit/actions/runs/37960093987) on `c72610ce`.
+- T001: IN PROGRESS. Golden-vector acceptance pending.
 - Next incomplete task: T001.
 - All remaining tasks: INCOMPLETE.
 
