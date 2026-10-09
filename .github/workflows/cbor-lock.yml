@@ -1,0 +1,22 @@
+name: CBOR dependency lock
+
+on:
+  pull_request:
+    paths: [package.json, .github/workflows/cbor-lock.yml]
+
+permissions:
+  contents: read
+
+jobs:
+  lock:
+    runs-on: ubuntu-22.04
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v7
+        with:
+          node-version-file: .nvmrc
+      - name: Generate dependency lock
+        run: |
+          npm install --package-lock-only --ignore-scripts --save-exact cbor2@2.4.0
+          git diff -- package.json package-lock.json
