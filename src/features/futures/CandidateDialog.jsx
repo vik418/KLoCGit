@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useId, useState } from 'react';
 import { validationPassed } from '../../../core/evidence.mjs';
 import { RefreshCw, X } from 'lucide-react';
 import { Dialog, DialogDescription, DialogTitle } from '../../ui/Dialog.jsx';
@@ -14,6 +14,7 @@ export function CandidateDialog({ id, onClose, reload, message }) {
   const [evaluatorError, setEvaluatorError] = useState(null);
   const [version, setVersion] = useState(0);
   const [rationale, setRationale] = useState('');
+  const rationaleId = useId();
   const { busy, error, mutate } = useNativeMutation(reload, message);
 
   useEffect(() => {
@@ -321,15 +322,16 @@ export function CandidateDialog({ id, onClose, reload, message }) {
               <p className="text-xs leading-6 text-muted-foreground">
                 Passing checks establish only their stated scope.
               </p>
-              <label className="grid gap-2 text-sm">
-                Why choose this candidate?
+              <div className="grid gap-2 text-sm">
+                <label htmlFor={rationaleId}>Why choose this candidate?</label>
                 <Textarea
+                  id={rationaleId}
                   value={rationale}
                   onChange={(event) => setRationale(event.target.value)}
                   maxLength={4000}
                   disabled={busy}
                 />
-              </label>
+              </div>
             </>
           )}
         </div>

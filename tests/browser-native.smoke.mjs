@@ -18,6 +18,8 @@ const credential = 'ui-check';
 const evaluatorSecret = 'browser-ci-fixture-secret';
 let server;
 let browser;
+let page;
+const pageErrors = [];
 let serverOutput = '';
 
 async function git(directory, ...args) {
@@ -138,8 +140,7 @@ try {
   };
 
   browser = await chromium.launch({ headless: true });
-  const page = await browser.newPage({ viewport: { width: 1440, height: 1000 } });
-  const pageErrors = [];
+  page = await browser.newPage({ viewport: { width: 1440, height: 1000 } });
   const accessibilityWarnings = [];
   page.on('pageerror', (error) => pageErrors.push(error.message));
   page.on('console', (message) => {
@@ -773,6 +774,8 @@ try {
   );
 } catch (error) {
   console.error(serverOutput);
+  console.error('Browser errors:', pageErrors);
+  if (page) console.error('Open dialogs:', await page.getByRole('dialog').allTextContents());
   throw error;
 } finally {
   await browser?.close();
