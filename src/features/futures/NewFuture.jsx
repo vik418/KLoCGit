@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useId, useState } from 'react';
 import { Checkbox } from '../../ui/Checkbox.jsx';
 import { Input } from '../../ui/Input.jsx';
 import { NativeSelect } from '../../ui/NativeSelect.jsx';
@@ -7,8 +7,11 @@ import { NativeFormDialog } from '../../ui/NativeFormDialog.jsx';
 import { useNativeMutation } from '../../hooks/useNativeMutation.js';
 
 function repositoryReady(repository) {
-  return repository.status === 'ready' && Boolean(repository.head && repository.tree) &&
-    (!repository.event_subscription || repository.event_subscription.status === 'ready');
+  return (
+    repository.status === 'ready' &&
+    Boolean(repository.head && repository.tree) &&
+    (!repository.event_subscription || repository.event_subscription.status === 'ready')
+  );
 }
 
 export function NewFuture({
@@ -22,6 +25,7 @@ export function NewFuture({
   reload,
   message,
 }) {
+  const objectiveSelectId = useId();
   const initialObjectiveId =
     typeof initialObjective === 'string' ? initialObjective : (initialObjective?.id ?? '');
   const [objectiveId, setObjectiveId] = useState(initialObjectiveId);
@@ -133,9 +137,10 @@ export function NewFuture({
         )}
       </fieldset>
       {availableObjectives.length > 0 && (
-        <label className="field">
-          Objective (optional)
+        <div className="field">
+          <label htmlFor={objectiveSelectId}>Objective (optional)</label>
           <NativeSelect
+            id={objectiveSelectId}
             value={objectiveId}
             onChange={(event) => chooseObjective(event.target.value)}
             disabled={Boolean(contextSnapshotId)}
@@ -147,7 +152,7 @@ export function NewFuture({
               </option>
             ))}
           </NativeSelect>
-        </label>
+        </div>
       )}
       {!objectiveId && (
         <label className="field">

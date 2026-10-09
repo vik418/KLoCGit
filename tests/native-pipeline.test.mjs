@@ -54,8 +54,14 @@ async function fixture(t) {
   const state = {
     ...emptyState(),
     repositories: [{ id: 'app', canonical_ref: ref, head: base, tree: baseTree, baseline: base }],
-    futures: [{ id: 'future', status: 'active', current_revision_id: revision.id,
-      repositories: [{ repo_id: 'source', canonical_repo_id: 'app', ref, status: 'ready' }] }],
+    futures: [
+      {
+        id: 'future',
+        status: 'active',
+        current_revision_id: revision.id,
+        repositories: [{ repo_id: 'source', canonical_repo_id: 'app', ref, status: 'ready' }],
+      },
+    ],
     futureRevisions: [revision],
   };
   state.workspace.owner_id = 'owner';
@@ -444,7 +450,10 @@ test('composed dependency checks read candidate commits while freshness tracks c
   );
   assert.equal(result.operation.status, 'applied');
   assert.equal(result.operation.non_atomic, true);
-  assert.deepEqual(result.operation.stages.map((stage) => stage.status), ['applied', 'applied']);
+  assert.deepEqual(
+    result.operation.stages.map((stage) => stage.status),
+    ['applied', 'applied'],
+  );
   assert.equal(
     await f.adapter.ref({ id: 'app' }, ref),
     candidate.repositories.find((repository) => repository.repo_id === 'app').commit,
@@ -766,23 +775,33 @@ test('membership revocation invalidates a reviewed promotion without changing Gi
   const f = await fixture(t);
   f.state.workspace.owner_id = 'owner';
   const principal = { actor_id: 'owner', kind: 'human', auth_method: 'owner-token' };
-  await f.engine.access.update({
-    expected_version: f.engine.access.state.version,
-    changes: [{ actor_id: 'reviewer', repo_id: 'app', roles: ['maintainer'] }],
-  }, principal);
+  await f.engine.access.update(
+    {
+      expected_version: f.engine.access.state.version,
+      changes: [{ actor_id: 'reviewer', repo_id: 'app', roles: ['maintainer'] }],
+    },
+    principal,
+  );
   const candidate = await f.candidate(await f.selection());
   const input = await f.reviewed(candidate);
   const reviewedVersion = f.engine.access.state.version;
-  await f.engine.access.update({
-    expected_version: reviewedVersion,
-    changes: [{ actor_id: 'reviewer', repo_id: 'app', roles: [] }],
-  }, principal);
+  await f.engine.access.update(
+    {
+      expected_version: reviewedVersion,
+      changes: [{ actor_id: 'reviewer', repo_id: 'app', roles: [] }],
+    },
+    principal,
+  );
   assert.equal(f.engine.access.state.version, reviewedVersion + 1);
-  assert.throws(() => f.engine.access.require(
-    { actor_id: 'reviewer', kind: 'human', auth_method: 'oidc' },
-    'decision.resolve',
-    ['app'],
-  ), { code: 'FORBIDDEN' });
+  assert.throws(
+    () =>
+      f.engine.access.require(
+        { actor_id: 'reviewer', kind: 'human', auth_method: 'oidc' },
+        'decision.resolve',
+        ['app'],
+      ),
+    { code: 'FORBIDDEN' },
+  );
   await assert.rejects(() => f.engine.pipeline.promote(candidate.id, input, 'owner'), {
     code: 'DECISION_STALE',
   });

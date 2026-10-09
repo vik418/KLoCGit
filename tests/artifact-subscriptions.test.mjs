@@ -3,21 +3,38 @@ import assert from 'node:assert/strict';
 import { ArtifactSubscriptions } from '../worker/artifact-subscriptions.mjs';
 import { repositoryOperationDescription } from '../core/repository-input.mjs';
 
-const account = 'a'.repeat(32), queue = 'b'.repeat(32);
+const account = 'a'.repeat(32),
+  queue = 'b'.repeat(32);
 const operation = 'request_' + 'c'.repeat(64);
-const input = { id: 'future-repo', ref: 'refs/heads/main',
-  operation_id: operation, repository_operation_id: operation };
+const input = {
+  id: 'future-repo',
+  ref: 'refs/heads/main',
+  operation_id: operation,
+  repository_operation_id: operation,
+};
 
 function fixture() {
-  const calls = [], records = [];
+  const calls = [],
+    records = [];
   let description = repositoryOperationDescription('Isolated work', operation);
   let remote = 'https://' + account + '.artifacts.cloudflare.net/git/klocgit/future-repo.git';
-  let lostReply = false, changedReadback = false, disposed = 0;
-  const env = { CLOUDFLARE_ACCOUNT_ID: account, ARTIFACTS_EVENTS_QUEUE_ID: queue,
-    ARTIFACTS_NAMESPACE: 'klocgit', ARTIFACTS_SUBSCRIPTION_TOKEN: 'inert-private-subscription-token',
-    ARTIFACTS: { get: async () => ({
-      info: async () => ({ description, remote }), [Symbol.dispose]() { disposed++; },
-    }) } };
+  let lostReply = false,
+    changedReadback = false,
+    disposed = 0;
+  const env = {
+    CLOUDFLARE_ACCOUNT_ID: account,
+    ARTIFACTS_EVENTS_QUEUE_ID: queue,
+    ARTIFACTS_NAMESPACE: 'klocgit',
+    ARTIFACTS_SUBSCRIPTION_TOKEN: 'inert-private-subscription-token',
+    ARTIFACTS: {
+      get: async () => ({
+        info: async () => ({ description, remote }),
+        [Symbol.dispose]() {
+          disposed++;
+        },
+      }),
+    },
+  };
   const fetcher = async (url, options) => {
     calls.push({ url, method: options.method });
     assert.equal(new URL(url).hostname, 'api.cloudflare.com');
@@ -36,10 +53,27 @@ function fixture() {
     return Response.json({ success: true, result: value });
   };
   const controller = new ArtifactSubscriptions(env, fetcher);
-  return { env, calls, records, controller,
-    get disposed() { return disposed; },
-    loseReply() { lostReply = true; }, changeReadback() { changedReadback = true; },
-    description(value) { description = value; }, remote(value) { remote = value; } };
+  return {
+    env,
+    calls,
+    records,
+    controller,
+    get disposed() {
+      return disposed;
+    },
+    loseReply() {
+      lostReply = true;
+    },
+    changeReadback() {
+      changedReadback = true;
+    },
+    description(value) {
+      description = value;
+    },
+    remote(value) {
+      remote = value;
+    },
+  };
 }
 
 test('native delivery is read back against exact repository, account, namespace, queue and event', async () => {
@@ -60,9 +94,12 @@ test('native delivery is read back against exact repository, account, namespace,
 test('lost acknowledgements reconcile a confirmed subscription without repeating POST', async () => {
   const f = fixture();
   f.loseReply();
-  await assert.rejects(() => f.controller.ensure(input), (error) =>
-    error.code === 'EVENT_SUBSCRIPTION_UNAVAILABLE' &&
-    !error.message.includes(f.env.ARTIFACTS_SUBSCRIPTION_TOKEN));
+  await assert.rejects(
+    () => f.controller.ensure(input),
+    (error) =>
+      error.code === 'EVENT_SUBSCRIPTION_UNAVAILABLE' &&
+      !error.message.includes(f.env.ARTIFACTS_SUBSCRIPTION_TOKEN),
+  );
   const recovered = await f.controller.inspect(input);
   assert.equal(recovered.subscription_id, 'subscription-001');
   assert.equal(f.calls.filter((entry) => entry.method === 'POST').length, 1);
@@ -71,10 +108,15 @@ test('lost acknowledgements reconcile a confirmed subscription without repeating
 test('missing or changed subscriptions cannot turn uncertain effects into successful recovery', async () => {
   const f = fixture();
   await assert.rejects(() => f.controller.inspect(input), { code: 'RECOVERY_REQUIRED' });
-  assert.equal(f.calls.some((entry) => entry.method === 'POST'), false);
+  assert.equal(
+    f.calls.some((entry) => entry.method === 'POST'),
+    false,
+  );
   await f.controller.ensure(input);
   f.changeReadback();
-  await assert.rejects(() => f.controller.inspect(input), { code: 'EVENT_SUBSCRIPTION_UNAVAILABLE' });
+  await assert.rejects(() => f.controller.inspect(input), {
+    code: 'EVENT_SUBSCRIPTION_UNAVAILABLE',
+  });
 });
 
 test('operator configuration and authoritative repository ownership gate all control-plane effects', async () => {

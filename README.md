@@ -31,4 +31,9 @@ The [design document](docs/design.md) contains the system diagram, core contract
 
 Cloudflare runs the API Worker, Durable Object, Artifacts repositories, Queue and private Git executor. The UI is React; the backend is JavaScript. Cloudflare integration remains experimental until the complete live path is verified.
 
+Automatic push delivery requires `CLOUDFLARE_ACCOUNT_ID` and `ARTIFACTS_EVENTS_QUEUE_ID`
+on the API Worker, plus the `ARTIFACTS_SUBSCRIPTION_TOKEN` secret: an account-scoped
+Cloudflare API token permitted to manage event subscriptions. Keep these credentials
+out of Git. New isolated repositories receive their own confirmed push subscription.
+
 To combine work, open **Futures → Compose candidate**. Select whole Futures or ordered commit hashes. Review the resulting tree, run trusted validation and record why you chose it. Applying a candidate updates Git only when the reviewed state is still current. Multi-repository updates proceed in recorded stages. A partial update requires reconciliation and a fresh review before continuation.

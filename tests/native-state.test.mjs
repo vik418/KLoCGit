@@ -935,7 +935,9 @@ test('empty effects do not settle an unsupported native metadata operation', asy
 });
 
 test('repository push delivery is journaled and confirmed before activating a native Future', async () => {
-  const f = fixture(), subscriptions = new Map(), actions = [];
+  const f = fixture(),
+    subscriptions = new Map(),
+    actions = [];
   f.adapter.repositorySubscriptionPreflight = () => ({ configured: true });
   f.adapter.repositorySubscribe = async (input) => {
     actions.push(input.id);
@@ -945,24 +947,47 @@ test('repository push delivery is journaled and confirmed before activating a na
     return result;
   };
   f.adapter.repositorySubscriptionInfo = async ({ id }) => {
-    if (!subscriptions.has(id)) throw new DomainError('RECOVERY_REQUIRED', 'Subscription absent', 409);
+    if (!subscriptions.has(id))
+      throw new DomainError('RECOVERY_REQUIRED', 'Subscription absent', 409);
     return subscriptions.get(id);
   };
   f.adapter.lostSubscriptionReply = true;
-  await assert.rejects(() => f.native.createFuture({
-    repository_ids: ['app'], request_id: 'fork-with-subscription',
-  }, 'owner'), { code: 'RECOVERY_REQUIRED' });
+  await assert.rejects(
+    () =>
+      f.native.createFuture(
+        {
+          repository_ids: ['app'],
+          request_id: 'fork-with-subscription',
+        },
+        'owner',
+      ),
+    { code: 'RECOVERY_REQUIRED' },
+  );
   const request = f.state.nativeRequests.find((entry) => entry.operation === 'future.create');
   assert.equal(f.state.futures[0].status, 'recovery_required');
-  assert.deepEqual(request.effects.map((effect) => effect.method), ['repositoryFork', 'repositorySubscribe']);
-  const result = await f.native.recoverRequest(request.id, { request_id: 'reconcile-delivery' }, 'owner');
+  assert.deepEqual(
+    request.effects.map((effect) => effect.method),
+    ['repositoryFork', 'repositorySubscribe'],
+  );
+  const result = await f.native.recoverRequest(
+    request.id,
+    { request_id: 'reconcile-delivery' },
+    'owner',
+  );
   assert.equal(result.future.status, 'active');
   assert.equal(result.future.repositories[0].event_subscription.status, 'ready');
   assert.equal(actions.length, 1, 'An uncertain subscription POST is never replayed');
   assert.equal(f.calls.filter((entry) => entry.method === 'fork').length, 1);
-  assert.ok(f.saved.some((state) => state.nativeRequests[0]?.effects.some((effect) =>
-    effect.method === 'repositorySubscribe' && effect.dispatch_state === 'issued' &&
-    effect.status === 'prepared')));
+  assert.ok(
+    f.saved.some((state) =>
+      state.nativeRequests[0]?.effects.some(
+        (effect) =>
+          effect.method === 'repositorySubscribe' &&
+          effect.dispatch_state === 'issued' &&
+          effect.status === 'prepared',
+      ),
+    ),
+  );
 });
 
 test('missing event configuration is rejected before any native Git effect', async () => {
@@ -970,12 +995,28 @@ test('missing event configuration is rejected before any native Git effect', asy
   f.adapter.repositorySubscriptionPreflight = () => {
     throw new DomainError('EVENT_SUBSCRIPTION_NOT_CONFIGURED', 'Configure event delivery', 503);
   };
-  await assert.rejects(() => f.native.createFuture({
-    repository_ids: ['app'], request_id: 'missing-delivery',
-  }, 'owner'), { code: 'EVENT_SUBSCRIPTION_NOT_CONFIGURED' });
-  await assert.rejects(() => f.native.registerRepository({
-    id: 'new', request_id: 'missing-create-delivery',
-  }, 'owner'), { code: 'EVENT_SUBSCRIPTION_NOT_CONFIGURED' });
+  await assert.rejects(
+    () =>
+      f.native.createFuture(
+        {
+          repository_ids: ['app'],
+          request_id: 'missing-delivery',
+        },
+        'owner',
+      ),
+    { code: 'EVENT_SUBSCRIPTION_NOT_CONFIGURED' },
+  );
+  await assert.rejects(
+    () =>
+      f.native.registerRepository(
+        {
+          id: 'new',
+          request_id: 'missing-create-delivery',
+        },
+        'owner',
+      ),
+    { code: 'EVENT_SUBSCRIPTION_NOT_CONFIGURED' },
+  );
   assert.equal(f.calls.length, 0);
   assert.equal(f.state.futures.length, 0);
 });

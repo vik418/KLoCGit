@@ -300,7 +300,9 @@ test('Artifacts delegates immutable ancestry, base and inverse candidates with t
         lifecycle.push('opened:' + lease.id);
         return {
           async info() {
-            return { remote: 'https://fixture.artifacts.cloudflare.net/git/klocgit/application.git' };
+            return {
+              remote: 'https://fixture.artifacts.cloudflare.net/git/klocgit/application.git',
+            };
           },
           async createToken(scope, ttl) {
             assert.equal(scope, 'read');
@@ -360,24 +362,32 @@ test('Artifacts delegates immutable ancestry, base and inverse candidates with t
     assert.equal(input.configHash, 'validation-v0');
   }
   assert.equal(calls[2].input.mainline, 1);
-  assert.deepEqual(calls.map((call) => call.input.repo), ['application', 'application', 'canonical']);
+  assert.deepEqual(
+    calls.map((call) => call.input.repo),
+    ['application', 'application', 'canonical'],
+  );
   for (const [index, { input }] of calls.slice(0, 2).entries()) {
-    assert.deepEqual(input.source_credentials, [{
-      id: 'application',
-      canonical_repo: 'canonical',
-      remote: 'https://fixture.artifacts.cloudflare.net/git/klocgit/application.git',
-      scope: 'read',
-      plaintext: leases[index].plaintext,
-      expiresAt: leases[index].expiresAt,
-    }]);
+    assert.deepEqual(input.source_credentials, [
+      {
+        id: 'application',
+        canonical_repo: 'canonical',
+        remote: 'https://fixture.artifacts.cloudflare.net/git/klocgit/application.git',
+        scope: 'read',
+        plaintext: leases[index].plaintext,
+        expiresAt: leases[index].expiresAt,
+      },
+    ]);
   }
   assert.equal(Object.hasOwn(calls[2].input, 'source_credentials'), false);
-  assert.deepEqual(lifecycle, leases.flatMap((lease) => [
-    'opened:' + lease.id,
-    'issued:' + lease.id,
-    'revoked:' + lease.id,
-    'disposed:' + lease.id,
-  ]));
+  assert.deepEqual(
+    lifecycle,
+    leases.flatMap((lease) => [
+      'opened:' + lease.id,
+      'issued:' + lease.id,
+      'revoked:' + lease.id,
+      'disposed:' + lease.id,
+    ]),
+  );
   assert.equal(leases.length, 2);
   await assert.rejects(
     () => adapter.revert(repo, descendant, ancestor, 1),

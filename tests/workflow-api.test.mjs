@@ -457,7 +457,10 @@ test('native Git branch deletion reaches version-gated withdrawal and schedules 
       idFromName: (id) => id,
       get: () => ({
         fetch: async (req) => {
-          assert.deepEqual(await trustedPrincipal(req, env), internalPrincipal('artifacts-ingress'));
+          assert.deepEqual(
+            await trustedPrincipal(req, env),
+            internalPrincipal('artifacts-ingress'),
+          );
           calls.push({ path: new URL(req.url).pathname, body: await req.json() });
           return Response.json({ withdrawn: true });
         },
@@ -563,7 +566,7 @@ test('local route extraction preserves task wrappers, trusted actor and the requ
       {},
     );
   assert.deepEqual(await route('/api/tasks', {}, 'GET'), { tasks: [task] });
-  assert.equal(await route('/api/tasks/task-1', {}, 'GET'), task);
+  assert.deepEqual(await route('/api/tasks/task-1', {}, 'GET'), task);
   await route('/api/tasks', { task: { statement: 'Task' }, actor: 'forged' });
   assert.deepEqual(calls[0], [{ statement: 'Task' }, 'configured-local-owner']);
   await route('/api/tasks/task-1/answer', { value: true, rationale: 'Reviewed', actor: 'forged' });

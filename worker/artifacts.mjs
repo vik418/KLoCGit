@@ -1,7 +1,12 @@
 import { ArtifactSubscriptions } from './artifact-subscriptions.mjs';
 import { DomainError } from '../core/hash.mjs';
 import { observationRef } from '../core/git-refs.mjs';
-import { artifactRemote, requestSourceBindings, SOURCE_TOKEN_TTL, validSourceToken } from '../server/source-authority.mjs';
+import {
+  artifactRemote,
+  requestSourceBindings,
+  SOURCE_TOKEN_TTL,
+  validSourceToken,
+} from '../server/source-authority.mjs';
 import {
   artifactRepositoryCreate,
   artifactRepositoryFork,
@@ -58,7 +63,14 @@ export class ArtifactsGit {
     return this.withRepo(repo, async (r) => {
       const log = await r.log({ ref, limit: 1 });
       if (!log.length) throw new DomainError('REF_NOT_FOUND', 'Git ref does not exist', 404);
-      return { ref, kind: 'branch', object_id: log[0].hash, object_type: 'commit', commit: log[0].hash, available_for_future: true };
+      return {
+        ref,
+        kind: 'branch',
+        object_id: log[0].hash,
+        object_type: 'commit',
+        commit: log[0].hash,
+        available_for_future: true,
+      };
     });
   }
   async ref(repo, ref) {
@@ -169,7 +181,11 @@ export class ArtifactsGit {
         503,
       );
     if (Object.hasOwn(payload, 'source_credentials'))
-      throw new DomainError('SOURCE_AUTHORITY_INVALID', 'Executor credentials are selected by the adapter', 403);
+      throw new DomainError(
+        'SOURCE_AUTHORITY_INVALID',
+        'Executor credentials are selected by the adapter',
+        403,
+      );
     const bindings = requestSourceBindings(operation, payload);
     const handles = [];
     try {
@@ -184,7 +200,11 @@ export class ArtifactsGit {
           const remote = artifactRemote(info.remote, binding.id);
           handle.token = await capability.createToken('read', SOURCE_TOKEN_TTL);
           if (!validSourceToken(handle.token))
-            throw new DomainError('SOURCE_CREDENTIAL_INVALID', 'Artifacts returned invalid scoped credentials', 503);
+            throw new DomainError(
+              'SOURCE_CREDENTIAL_INVALID',
+              'Artifacts returned invalid scoped credentials',
+              503,
+            );
           credentials.push({
             ...binding,
             remote: remote.remote,
@@ -216,7 +236,11 @@ export class ArtifactsGit {
       );
       const data = await response.json();
       if (credentials.some((entry) => JSON.stringify(data).includes(entry.plaintext)))
-        throw new DomainError('SOURCE_CREDENTIAL_LEAK', 'Executor returned private credential material', 503);
+        throw new DomainError(
+          'SOURCE_CREDENTIAL_LEAK',
+          'Executor returned private credential material',
+          503,
+        );
       if (!response.ok)
         throw new DomainError(
           data.error ?? 'GIT_EXECUTOR_FAILED',
@@ -236,9 +260,13 @@ export class ArtifactsGit {
       // the failure floor if the coordinator or provider disappears mid-call.
       for (const { capability, token } of handles) {
         if (token) {
-          try { await capability.revokeToken(token.id || token.plaintext); } catch {}
+          try {
+            await capability.revokeToken(token.id || token.plaintext);
+          } catch {}
         }
-        try { capability[Symbol.dispose]?.(); } catch {}
+        try {
+          capability[Symbol.dispose]?.();
+        } catch {}
       }
     }
   }

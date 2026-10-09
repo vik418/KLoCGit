@@ -514,7 +514,8 @@ test('authenticated repository registration preserves the selected trusted valid
   assert.equal((await mismatched.json()).error, 'VALIDATION_PROFILE_MISMATCH');
   assert.equal(
     (
-      await fetchCoordinator(coordinator, 
+      await fetchCoordinator(
+        coordinator,
         new Request('https://coordinator/api/decisions', { method: 'POST', body: '{}' }),
       )
     ).status,
