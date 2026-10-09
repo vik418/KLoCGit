@@ -36,3 +36,22 @@ jobs:
         run: |
           npx --no-install prettier . --write
           git diff --exit-code
+
+  v1:
+    runs-on: ubuntu-22.04
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v7
+        with:
+          node-version-file: .nvmrc
+          cache: npm
+      - run: npm ci
+      - run: npm run format:check
+      - run: npm run lint
+      - run: npm run test:v1
+      - name: Show formatting differences
+        if: failure()
+        run: |
+          npx --no-install prettier . --write
+          git diff --exit-code

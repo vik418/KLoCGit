@@ -1,0 +1,107 @@
+{
+  "schema_version": 1,
+  "digest_vectors": [
+    {
+      "label": "empty effect bytes",
+      "domain": "material-effect",
+      "payload_hex": "",
+      "framed_hex": "6b6c6f636769743a76313a6d6174657269616c2d65666665637400",
+      "digest": "sha256:material-effect:v1:295e23808d924b88d672b11a497bace2de4906c7d280559a2ee328832f372663"
+    },
+    {
+      "label": "ASCII candidate bytes",
+      "domain": "object-candidate",
+      "payload_hex": "616263",
+      "framed_hex": "6b6c6f636769743a76313a6f626a6563742d63616e64696461746500616263",
+      "digest": "sha256:object-candidate:v1:2625a4c129085cb28459f6cebb9f0317e248dd14b4f0ccf2e95074c16850a0a0",
+      "id": "klocgit:candidate:v1:sha256:2625a4c129085cb28459f6cebb9f0317e248dd14b4f0ccf2e95074c16850a0a0"
+    },
+    {
+      "label": "binary payload",
+      "domain": "claim-check",
+      "payload_hex": "00017f80ff00",
+      "framed_hex": "6b6c6f636769743a76313a636c61696d2d636865636b0000017f80ff00",
+      "digest": "sha256:claim-check:v1:c1ab75801cc74af45c2435266f055242c026befd05c33a972d83743c937e3f82"
+    },
+    {
+      "label": "multi-block evidence bytes",
+      "domain": "object-evidence",
+      "payload_hex": "000102030405060708090a0b0c0d0e0f101112131415161718191a1b1c1d1e1f202122232425262728292a2b2c2d2e2f303132333435363738393a3b3c3d3e3f404142434445464748494a4b4c4d4e4f505152535455565758595a5b5c5d5e5f60616263",
+      "framed_hex": "6b6c6f636769743a76313a6f626a6563742d65766964656e636500000102030405060708090a0b0c0d0e0f101112131415161718191a1b1c1d1e1f202122232425262728292a2b2c2d2e2f303132333435363738393a3b3c3d3e3f404142434445464748494a4b4c4d4e4f505152535455565758595a5b5c5d5e5f60616263",
+      "digest": "sha256:object-evidence:v1:a11823c13cb67e33ae04b8d42c75d4aed4c41d17465f146968c40b2a6cd9b97f",
+      "id": "klocgit:evidence:v1:sha256:a11823c13cb67e33ae04b8d42c75d4aed4c41d17465f146968c40b2a6cd9b97f"
+    }
+  ],
+  "operation_vectors": [
+    {
+      "label": "scoped operation",
+      "domain": "object-operation",
+      "payload_hex": "000000040000000874656e616e742d61000000067265706f2d610000001163616e6469646174652e70726f6d6f74650000002431323365343536372d653839622d313264332d613435362d343236363134313734303030",
+      "framed_hex": "6b6c6f636769743a76313a6f626a6563742d6f7065726174696f6e00000000040000000874656e616e742d61000000067265706f2d610000001163616e6469646174652e70726f6d6f74650000002431323365343536372d653839622d313264332d613435362d343236363134313734303030",
+      "digest": "sha256:object-operation:v1:5c1784180f3d83c2c119f6f57f2b78efefa73b4e957294098ef70930e43b396c",
+      "id": "klocgit:operation:v1:sha256:5c1784180f3d83c2c119f6f57f2b78efefa73b4e957294098ef70930e43b396c",
+      "scope": {
+        "tenant_id": "tenant-a",
+        "resource_id": "repo-a",
+        "action": "candidate.promote",
+        "idempotency_key": "123e4567-e89b-12d3-a456-426614174000"
+      }
+    },
+    {
+      "label": "scoped operation",
+      "domain": "object-operation",
+      "payload_hex": "000000040000000774c3a96e616e740000000c72c3a9706f2fe69982e8a8880000001163616e6469646174652e70726f6d6f74650000002431323365343536372d653839622d313264332d613435362d343236363134313734303030",
+      "framed_hex": "6b6c6f636769743a76313a6f626a6563742d6f7065726174696f6e00000000040000000774c3a96e616e740000000c72c3a9706f2fe69982e8a8880000001163616e6469646174652e70726f6d6f74650000002431323365343536372d653839622d313264332d613435362d343236363134313734303030",
+      "digest": "sha256:object-operation:v1:86f4a56696208bc4db63fb94123833fc3803f96f069ef08437fdcffb6d74b127",
+      "id": "klocgit:operation:v1:sha256:86f4a56696208bc4db63fb94123833fc3803f96f069ef08437fdcffb6d74b127",
+      "scope": {
+        "tenant_id": "ténant",
+        "resource_id": "répo/時計",
+        "action": "candidate.promote",
+        "idempotency_key": "123e4567-e89b-12d3-a456-426614174000"
+      }
+    }
+  ],
+  "error_vectors": [
+    {
+      "input_code": "STALE_BASIS",
+      "record": {
+        "schema_version": 1,
+        "code": "STALE_BASIS",
+        "failure_class": "CONFLICT",
+        "retry_strategy": "NEVER",
+        "message": "The reviewed basis is stale."
+      }
+    },
+    {
+      "input_code": "PROVIDER_UNAVAILABLE",
+      "record": {
+        "schema_version": 1,
+        "code": "PROVIDER_UNAVAILABLE",
+        "failure_class": "TRANSIENT",
+        "retry_strategy": "BACKOFF",
+        "message": "The provider is unavailable."
+      }
+    },
+    {
+      "input_code": "OUTCOME_UNKNOWN",
+      "record": {
+        "schema_version": 1,
+        "code": "OUTCOME_UNKNOWN",
+        "failure_class": "AMBIGUOUS",
+        "retry_strategy": "RECONCILE",
+        "message": "The operation outcome requires reconciliation."
+      }
+    },
+    {
+      "input_code": null,
+      "record": {
+        "schema_version": 1,
+        "code": "INTERNAL_ERROR",
+        "failure_class": "INTERNAL",
+        "retry_strategy": "NEVER",
+        "message": "An internal error occurred."
+      }
+    }
+  ]
+}

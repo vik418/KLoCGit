@@ -5,7 +5,9 @@ Complete in dependency order. Do not skip acceptance criteria.
 ## Progress
 
 - T000: COMPLETE. [Passing verification](https://github.com/vik418/KLoCGit/actions/runs/37960093987) on `c72610ce`.
-- Next incomplete task: T001.
+- T001: COMPLETE. [Passing golden tests](https://github.com/vik418/KLoCGit/actions/runs/37966913365) on `efa41b72`.
+- T010: COMPLETE. [Passing record tests](https://github.com/vik418/KLoCGit/actions/runs/37969107882) on `5184798a`.
+- Next incomplete task: T011.
 - All remaining tasks: INCOMPLETE.
 
 Existing v0 behavior does not establish v1 completion. Task completion requires the tests and acceptance criteria below.
