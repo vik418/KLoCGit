@@ -9,10 +9,16 @@ import { useNativeMutation } from '../../hooks/useNativeMutation.js';
 async function fetchRefs(repoId, cursor = '', signal) {
   const query = new URLSearchParams({ limit: '50' });
   if (cursor) query.set('cursor', cursor);
-  const result = await apiRequest('/repositories/' + encodeURIComponent(repoId) + '/refs?' + query, { signal });
-  if (result.repo_id !== repoId || !Array.isArray(result.refs) ||
-      typeof result.has_more !== 'boolean' ||
-      (result.has_more && (typeof result.next_cursor !== 'string' || !result.next_cursor))) {
+  const result = await apiRequest(
+    '/repositories/' + encodeURIComponent(repoId) + '/refs?' + query,
+    { signal },
+  );
+  if (
+    result.repo_id !== repoId ||
+    !Array.isArray(result.refs) ||
+    typeof result.has_more !== 'boolean' ||
+    (result.has_more && (typeof result.next_cursor !== 'string' || !result.next_cursor))
+  ) {
     throw new Error('The repository returned an invalid ref page.');
   }
   return result;
@@ -20,7 +26,9 @@ async function fetchRefs(repoId, cursor = '', signal) {
 
 export function SourceRefDialog({ future, repositories, onClose, reload, message }) {
   const [selected, setSelected] = useState(() =>
-    Object.fromEntries(future.repositories.map((repository) => [repository.repo_id, repository.ref])),
+    Object.fromEntries(
+      future.repositories.map((repository) => [repository.repo_id, repository.ref]),
+    ),
   );
   const [pages, setPages] = useState({});
   const [loading, setLoading] = useState({});
@@ -29,9 +37,13 @@ export function SourceRefDialog({ future, repositories, onClose, reload, message
   const readController = useRef(null);
   const { busy, error, mutate } = useNativeMutation(reload, message);
   const editable = ['active', 'unavailable'].includes(future.status);
-  const selectionReady = editable && future.repositories.length > 0 &&
+  const selectionReady =
+    editable &&
+    future.repositories.length > 0 &&
     future.repositories.every((repository) => {
-      const entry = pages[repository.repo_id]?.refs.find((item) => item.ref === selected[repository.repo_id]);
+      const entry = pages[repository.repo_id]?.refs.find(
+        (item) => item.ref === selected[repository.repo_id],
+      );
       return entry && entry.available_for_future !== false && !loading[repository.repo_id];
     });
 
@@ -52,7 +64,10 @@ export function SourceRefDialog({ future, repositories, onClose, reload, message
             setPages((previous) => ({ ...previous, [repository.repo_id]: result }));
         } catch (failure) {
           if (generation.current === current)
-            setReadErrors((previous) => ({ ...previous, [repository.repo_id]: getErrorMessage(failure) }));
+            setReadErrors((previous) => ({
+              ...previous,
+              [repository.repo_id]: getErrorMessage(failure),
+            }));
         } finally {
           if (generation.current === current)
             setLoading((previous) => ({ ...previous, [repository.repo_id]: false }));
@@ -82,7 +97,11 @@ export function SourceRefDialog({ future, repositories, onClose, reload, message
         [repoId]: {
           ...result,
           refs: append
-            ? [...new Map([...previous[repoId].refs, ...result.refs].map((entry) => [entry.ref, entry])).values()]
+            ? [
+                ...new Map(
+                  [...previous[repoId].refs, ...result.refs].map((entry) => [entry.ref, entry]),
+                ).values(),
+              ]
             : result.refs,
         },
       }));
@@ -98,13 +117,19 @@ export function SourceRefDialog({ future, repositories, onClose, reload, message
   async function submit(event) {
     event.preventDefault();
     if (!selectionReady) return;
-    const result = await mutate('/futures/' + encodeURIComponent(future.id) + '/observe', {
-      expected_version: future.version,
-      repository_refs: future.repositories.map((repository) => ({
-        repo_id: repository.repo_id,
-        ref: selected[repository.repo_id],
-      })).sort((a, b) => a.repo_id.localeCompare(b.repo_id)),
-    }, 'Source refs observed. Previous revisions remain recorded.');
+    const result = await mutate(
+      '/futures/' + encodeURIComponent(future.id) + '/observe',
+      {
+        expected_version: future.version,
+        repository_refs: future.repositories
+          .map((repository) => ({
+            repo_id: repository.repo_id,
+            ref: selected[repository.repo_id],
+          }))
+          .sort((a, b) => a.repo_id.localeCompare(b.repo_id)),
+      },
+      'Source refs observed. Previous revisions remain recorded.',
+    );
     if (result) onClose();
   }
 
@@ -139,9 +164,21 @@ export function SourceRefDialog({ future, repositories, onClose, reload, message
               <p className="break-all text-xs leading-6 text-muted-foreground">
                 Recorded source: {repository.ref}
               </p>
-              {loading[repository.repo_id] && <p className="text-xs text-muted-foreground" role="status">Reading refs…</p>}
-              {readErrors[repository.repo_id] && <p className="error-banner text-xs" role="alert">{readErrors[repository.repo_id]}</p>}
-              <div className="max-h-64 space-y-2 overflow-y-auto" role="group" aria-label={'Source refs for ' + repository.repo_id}>
+              {loading[repository.repo_id] && (
+                <p className="text-xs text-muted-foreground" role="status">
+                  Reading refs…
+                </p>
+              )}
+              {readErrors[repository.repo_id] && (
+                <p className="error-banner text-xs" role="alert">
+                  {readErrors[repository.repo_id]}
+                </p>
+              )}
+              <div
+                className="max-h-64 space-y-2 overflow-y-auto"
+                role="group"
+                aria-label={'Source refs for ' + repository.repo_id}
+              >
                 {page?.refs.map((entry) => {
                   const isSelected = selected[repository.repo_id] === entry.ref;
                   const selectable = entry.available_for_future !== false;
@@ -154,28 +191,62 @@ export function SourceRefDialog({ future, repositories, onClose, reload, message
                       className="h-auto w-full justify-start whitespace-normal py-3 text-left"
                       disabled={!editable || !selectable || loading[repository.repo_id]}
                       aria-pressed={isSelected}
-                      onClick={() => setSelected((previous) => ({ ...previous, [repository.repo_id]: entry.ref }))}
+                      onClick={() =>
+                        setSelected((previous) => ({
+                          ...previous,
+                          [repository.repo_id]: entry.ref,
+                        }))
+                      }
                     >
                       <Icon className="mt-0.5 self-start" aria-hidden="true" />
                       <span className="min-w-0 flex-1">
                         <span className="block break-all text-xs">{entry.ref}</span>
-                        <span className="mt-1 block break-all font-mono text-[0.65rem] text-muted-foreground">{entry.commit ?? entry.object_id}</span>
-                        {!selectable && <span className="mt-1 block text-xs text-muted-foreground">Does not resolve to a Git commit.</span>}
-                        {entry.available_for_future === null && <span className="mt-1 block text-xs text-muted-foreground">Commit target will be verified during observation.</span>}
+                        <span className="mt-1 block break-all font-mono text-[0.65rem] text-muted-foreground">
+                          {entry.commit ?? entry.object_id}
+                        </span>
+                        {!selectable && (
+                          <span className="mt-1 block text-xs text-muted-foreground">
+                            Does not resolve to a Git commit.
+                          </span>
+                        )}
+                        {entry.available_for_future === null && (
+                          <span className="mt-1 block text-xs text-muted-foreground">
+                            Commit target will be verified during observation.
+                          </span>
+                        )}
                       </span>
                       {isSelected && <Check aria-hidden="true" />}
                     </Button>
                   );
                 })}
               </div>
-              {page && !page.refs.length && <p className="text-xs text-muted-foreground">No branches or tags were found.</p>}
-              {page && !chosen && <p className="text-xs text-muted-foreground">Choose a listed ref. Load more if the recorded source is not on this page.</p>}
+              {page && !page.refs.length && (
+                <p className="text-xs text-muted-foreground">No branches or tags were found.</p>
+              )}
+              {page && !chosen && (
+                <p className="text-xs text-muted-foreground">
+                  Choose a listed ref. Load more if the recorded source is not on this page.
+                </p>
+              )}
               <div className="flex flex-wrap gap-2">
-                <Button type="button" size="sm" variant="ghost" disabled={busy || loading[repository.repo_id]} onClick={() => loadPage(repository.repo_id)}>
-                  <RefreshCw aria-hidden="true" />Refresh refs
+                <Button
+                  type="button"
+                  size="sm"
+                  variant="ghost"
+                  disabled={busy || loading[repository.repo_id]}
+                  onClick={() => loadPage(repository.repo_id)}
+                >
+                  <RefreshCw aria-hidden="true" />
+                  Refresh refs
                 </Button>
                 {page?.has_more && (
-                  <Button type="button" size="sm" variant="outline" disabled={busy || loading[repository.repo_id]} onClick={() => loadPage(repository.repo_id, true)}>
+                  <Button
+                    type="button"
+                    size="sm"
+                    variant="outline"
+                    disabled={busy || loading[repository.repo_id]}
+                    onClick={() => loadPage(repository.repo_id, true)}
+                  >
                     Load more refs
                   </Button>
                 )}
@@ -185,7 +256,8 @@ export function SourceRefDialog({ future, repositories, onClose, reload, message
         })}
       </div>
       <p className="mt-4 text-xs leading-6 text-muted-foreground">
-        The server reads the selected refs again and verifies their commit and tree. A changed source creates a new immutable revision.
+        The server reads the selected refs again and verifies their commit and tree. A changed
+        source creates a new immutable revision.
       </p>
     </NativeFormDialog>
   );

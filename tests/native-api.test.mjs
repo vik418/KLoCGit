@@ -8,6 +8,7 @@ function request(engine, path, method = 'GET', input = {}, actor = 'owner') {
     url: new URL(path, 'http://localhost'),
     input,
     actor,
+    principal: actor ? { actor_id: actor, kind: 'human', auth_method: 'owner-token' } : undefined,
   });
 }
 
@@ -28,6 +29,12 @@ test('native routes require identity before service reads and leave compatibilit
     '/api/repository-requests/id',
   ])
     await assert.rejects(() => request(engine, path, 'GET', {}, ''), { code: 'UNAUTHENTICATED' });
+  await assert.rejects(() => handleNativeRequest(engine, {
+    method: 'GET',
+    url: new URL('/api/native-state', 'http://localhost'),
+    actor: 'owner',
+    principal: { actor_id: 'another-owner', kind: 'human', auth_method: 'owner-token' },
+  }), { code: 'UNAUTHENTICATED' });
   assert.equal(reads, 0);
   assert.equal(await request(engine, '/api/merge-requests', 'GET', {}, ''), null);
   assert.equal(ownsNativePath('/api/repositories/repo/policy'), false);

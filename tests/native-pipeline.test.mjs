@@ -54,7 +54,8 @@ async function fixture(t) {
   const state = {
     ...emptyState(),
     repositories: [{ id: 'app', canonical_ref: ref, head: base, tree: baseTree, baseline: base }],
-    futures: [{ id: 'future', status: 'active', current_revision_id: revision.id }],
+    futures: [{ id: 'future', status: 'active', current_revision_id: revision.id,
+      repositories: [{ repo_id: 'source', canonical_repo_id: 'app', ref, status: 'ready' }] }],
     futureRevisions: [revision],
   };
   state.workspace.owner_id = 'owner';

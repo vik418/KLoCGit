@@ -7,7 +7,8 @@ import { NativeFormDialog } from '../../ui/NativeFormDialog.jsx';
 import { useNativeMutation } from '../../hooks/useNativeMutation.js';
 
 function repositoryReady(repository) {
-  return repository.status === 'ready' && Boolean(repository.head && repository.tree);
+  return repository.status === 'ready' && Boolean(repository.head && repository.tree) &&
+    (!repository.event_subscription || repository.event_subscription.status === 'ready');
 }
 
 export function NewFuture({

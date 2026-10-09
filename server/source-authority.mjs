@@ -2,8 +2,18 @@ import { DomainError } from '../core/hash.mjs';
 
 const name = /^[A-Za-z0-9][A-Za-z0-9._-]{0,99}$/;
 const sourceOperations = new Set([
-  'retain-observation', 'read-ref', 'list-refs', 'compose', 'compose-selections',
-  'is-ancestor', 'merge-base', 'validate', 'suite', 'profile', 'trailers', 'diff',
+  'retain-observation',
+  'read-ref',
+  'list-refs',
+  'compose',
+  'compose-selections',
+  'is-ancestor',
+  'merge-base',
+  'validate',
+  'suite',
+  'profile',
+  'trailers',
+  'diff',
 ]);
 const canonicalOperations = new Set(['cas', 'compose', 'compose-selections', 'revert']);
 export const SOURCE_TOKEN_TTL = 900;
@@ -36,23 +46,41 @@ export function requestSourceBindings(operation, payload) {
 /** Parse one exact credential-free Artifacts Git URL; account and namespace stay pinned. */
 export function artifactRemote(remote, id) {
   let url;
-  try { url = new URL(remote); } catch { reject(); }
+  try {
+    url = new URL(remote);
+  } catch {
+    reject();
+  }
   const parts = url.pathname.split('/');
   if (
-    url.protocol !== 'https:' || url.username || url.password || url.search || url.hash ||
-    url.port || !url.hostname.endsWith('.artifacts.cloudflare.net') ||
-    parts.length !== 4 || parts[1] !== 'git' || !name.test(parts[2]) ||
+    url.protocol !== 'https:' ||
+    url.username ||
+    url.password ||
+    url.search ||
+    url.hash ||
+    url.port ||
+    !url.hostname.endsWith('.artifacts.cloudflare.net') ||
+    parts.length !== 4 ||
+    parts[1] !== 'git' ||
+    !name.test(parts[2]) ||
     parts[3] !== id + '.git'
-  ) reject();
+  )
+    reject();
   return { remote: url.href, origin: url.origin, namespace: parts[2] };
 }
 
 export function validSourceToken(value, now = Date.now()) {
   const expiry = typeof value?.expiresAt === 'string' ? Date.parse(value.expiresAt) : NaN;
-  return value?.scope === 'read' && typeof value.plaintext === 'string' &&
-    value.plaintext.length > 0 && value.plaintext.length <= 4096 &&
-    !/[\r\n\0]/.test(value.plaintext) && Number.isFinite(expiry) &&
-    expiry > now && expiry <= now + (SOURCE_TOKEN_TTL + 30) * 1000;
+  return (
+    value?.scope === 'read' &&
+    typeof value.plaintext === 'string' &&
+    value.plaintext.length > 0 &&
+    value.plaintext.length <= 4096 &&
+    !/[\r\n\0]/.test(value.plaintext) &&
+    Number.isFinite(expiry) &&
+    expiry > now &&
+    expiry <= now + (SOURCE_TOKEN_TTL + 30) * 1000
+  );
 }
 
 /**
@@ -72,13 +100,19 @@ export function admittedSources(manifest, operation, payload, now = Date.now()) 
     if (!canonical) reject();
     const baseline = artifactRemote(canonical.remote, source.canonical_repo);
     const remote = artifactRemote(source.remote, source.id);
-    if (baseline.origin !== remote.origin || baseline.namespace !== remote.namespace ||
-        !validSourceToken(source, now)) reject();
+    if (
+      baseline.origin !== remote.origin ||
+      baseline.namespace !== remote.namespace ||
+      !validSourceToken(source, now)
+    )
+      reject();
     // New Future repo identities bind the canonical prefix and a content-addressed suffix.
     // Older explicitly configured fork identities retain their operator admission.
     const prefix = source.canonical_repo.slice(0, 40) + '--';
-    if (!manifest.repositories?.[source.id] &&
-        (!source.id.startsWith(prefix) || !/^[a-f0-9]{40}$/.test(source.id.slice(prefix.length))))
+    if (
+      !manifest.repositories?.[source.id] &&
+      (!source.id.startsWith(prefix) || !/^[a-f0-9]{40}$/.test(source.id.slice(prefix.length)))
+    )
       reject();
     result.set(source.id, {
       id: source.id,

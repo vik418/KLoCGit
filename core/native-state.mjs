@@ -464,6 +464,23 @@ export class NativeState {
     return info;
   }
 
+  async subscribeRepository(request, info, id, ref) {
+    if (typeof this.engine.git.repositorySubscribe !== 'function') return null;
+    const subscription = await this.effect(request, 'repositorySubscribe', {
+      id, ref, repository_operation_id: info.operation_id ??
+        (request.operation === 'repository.register' && request.input.mode === 'adopt' ? null : request.id),
+    });
+    if (subscription?.status !== 'ready' || subscription.repo_id !== id)
+      throw new DomainError('RECOVERY_REQUIRED', 'Repository push delivery is not confirmed', 409);
+    return subscription;
+  }
+
+  forkReady(repository) {
+    return repository.status === 'ready' &&
+      (typeof this.engine.git.repositorySubscribe !== 'function' ||
+        repository.event_subscription?.status === 'ready');
+  }
+
   async registerObserved(info, id, ref, description = '') {
     const observed = providerInfo(info, id, ref);
     let repository = this.state.nativeRepositories.find((repo) => repo.id === id);
@@ -548,6 +565,7 @@ export class NativeState {
         'Import branch must match the requested repository ref',
         422,
       );
+    await this.engine.git.repositorySubscriptionPreflight?.();
     return this.request('repository.register', value, actor, async (request) => {
       if (this.repositories().some((repo) => repo.id === value.id))
         throw new DomainError('REPO_EXISTS', 'Repository is already registered', 409);
@@ -573,6 +591,10 @@ export class NativeState {
         );
       }
       const repository = await this.registerObserved(info, value.id, value.ref, value.description);
+      if (typeof this.engine.git.repositorySubscribe === 'function') {
+        repository.event_subscription = { status: 'pending' };
+        repository.event_subscription = await this.subscribeRepository(request, info, value.id, value.ref);
+      }
       await this.event('repository.registered', actor, {
         repo: repository.id,
         mode,
@@ -694,7 +716,8 @@ export class NativeState {
     const vector = [];
     for (const entry of system.repository_refs.filter((ref) => ids.includes(ref.repo_id))) {
       const repo = this.state.repositories.find((repository) => repository.id === entry.repo_id);
-      if (!repo)
+      const delivery = this.state.nativeRepositories.find((repository) => repository.id === entry.repo_id)?.event_subscription;
+      if (!repo || (delivery && delivery.status !== 'ready'))
         throw new DomainError(
           'REPOSITORY_NOT_READY',
           'Push an initial commit or finish import before creating a Future',
@@ -748,6 +771,7 @@ export class NativeState {
       },
       request_id: input.request_id,
     };
+    await this.engine.git.repositorySubscriptionPreflight?.();
     return this.request('future.create', value, actor, async (request) => {
       let objective = value.objective_id ? this.objective(value.objective_id) : null;
       if (objective && objective.status !== 'open')
@@ -854,8 +878,13 @@ export class NativeState {
           description: future.name,
         });
         this.observeFork(repository, source, info, request.id);
+        if (typeof this.engine.git.repositorySubscribe === 'function') {
+          repository.event_subscription = { status: 'pending' };
+          repository.event_subscription = await this.subscribeRepository(
+            request, info, repository.repo_id, repository.ref);
+        }
       }
-      future.status = future.repositories.every((repo) => repo.status === 'ready')
+      future.status = future.repositories.every((repo) => this.forkReady(repo))
         ? 'active'
         : 'preparing';
       await this.event('future.created', actor, {
@@ -946,7 +975,7 @@ export class NativeState {
             future.creation_request_id,
           );
         }
-        if (future.repositories.some((repository) => repository.status !== 'ready'))
+        if (future.repositories.some((repository) => !this.forkReady(repository)))
           throw new DomainError(
             'FUTURE_NOT_READY',
             'Isolated repositories are still being provisioned',
@@ -1202,6 +1231,16 @@ export class NativeState {
             409,
           );
         for (const effect of original.effects) {
+          if (effect.method === 'repositorySubscribe') {
+            const subscription = await this.provider('repositorySubscriptionInfo')({
+              ...effect.input, operation_id: original.id,
+            });
+            if (subscription?.status !== 'ready' || subscription.repo_id !== effect.input.id)
+              throw new DomainError('RECOVERY_REQUIRED', 'Push subscription is not confirmed', 409);
+            effect.result = structuredClone(subscription);
+            effect.status = 'observed';
+            continue;
+          }
           const ref = effect.input.ref ?? effect.input.source.ref;
           const info = await this.provider('repositoryInfo')({ id: effect.input.id, ref });
           if (info.operation_id !== original.id)
@@ -1217,7 +1256,11 @@ export class NativeState {
         let result;
         if (original.operation === 'repository.register') {
           const value = original.input;
-          const info = original.effects.at(-1).result;
+          const created = original.effects.find((effect) =>
+            ['repositoryCreate', 'repositoryImport'].includes(effect.method));
+          const info = created?.result ?? await this.provider('repositoryInfo')({
+            id: value.id, ref: value.ref,
+          });
           if (value.mode === 'import' && info.status === 'empty')
             throw new DomainError(
               'RECOVERY_REQUIRED',
@@ -1230,11 +1273,18 @@ export class NativeState {
             value.ref,
             value.description,
           );
+          if (typeof this.engine.git.repositorySubscribe === 'function') {
+            const subscribed = original.effects.find((effect) => effect.method === 'repositorySubscribe');
+            if (!subscribed || subscribed.result?.status !== 'ready')
+              throw new DomainError('RECOVERY_REQUIRED', 'Push subscription must be reconciled', 409);
+            repository.event_subscription = structuredClone(subscribed.result);
+          }
           result = { repository, request: { id: original.id, status: 'applied' } };
         } else if (original.operation === 'future.create') {
           const future = this.future(original.future_id);
           for (const repository of future.repositories) {
-            const effect = original.effects.find((item) => item.input.id === repository.repo_id);
+            const effect = original.effects.find((item) =>
+              item.method === 'repositoryFork' && item.input.id === repository.repo_id);
             // A partial creation has no inferred success or rollback. Missing
             // repositories require a separately inspected retry, not blind replay.
             if (!effect)
@@ -1249,10 +1299,17 @@ export class NativeState {
               effect.result,
               original.id,
             );
+            if (typeof this.engine.git.repositorySubscribe === 'function') {
+              const subscribed = original.effects.find((item) =>
+                item.method === 'repositorySubscribe' && item.input.id === repository.repo_id);
+              if (!subscribed || subscribed.result?.status !== 'ready')
+                throw new DomainError('RECOVERY_REQUIRED', 'Push subscription must be reconciled', 409);
+              repository.event_subscription = structuredClone(subscribed.result);
+            }
           }
           const abandoned = future.status === 'abandoned';
           if (!abandoned)
-            future.status = future.repositories.every((repo) => repo.status === 'ready')
+            future.status = future.repositories.every((repo) => this.forkReady(repo))
               ? 'active'
               : 'preparing';
           const revision = abandoned

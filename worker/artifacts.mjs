@@ -1,3 +1,4 @@
+import { ArtifactSubscriptions } from './artifact-subscriptions.mjs';
 import { DomainError } from '../core/hash.mjs';
 import { observationRef } from '../core/git-refs.mjs';
 import { artifactRemote, requestSourceBindings, SOURCE_TOKEN_TTL, validSourceToken } from '../server/source-authority.mjs';
@@ -20,6 +21,15 @@ export class ArtifactsGit {
   constructor(env) {
     this.env = env;
     this.configHash = env.VALIDATION_CONFIG_HASH;
+  }
+  repositorySubscriptionPreflight() {
+    return new ArtifactSubscriptions(this.env).preflight();
+  }
+  repositorySubscribe(input) {
+    return new ArtifactSubscriptions(this.env).ensure(input);
+  }
+  repositorySubscriptionInfo(input) {
+    return new ArtifactSubscriptions(this.env).inspect(input);
   }
   repositoryCreate(input) {
     return artifactRepositoryCreate(this.env, input);

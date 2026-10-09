@@ -320,8 +320,6 @@ export function App() {
         <NewObjective
           nativeState={workspace.nativeState}
           initialSystemId={nativeDialog.systemId}
-          initialObjective={nativeDialog.objective}
-          contextSnapshotId={nativeDialog.contextSnapshotId}
           onClose={() => setNativeDialog(null)}
           onCreated={() => nativeCreated('systems')}
           reload={reload}
@@ -333,6 +331,8 @@ export function App() {
           nativeState={workspace.nativeState}
           initialRepositoryId={nativeDialog.repositoryId}
           initialSystemId={nativeDialog.systemId}
+          initialObjective={nativeDialog.objective}
+          contextSnapshotId={nativeDialog.contextSnapshotId}
           onClose={() => setNativeDialog(null)}
           onCreated={() => nativeCreated('futures')}
           reload={reload}

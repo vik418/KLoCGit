@@ -844,7 +844,9 @@
                       "maxItems": 1000
                     }
                   },
-                  "required": ["selections"],
+                  "required": [
+                    "selections"
+                  ],
                   "additionalProperties": false
                 }
               }
@@ -936,7 +938,9 @@
                       "maxItems": 1000
                     }
                   },
-                  "required": ["candidates"],
+                  "required": [
+                    "candidates"
+                  ],
                   "additionalProperties": false
                 }
               }
@@ -1091,7 +1095,10 @@
                       "maxItems": 1000
                     }
                   },
-                  "required": ["candidate", "evidence"],
+                  "required": [
+                    "candidate",
+                    "evidence"
+                  ],
                   "additionalProperties": false
                 }
               }
@@ -1680,12 +1687,18 @@
                             "$ref": "#/components/schemas/ContextItem"
                           }
                         },
-                        "required": ["objective_id", "preparation_id", "item"],
+                        "required": [
+                          "objective_id",
+                          "preparation_id",
+                          "item"
+                        ],
                         "additionalProperties": false
                       }
                     }
                   },
-                  "required": ["results"],
+                  "required": [
+                    "results"
+                  ],
                   "additionalProperties": false
                 }
               }
@@ -1825,7 +1838,14 @@
             "required": true,
             "schema": {
               "type": "string",
-              "enum": ["code", "objective", "revision", "selection", "candidate", "decision"]
+              "enum": [
+                "code",
+                "objective",
+                "revision",
+                "selection",
+                "candidate",
+                "decision"
+              ]
             }
           },
           {
@@ -1939,7 +1959,9 @@
                       "$ref": "#/components/schemas/NativeRelationship"
                     }
                   },
-                  "required": ["relationship"],
+                  "required": [
+                    "relationship"
+                  ],
                   "additionalProperties": false
                 }
               }
@@ -2043,11 +2065,16 @@
                           "$ref": "#/components/schemas/PromotionOperation"
                         }
                       },
-                      "required": ["operation"],
+                      "required": [
+                        "operation"
+                      ],
                       "additionalProperties": false
                     }
                   },
-                  "required": ["decision", "group"],
+                  "required": [
+                    "decision",
+                    "group"
+                  ],
                   "additionalProperties": false
                 }
               }
@@ -2142,7 +2169,10 @@
                       "type": "object"
                     }
                   },
-                  "required": ["profile", "binding"],
+                  "required": [
+                    "profile",
+                    "binding"
+                  ],
                   "additionalProperties": false
                 }
               }
@@ -2199,7 +2229,9 @@
                       "maxItems": 1000
                     }
                   },
-                  "required": ["runs"],
+                  "required": [
+                    "runs"
+                  ],
                   "additionalProperties": false
                 }
               }
@@ -2418,7 +2450,9 @@
                     "maxLength": 1000
                   }
                 },
-                "required": ["reason"],
+                "required": [
+                  "reason"
+                ],
                 "additionalProperties": false
               }
             }
@@ -2520,7 +2554,10 @@
                       }
                     }
                   },
-                  "required": ["candidate_id", "runs"],
+                  "required": [
+                    "candidate_id",
+                    "runs"
+                  ],
                   "additionalProperties": false
                 }
               }
@@ -2612,7 +2649,9 @@
                     "maxLength": 2000
                   }
                 },
-                "required": ["summary"],
+                "required": [
+                  "summary"
+                ],
                 "additionalProperties": false
               }
             }
@@ -2767,7 +2806,9 @@
                       "maxItems": 1000
                     }
                   },
-                  "required": ["events"],
+                  "required": [
+                    "events"
+                  ],
                   "additionalProperties": false
                 }
               }
@@ -3009,7 +3050,9 @@
             "minLength": 1
           }
         },
-        "required": ["kind"]
+        "required": [
+          "kind"
+        ]
       },
       "ImportSource": {
         "type": "object",
@@ -3033,7 +3076,9 @@
             "default": 100
           }
         },
-        "required": ["url"]
+        "required": [
+          "url"
+        ]
       },
       "RepositoryCreate": {
         "type": "object",
@@ -3055,7 +3100,11 @@
           },
           "mode": {
             "type": "string",
-            "enum": ["create", "import", "adopt"],
+            "enum": [
+              "create",
+              "import",
+              "adopt"
+            ],
             "default": "create"
           },
           "description": {
@@ -3067,7 +3116,10 @@
             "$ref": "#/components/schemas/ImportSource"
           }
         },
-        "required": ["request_id", "id"],
+        "required": [
+          "request_id",
+          "id"
+        ],
         "allOf": [
           {
             "if": {
@@ -3076,10 +3128,14 @@
                   "const": "import"
                 }
               },
-              "required": ["mode"]
+              "required": [
+                "mode"
+              ]
             },
             "then": {
-              "required": ["source"]
+              "required": [
+                "source"
+              ]
             }
           }
         ]
@@ -3096,7 +3152,9 @@
             "description": "Stable identity for one operation and its unchanged inputs. Retain it across lost-response retries; changing input requires a new identity."
           }
         },
-        "required": ["request_id"]
+        "required": [
+          "request_id"
+        ]
       },
       "VersionedRequest": {
         "type": "object",
@@ -3114,7 +3172,10 @@
             "minimum": 1
           }
         },
-        "required": ["request_id", "expected_version"]
+        "required": [
+          "request_id",
+          "expected_version"
+        ]
       },
       "SystemCreate": {
         "type": "object",
@@ -3148,7 +3209,11 @@
             }
           }
         },
-        "required": ["request_id", "name", "repository_ids"]
+        "required": [
+          "request_id",
+          "name",
+          "repository_ids"
+        ]
       },
       "ObjectiveCreate": {
         "type": "object",
@@ -3183,7 +3248,11 @@
             "default": []
           }
         },
-        "required": ["request_id", "system_id", "statement"]
+        "required": [
+          "request_id",
+          "system_id",
+          "statement"
+        ]
       },
       "FutureCreate": {
         "type": "object",
@@ -3228,14 +3297,21 @@
             "$ref": "#/components/schemas/Producer"
           },
           "context_snapshot_id": {
-            "type": ["string", "null"],
+            "type": [
+              "string",
+              "null"
+            ],
             "maxLength": 200
           }
         },
-        "required": ["request_id"],
+        "required": [
+          "request_id"
+        ],
         "anyOf": [
           {
-            "required": ["system_id"],
+            "required": [
+              "system_id"
+            ],
             "properties": {
               "system_id": {
                 "minLength": 1
@@ -3243,7 +3319,9 @@
             }
           },
           {
-            "required": ["objective_id"],
+            "required": [
+              "objective_id"
+            ],
             "properties": {
               "objective_id": {
                 "minLength": 1
@@ -3251,7 +3329,9 @@
             }
           },
           {
-            "required": ["repository_ids"],
+            "required": [
+              "repository_ids"
+            ],
             "properties": {
               "repository_ids": {
                 "minItems": 1
@@ -3288,15 +3368,24 @@
             "$ref": "#/components/schemas/Producer"
           },
           "context_snapshot_id": {
-            "type": ["string", "null"],
+            "type": [
+              "string",
+              "null"
+            ],
             "maxLength": 200
           }
         },
-        "required": ["request_id"]
+        "required": [
+          "request_id"
+        ]
       },
       "Repository": {
         "type": "object",
-        "required": ["id", "canonical_ref", "status"],
+        "required": [
+          "id",
+          "canonical_ref",
+          "status"
+        ],
         "properties": {
           "id": {
             "$ref": "#/components/schemas/RepositoryId"
@@ -3314,11 +3403,20 @@
             "type": "string"
           },
           "remote": {
-            "type": ["string", "null"]
+            "type": [
+              "string",
+              "null"
+            ]
           },
           "status": {
             "type": "string",
-            "enum": ["empty", "ready", "importing", "forking", "unavailable"]
+            "enum": [
+              "empty",
+              "ready",
+              "importing",
+              "forking",
+              "unavailable"
+            ]
           },
           "head": {
             "anyOf": [
@@ -3355,16 +3453,28 @@
             "minimum": 1
           },
           "operation_id": {
-            "type": ["string", "null"]
+            "type": [
+              "string",
+              "null"
+            ]
           },
           "validation_profile": {
-            "type": ["string", "null"]
+            "type": [
+              "string",
+              "null"
+            ]
           },
           "context_repo": {
-            "type": ["string", "null"]
+            "type": [
+              "string",
+              "null"
+            ]
           },
           "unavailable": {
             "type": "boolean"
+          },
+          "event_subscription": {
+            "$ref": "#/components/schemas/EventSubscription"
           }
         },
         "description": "Git state descriptor. Empty repositories have null head/tree. Ready establishes Git identity, not validation or executor eligibility. Token-free remotes do not grant Git access."
@@ -3381,13 +3491,25 @@
           },
           "status": {
             "type": "string",
-            "enum": ["empty", "ready", "importing", "forking", "unavailable"]
+            "enum": [
+              "empty",
+              "ready",
+              "importing",
+              "forking",
+              "unavailable"
+            ]
           },
           "remote": {
-            "type": ["string", "null"]
+            "type": [
+              "string",
+              "null"
+            ]
           }
         },
-        "required": ["repo_id", "ref"]
+        "required": [
+          "repo_id",
+          "ref"
+        ]
       },
       "System": {
         "type": "object",
@@ -3442,7 +3564,10 @@
         "properties": {
           "basis": {
             "type": "string",
-            "enum": ["declared", "unknown"]
+            "enum": [
+              "declared",
+              "unknown"
+            ]
           },
           "actor": {
             "type": "string"
@@ -3451,7 +3576,9 @@
             "type": "string"
           }
         },
-        "required": ["basis"]
+        "required": [
+          "basis"
+        ]
       },
       "Objective": {
         "type": "object",
@@ -3464,7 +3591,10 @@
             "$ref": "#/components/schemas/Identifier"
           },
           "statement": {
-            "type": ["string", "null"]
+            "type": [
+              "string",
+              "null"
+            ]
           },
           "scope": {
             "type": "array",
@@ -3477,7 +3607,9 @@
           },
           "status": {
             "type": "string",
-            "enum": ["open"]
+            "enum": [
+              "open"
+            ]
           },
           "created_by": {
             "type": "string"
@@ -3515,7 +3647,12 @@
             "$ref": "#/components/schemas/GitObjectId"
           }
         },
-        "required": ["repo_id", "ref", "commit", "tree"]
+        "required": [
+          "repo_id",
+          "ref",
+          "commit",
+          "tree"
+        ]
       },
       "FutureRepository": {
         "type": "object",
@@ -3531,14 +3668,33 @@
             "$ref": "#/components/schemas/ObservationRef"
           },
           "remote": {
-            "type": ["string", "null"]
+            "type": [
+              "string",
+              "null"
+            ]
           },
           "status": {
             "type": "string",
-            "enum": ["prepared", "empty", "ready", "importing", "forking", "unavailable"]
+            "enum": [
+              "prepared",
+              "empty",
+              "ready",
+              "importing",
+              "forking",
+              "unavailable"
+            ]
+          },
+          "event_subscription": {
+            "$ref": "#/components/schemas/EventSubscription"
           }
         },
-        "required": ["canonical_repo_id", "repo_id", "ref", "remote", "status"]
+        "required": [
+          "canonical_repo_id",
+          "repo_id",
+          "ref",
+          "remote",
+          "status"
+        ]
       },
       "Future": {
         "type": "object",
@@ -3561,7 +3717,10 @@
           },
           "provenance_state": {
             "type": "string",
-            "enum": ["declared", "unknown"]
+            "enum": [
+              "declared",
+              "unknown"
+            ]
           },
           "baseline_refs": {
             "type": "array",
@@ -3590,7 +3749,10 @@
             "$ref": "#/components/schemas/Identifier"
           },
           "current_revision_id": {
-            "type": ["string", "null"]
+            "type": [
+              "string",
+              "null"
+            ]
           },
           "version": {
             "type": "integer",
@@ -3642,10 +3804,18 @@
           },
           "object_type": {
             "type": "string",
-            "enum": ["commit", "tag"]
+            "enum": [
+              "commit",
+              "tag"
+            ]
           }
         },
-        "required": ["repo_id", "source_repo_id", "ref", "commit"]
+        "required": [
+          "repo_id",
+          "source_repo_id",
+          "ref",
+          "commit"
+        ]
       },
       "TreeHash": {
         "type": "object",
@@ -3658,7 +3828,10 @@
             "$ref": "#/components/schemas/GitObjectId"
           }
         },
-        "required": ["repo_id", "tree"]
+        "required": [
+          "repo_id",
+          "tree"
+        ]
       },
       "AffectedScope": {
         "type": "object",
@@ -3674,7 +3847,10 @@
             }
           }
         },
-        "required": ["repo_id", "paths"]
+        "required": [
+          "repo_id",
+          "paths"
+        ]
       },
       "FutureRevision": {
         "type": "object",
@@ -3687,7 +3863,10 @@
             "$ref": "#/components/schemas/Identifier"
           },
           "previous_revision_id": {
-            "type": ["string", "null"]
+            "type": [
+              "string",
+              "null"
+            ]
           },
           "repository_heads": {
             "type": "array",
@@ -3728,7 +3907,10 @@
           },
           "provenance_state": {
             "type": "string",
-            "enum": ["declared", "unknown"]
+            "enum": [
+              "declared",
+              "unknown"
+            ]
           },
           "created_at": {
             "type": "string",
@@ -3746,7 +3928,10 @@
           },
           "context_binding_state": {
             "type": "string",
-            "enum": ["bound", "unknown"]
+            "enum": [
+              "bound",
+              "unknown"
+            ]
           },
           "context_assumption_refs": {
             "type": "array",
@@ -3784,7 +3969,11 @@
             "type": "integer"
           }
         },
-        "required": ["code", "message", "status"]
+        "required": [
+          "code",
+          "message",
+          "status"
+        ]
       },
       "RequestReceipt": {
         "type": "object",
@@ -3795,13 +3984,19 @@
           },
           "status": {
             "type": "string",
-            "enum": ["applied", "failed"]
+            "enum": [
+              "applied",
+              "failed"
+            ]
           },
           "retryable": {
             "type": "boolean"
           }
         },
-        "required": ["id", "status"]
+        "required": [
+          "id",
+          "status"
+        ]
       },
       "RepositoryResult": {
         "type": "object",
@@ -3814,7 +4009,9 @@
             "$ref": "#/components/schemas/RequestReceipt"
           }
         },
-        "required": ["repository"]
+        "required": [
+          "repository"
+        ]
       },
       "FutureResult": {
         "type": "object",
@@ -3837,7 +4034,9 @@
             "type": "boolean"
           }
         },
-        "required": ["future"]
+        "required": [
+          "future"
+        ]
       },
       "SystemResult": {
         "type": "object",
@@ -3847,7 +4046,9 @@
             "$ref": "#/components/schemas/System"
           }
         },
-        "required": ["system"]
+        "required": [
+          "system"
+        ]
       },
       "ObjectiveResult": {
         "type": "object",
@@ -3857,7 +4058,9 @@
             "$ref": "#/components/schemas/Objective"
           }
         },
-        "required": ["objective"]
+        "required": [
+          "objective"
+        ]
       },
       "RevisionsResult": {
         "type": "object",
@@ -3870,7 +4073,9 @@
             }
           }
         },
-        "required": ["revisions"]
+        "required": [
+          "revisions"
+        ]
       },
       "FutureDetail": {
         "type": "object",
@@ -3886,11 +4091,22 @@
             }
           }
         },
-        "required": ["future", "revisions"]
+        "required": [
+          "future",
+          "revisions"
+        ]
       },
       "Request": {
         "type": "object",
-        "required": ["id", "request_id", "operation", "actor", "status", "created_at", "attempts"],
+        "required": [
+          "id",
+          "request_id",
+          "operation",
+          "actor",
+          "status",
+          "created_at",
+          "attempts"
+        ],
         "properties": {
           "id": {
             "$ref": "#/components/schemas/Identifier"
@@ -3932,7 +4148,12 @@
           },
           "status": {
             "type": "string",
-            "enum": ["prepared", "applied", "failed", "recovery_required"]
+            "enum": [
+              "prepared",
+              "applied",
+              "failed",
+              "recovery_required"
+            ]
           },
           "future_id": {
             "$ref": "#/components/schemas/Identifier"
@@ -3959,7 +4180,9 @@
             "$ref": "#/components/schemas/Request"
           }
         },
-        "required": ["request"]
+        "required": [
+          "request"
+        ]
       },
       "InterruptedRead": {
         "type": "object",
@@ -3973,7 +4196,10 @@
             "const": "no_repository_effect"
           }
         },
-        "required": ["request", "outcome"]
+        "required": [
+          "request",
+          "outcome"
+        ]
       },
       "RecoveryResult": {
         "oneOf": [
@@ -4040,14 +4266,21 @@
             "properties": {
               "kind": {
                 "type": "string",
-                "enum": ["nothing", "recovery", "decisions"]
+                "enum": [
+                  "nothing",
+                  "recovery",
+                  "decisions"
+                ]
               },
               "count": {
                 "type": "integer",
                 "minimum": 0
               }
             },
-            "required": ["kind", "count"]
+            "required": [
+              "kind",
+              "count"
+            ]
           },
           "selections": {
             "type": "array",
@@ -4130,7 +4363,9 @@
       },
       "Error": {
         "type": "object",
-        "required": ["error"],
+        "required": [
+          "error"
+        ],
         "properties": {
           "error": {
             "type": "string"
@@ -4156,7 +4391,9 @@
             }
           }
         },
-        "required": ["repositories"]
+        "required": [
+          "repositories"
+        ]
       },
       "Systems": {
         "type": "object",
@@ -4169,7 +4406,9 @@
             }
           }
         },
-        "required": ["systems"]
+        "required": [
+          "systems"
+        ]
       },
       "Objectives": {
         "type": "object",
@@ -4182,7 +4421,9 @@
             }
           }
         },
-        "required": ["objectives"]
+        "required": [
+          "objectives"
+        ]
       },
       "Futures": {
         "type": "object",
@@ -4195,7 +4436,9 @@
             }
           }
         },
-        "required": ["futures"]
+        "required": [
+          "futures"
+        ]
       },
       "ObservationRef": {
         "type": "string",
@@ -4228,17 +4471,26 @@
                   "$ref": "#/components/schemas/ObservationRef"
                 }
               },
-              "required": ["repo_id", "ref"],
+              "required": [
+                "repo_id",
+                "ref"
+              ],
               "additionalProperties": false
             },
             "maxItems": 100
           },
           "context_snapshot_id": {
-            "type": ["string", "null"],
+            "type": [
+              "string",
+              "null"
+            ],
             "maxLength": 200
           }
         },
-        "required": ["request_id", "expected_version"],
+        "required": [
+          "request_id",
+          "expected_version"
+        ],
         "additionalProperties": false
       },
       "RefPage": {
@@ -4257,20 +4509,35 @@
                 },
                 "kind": {
                   "type": "string",
-                  "enum": ["branch", "tag"]
+                  "enum": [
+                    "branch",
+                    "tag"
+                  ]
                 },
                 "object_id": {
                   "$ref": "#/components/schemas/GitObjectId"
                 },
                 "object_type": {
                   "type": "string",
-                  "enum": ["commit", "tag", "tree", "blob", "unknown"]
+                  "enum": [
+                    "commit",
+                    "tag",
+                    "tree",
+                    "blob",
+                    "unknown"
+                  ]
                 },
                 "commit": {
-                  "type": ["string", "null"]
+                  "type": [
+                    "string",
+                    "null"
+                  ]
                 },
                 "available_for_future": {
-                  "type": ["boolean", "null"]
+                  "type": [
+                    "boolean",
+                    "null"
+                  ]
                 }
               },
               "required": [
@@ -4289,10 +4556,18 @@
             "type": "boolean"
           },
           "next_cursor": {
-            "type": ["string", "null"]
+            "type": [
+              "string",
+              "null"
+            ]
           }
         },
-        "required": ["repo_id", "refs", "has_more", "next_cursor"],
+        "required": [
+          "repo_id",
+          "refs",
+          "has_more",
+          "next_cursor"
+        ],
         "additionalProperties": false
       },
       "RetainedRevision": {
@@ -4319,7 +4594,9 @@
                   "type": "string"
                 }
               },
-              "required": ["repo_id"],
+              "required": [
+                "repo_id"
+              ],
               "additionalProperties": true
             },
             "maxItems": 1000
@@ -4343,7 +4620,10 @@
           },
           "kind": {
             "type": "string",
-            "enum": ["future", "commits"],
+            "enum": [
+              "future",
+              "commits"
+            ],
             "default": "future"
           },
           "repo_id": {
@@ -4357,7 +4637,10 @@
             "maxItems": 50
           }
         },
-        "required": ["request_id", "future_revision_id"],
+        "required": [
+          "request_id",
+          "future_revision_id"
+        ],
         "additionalProperties": false
       },
       "SelectionEntry": {
@@ -4393,7 +4676,10 @@
           },
           "object_type": {
             "type": "string",
-            "enum": ["commit", "tag"]
+            "enum": [
+              "commit",
+              "tag"
+            ]
           }
         },
         "required": [
@@ -4418,7 +4704,10 @@
           },
           "kind": {
             "type": "string",
-            "enum": ["future", "commits"]
+            "enum": [
+              "future",
+              "commits"
+            ]
           },
           "entries": {
             "type": "array",
@@ -4428,7 +4717,12 @@
             "maxItems": 100
           }
         },
-        "required": ["id", "future_revision_id", "kind", "entries"],
+        "required": [
+          "id",
+          "future_revision_id",
+          "kind",
+          "entries"
+        ],
         "additionalProperties": false
       },
       "SelectionResult": {
@@ -4438,7 +4732,9 @@
             "$ref": "#/components/schemas/Selection"
           }
         },
-        "required": ["selection"],
+        "required": [
+          "selection"
+        ],
         "additionalProperties": false
       },
       "CandidateCreate": {
@@ -4467,7 +4763,10 @@
             "maxProperties": 1000
           }
         },
-        "required": ["request_id", "selection_ids"],
+        "required": [
+          "request_id",
+          "selection_ids"
+        ],
         "additionalProperties": false
       },
       "CandidateRepository": {
@@ -4489,7 +4788,13 @@
             "$ref": "#/components/schemas/GitObjectId"
           }
         },
-        "required": ["repo_id", "base_commit", "base_tree", "commit", "tree"],
+        "required": [
+          "repo_id",
+          "base_commit",
+          "base_tree",
+          "commit",
+          "tree"
+        ],
         "additionalProperties": false
       },
       "CandidateState": {
@@ -4529,7 +4834,13 @@
             "maxItems": 20
           }
         },
-        "required": ["id", "selection_ids", "base_heads", "repositories", "limitations"],
+        "required": [
+          "id",
+          "selection_ids",
+          "base_heads",
+          "repositories",
+          "limitations"
+        ],
         "additionalProperties": false
       },
       "CandidateResult": {
@@ -4539,7 +4850,9 @@
             "$ref": "#/components/schemas/CandidateState"
           }
         },
-        "required": ["candidate"],
+        "required": [
+          "candidate"
+        ],
         "additionalProperties": false
       },
       "Validity": {
@@ -4547,7 +4860,10 @@
         "properties": {
           "status": {
             "type": "string",
-            "enum": ["current", "stale"]
+            "enum": [
+              "current",
+              "stale"
+            ]
           },
           "reason": {
             "type": "string"
@@ -4560,7 +4876,9 @@
             "maxItems": 100
           }
         },
-        "required": ["status"],
+        "required": [
+          "status"
+        ],
         "additionalProperties": true
       },
       "Evidence": {
@@ -4582,7 +4900,13 @@
           },
           "basis": {
             "type": "string",
-            "enum": ["declared", "retrieved", "observed", "inferred", "unknown"]
+            "enum": [
+              "declared",
+              "retrieved",
+              "observed",
+              "inferred",
+              "unknown"
+            ]
           },
           "source": {
             "type": "string"
@@ -4594,7 +4918,10 @@
             "$ref": "#/components/schemas/Validity"
           }
         },
-        "required": ["id", "subject_ref"],
+        "required": [
+          "id",
+          "subject_ref"
+        ],
         "additionalProperties": true
       },
       "CandidateReview": {
@@ -4705,7 +5032,12 @@
             "maxLength": 4000
           }
         },
-        "required": ["request_id", "decision_basis_hash", "expected_heads", "rationale"],
+        "required": [
+          "request_id",
+          "decision_basis_hash",
+          "expected_heads",
+          "rationale"
+        ],
         "additionalProperties": false
       },
       "ContinuationCreate": {
@@ -4776,7 +5108,10 @@
           },
           "outcome": {
             "type": "string",
-            "enum": ["not_applied", "applied_then_moved"]
+            "enum": [
+              "not_applied",
+              "applied_then_moved"
+            ]
           },
           "confirmed": {
             "const": true
@@ -4787,7 +5122,11 @@
             "maxLength": 4000
           }
         },
-        "required": ["request_id", "confirmed", "rationale"],
+        "required": [
+          "request_id",
+          "confirmed",
+          "rationale"
+        ],
         "additionalProperties": false
       },
       "PromotionOperation": {
@@ -4804,7 +5143,13 @@
           },
           "status": {
             "type": "string",
-            "enum": ["prepared", "applied", "not-applied", "recovery-required", "settled"]
+            "enum": [
+              "prepared",
+              "applied",
+              "not-applied",
+              "recovery-required",
+              "settled"
+            ]
           },
           "reviewed_heads": {
             "type": "object",
@@ -4832,14 +5177,27 @@
                 },
                 "status": {
                   "type": "string",
-                  "enum": ["prepared", "applied", "rejected", "uncertain", "settled", "not-issued"]
+                  "enum": [
+                    "prepared",
+                    "applied",
+                    "rejected",
+                    "uncertain",
+                    "settled",
+                    "not-issued"
+                  ]
                 },
                 "dispatch_state": {
                   "type": "string",
-                  "enum": ["not_started", "issued"]
+                  "enum": [
+                    "not_started",
+                    "issued"
+                  ]
                 },
                 "observed_head": {
-                  "type": ["string", "null"]
+                  "type": [
+                    "string",
+                    "null"
+                  ]
                 },
                 "current": {
                   "type": "boolean"
@@ -4858,7 +5216,10 @@
             "maxItems": 100
           }
         },
-        "required": ["id", "status"],
+        "required": [
+          "id",
+          "status"
+        ],
         "additionalProperties": true
       },
       "PromotionResult": {
@@ -4896,7 +5257,10 @@
             "maxLength": 255
           }
         },
-        "required": ["repo_id", "path"],
+        "required": [
+          "repo_id",
+          "path"
+        ],
         "additionalProperties": false
       },
       "ContextPrepare": {
@@ -4922,7 +5286,9 @@
             "maxLength": 100
           }
         },
-        "required": ["request_id"],
+        "required": [
+          "request_id"
+        ],
         "additionalProperties": false
       },
       "ContextItem": {
@@ -4938,7 +5304,13 @@
           },
           "basis": {
             "type": "string",
-            "enum": ["declared", "retrieved", "observed", "inferred", "unknown"]
+            "enum": [
+              "declared",
+              "retrieved",
+              "observed",
+              "inferred",
+              "unknown"
+            ]
           },
           "value": {
             "type": "object"
@@ -4953,7 +5325,14 @@
             }
           }
         },
-        "required": ["id", "type", "basis", "value", "source", "validity_scope"],
+        "required": [
+          "id",
+          "type",
+          "basis",
+          "value",
+          "source",
+          "validity_scope"
+        ],
         "additionalProperties": true
       },
       "ContextQuestion": {
@@ -4997,7 +5376,11 @@
                   "maxItems": 20
                 }
               },
-              "required": ["id", "label", "effects"],
+              "required": [
+                "id",
+                "label",
+                "effects"
+              ],
               "additionalProperties": false
             },
             "maxItems": 8,
@@ -5015,7 +5398,12 @@
             "maxLength": 1000
           }
         },
-        "required": ["id", "question", "options", "basis"],
+        "required": [
+          "id",
+          "question",
+          "options",
+          "basis"
+        ],
         "additionalProperties": true
       },
       "ContextPreparation": {
@@ -5064,7 +5452,15 @@
                   "maxLength": 200
                 }
               },
-              "required": ["id", "repo_id", "path", "ref", "commit", "tree", "content_hash"],
+              "required": [
+                "id",
+                "repo_id",
+                "path",
+                "ref",
+                "commit",
+                "tree",
+                "content_hash"
+              ],
               "additionalProperties": false
             },
             "maxItems": 20
@@ -5184,7 +5580,10 @@
           },
           "mode": {
             "type": "string",
-            "enum": ["answer", "assumption"]
+            "enum": [
+              "answer",
+              "assumption"
+            ]
           },
           "answers": {
             "type": "object",
@@ -5200,7 +5599,12 @@
             "maxLength": 4000
           }
         },
-        "required": ["request_id", "expected_basis_hash", "mode", "answers"],
+        "required": [
+          "request_id",
+          "expected_basis_hash",
+          "mode",
+          "answers"
+        ],
         "additionalProperties": false
       },
       "ContextReview": {
@@ -5223,7 +5627,9 @@
             "$ref": "#/components/schemas/Validity"
           }
         },
-        "required": ["preparation"],
+        "required": [
+          "preparation"
+        ],
         "additionalProperties": true
       },
       "ContextEligibility": {
@@ -5231,7 +5637,10 @@
         "properties": {
           "status": {
             "type": "string",
-            "enum": ["current", "stale"]
+            "enum": [
+              "current",
+              "stale"
+            ]
           },
           "snapshots": {
             "type": "array",
@@ -5247,7 +5656,12 @@
             "type": "boolean"
           }
         },
-        "required": ["status", "snapshots", "unknown_revision_count", "requires_human_judgment"],
+        "required": [
+          "status",
+          "snapshots",
+          "unknown_revision_count",
+          "requires_human_judgment"
+        ],
         "additionalProperties": false
       },
       "ContextExport": {
@@ -5320,7 +5734,13 @@
                 },
                 "basis": {
                   "type": "string",
-                  "enum": ["declared", "retrieved", "observed", "inferred", "unknown"]
+                  "enum": [
+                    "declared",
+                    "retrieved",
+                    "observed",
+                    "inferred",
+                    "unknown"
+                  ]
                 },
                 "statement": {
                   "type": "string"
@@ -5329,7 +5749,11 @@
                   "type": "string"
                 }
               },
-              "required": ["id", "kind", "basis"],
+              "required": [
+                "id",
+                "kind",
+                "basis"
+              ],
               "additionalProperties": true
             },
             "maxItems": 1000
@@ -5351,7 +5775,10 @@
                       "$ref": "#/components/schemas/Identifier"
                     }
                   },
-                  "required": ["kind", "id"],
+                  "required": [
+                    "kind",
+                    "id"
+                  ],
                   "additionalProperties": false
                 },
                 "to": {
@@ -5366,7 +5793,10 @@
                       "$ref": "#/components/schemas/Identifier"
                     }
                   },
-                  "required": ["kind", "id"],
+                  "required": [
+                    "kind",
+                    "id"
+                  ],
                   "additionalProperties": false
                 },
                 "type": {
@@ -5376,10 +5806,21 @@
                 },
                 "basis": {
                   "type": "string",
-                  "enum": ["declared", "retrieved", "observed", "inferred", "unknown"]
+                  "enum": [
+                    "declared",
+                    "retrieved",
+                    "observed",
+                    "inferred",
+                    "unknown"
+                  ]
                 }
               },
-              "required": ["from", "to", "type", "basis"],
+              "required": [
+                "from",
+                "to",
+                "type",
+                "basis"
+              ],
               "additionalProperties": false
             },
             "maxItems": 1000
@@ -5391,7 +5832,12 @@
             }
           }
         },
-        "required": ["version", "records", "links", "code_provenance"],
+        "required": [
+          "version",
+          "records",
+          "links",
+          "code_provenance"
+        ],
         "additionalProperties": false,
         "description": "Observed code facts stay separate from unknown or declared intent and rationale. Each context item retains its own epistemic basis."
       },
@@ -5415,7 +5861,9 @@
             "default": 200
           }
         },
-        "required": ["request_id"],
+        "required": [
+          "request_id"
+        ],
         "additionalProperties": false
       },
       "NativeRelationshipCreate": {
@@ -5452,7 +5900,13 @@
             "maxLength": 1000
           }
         },
-        "required": ["request_id", "from_revision", "to_revision", "type", "statement"],
+        "required": [
+          "request_id",
+          "from_revision",
+          "to_revision",
+          "type",
+          "statement"
+        ],
         "additionalProperties": false
       },
       "NativeRelationship": {
@@ -5474,7 +5928,11 @@
           },
           "basis": {
             "type": "string",
-            "enum": ["declared", "observed", "inferred"]
+            "enum": [
+              "declared",
+              "observed",
+              "inferred"
+            ]
           },
           "analyzer_version": {
             "type": "string",
@@ -5489,7 +5947,13 @@
             "maxItems": 100
           }
         },
-        "required": ["id", "from_revision", "to_revision", "type", "basis"],
+        "required": [
+          "id",
+          "from_revision",
+          "to_revision",
+          "type",
+          "basis"
+        ],
         "additionalProperties": true
       },
       "DecisionGroup": {
@@ -5510,7 +5974,11 @@
           },
           "status": {
             "type": "string",
-            "enum": ["open", "resolved", "superseded"]
+            "enum": [
+              "open",
+              "resolved",
+              "superseded"
+            ]
           },
           "relationship_ids": {
             "type": "array",
@@ -5521,7 +5989,10 @@
           },
           "kind": {
             "type": "string",
-            "enum": ["Alternatives", "Interaction"]
+            "enum": [
+              "Alternatives",
+              "Interaction"
+            ]
           },
           "title": {
             "type": "string"
@@ -5549,7 +6020,10 @@
                   "maxItems": 100
                 }
               },
-              "required": ["revision_ids", "implementation_ids"],
+              "required": [
+                "revision_ids",
+                "implementation_ids"
+              ],
               "additionalProperties": false
             }
           }
@@ -5665,7 +6139,11 @@
             "maxItems": 100
           }
         },
-        "required": ["group", "decision_basis_hash", "expected_heads"],
+        "required": [
+          "group",
+          "decision_basis_hash",
+          "expected_heads"
+        ],
         "additionalProperties": true
       },
       "DecisionGroupResolve": {
@@ -5705,10 +6183,17 @@
                 },
                 "outcome": {
                   "type": "string",
-                  "enum": ["accept", "defer", "reject"]
+                  "enum": [
+                    "accept",
+                    "defer",
+                    "reject"
+                  ]
                 }
               },
-              "required": ["future_revision_id", "outcome"],
+              "required": [
+                "future_revision_id",
+                "outcome"
+              ],
               "additionalProperties": false
             },
             "maxItems": 100
@@ -5748,7 +6233,10 @@
           },
           "mode": {
             "type": "string",
-            "enum": ["builtin", "external"]
+            "enum": [
+              "builtin",
+              "external"
+            ]
           },
           "config_hash": {
             "type": "string",
@@ -5785,7 +6273,12 @@
             "minimum": 1
           }
         },
-        "required": ["key", "repo_ids", "mode", "config_hash"],
+        "required": [
+          "key",
+          "repo_ids",
+          "mode",
+          "config_hash"
+        ],
         "additionalProperties": false
       },
       "EvaluatorProfile": {
@@ -5808,7 +6301,10 @@
           },
           "mode": {
             "type": "string",
-            "enum": ["builtin", "external"]
+            "enum": [
+              "builtin",
+              "external"
+            ]
           },
           "config_hash": {
             "type": "string",
@@ -5875,7 +6371,11 @@
             "description": "Stable identity for one operation and its unchanged inputs. Retain it across lost-response retries; changing input requires a new identity."
           }
         },
-        "required": ["candidate_id", "profile_id", "request_id"],
+        "required": [
+          "candidate_id",
+          "profile_id",
+          "request_id"
+        ],
         "additionalProperties": false
       },
       "EvaluationPins": {
@@ -5899,7 +6399,11 @@
                   "$ref": "#/components/schemas/GitObjectId"
                 }
               },
-              "required": ["repo_id", "commit", "tree"],
+              "required": [
+                "repo_id",
+                "commit",
+                "tree"
+              ],
               "additionalProperties": false
             },
             "maxItems": 100
@@ -5939,10 +6443,16 @@
             "maxLength": 200
           },
           "service_id": {
-            "type": ["string", "null"]
+            "type": [
+              "string",
+              "null"
+            ]
           },
           "service_key_id": {
-            "type": ["string", "null"]
+            "type": [
+              "string",
+              "null"
+            ]
           }
         },
         "required": [
@@ -6011,7 +6521,14 @@
           },
           "state": {
             "type": "string",
-            "enum": ["pending", "running", "passing", "failed", "cancelled", "skipped"]
+            "enum": [
+              "pending",
+              "running",
+              "passing",
+              "failed",
+              "cancelled",
+              "skipped"
+            ]
           },
           "pins_hash": {
             "type": "string",
@@ -6026,7 +6543,12 @@
             "maxItems": 100
           }
         },
-        "required": ["id", "run_id", "state", "pins_hash"],
+        "required": [
+          "id",
+          "run_id",
+          "state",
+          "pins_hash"
+        ],
         "additionalProperties": true
       },
       "EvaluationResult": {
@@ -6049,7 +6571,10 @@
             "$ref": "#/components/schemas/Validity"
           }
         },
-        "required": ["run", "event"],
+        "required": [
+          "run",
+          "event"
+        ],
         "additionalProperties": true
       },
       "EvaluationEligibility": {
@@ -6111,14 +6636,27 @@
                       ]
                     }
                   },
-                  "required": ["binding", "run", "event"]
+                  "required": [
+                    "binding",
+                    "run",
+                    "event"
+                  ]
                 }
               }
             },
-            "required": ["candidate_id", "required_evaluations"]
+            "required": [
+              "candidate_id",
+              "required_evaluations"
+            ]
           }
         },
-        "required": ["configured", "passing", "runs", "reasons", "basis"],
+        "required": [
+          "configured",
+          "passing",
+          "runs",
+          "reasons",
+          "basis"
+        ],
         "additionalProperties": false
       },
       "EvaluationReport": {
@@ -6142,7 +6680,13 @@
           },
           "state": {
             "type": "string",
-            "enum": ["running", "passing", "failed", "cancelled", "skipped"]
+            "enum": [
+              "running",
+              "passing",
+              "failed",
+              "cancelled",
+              "skipped"
+            ]
           },
           "result": {
             "type": "object",
@@ -6159,14 +6703,21 @@
                     },
                     "state": {
                       "type": "string",
-                      "enum": ["passing", "failed", "skipped"]
+                      "enum": [
+                        "passing",
+                        "failed",
+                        "skipped"
+                      ]
                     },
                     "summary": {
                       "type": "string",
                       "maxLength": 1000
                     }
                   },
-                  "required": ["id", "state"],
+                  "required": [
+                    "id",
+                    "state"
+                  ],
                   "additionalProperties": false
                 },
                 "maxItems": 100
@@ -6178,7 +6729,12 @@
                   "properties": {
                     "format": {
                       "type": "string",
-                      "enum": ["junit", "sarif", "benchmark", "deployment"]
+                      "enum": [
+                        "junit",
+                        "sarif",
+                        "benchmark",
+                        "deployment"
+                      ]
                     },
                     "artifact_sha256": {
                       "type": "string",
@@ -6205,13 +6761,17 @@
                       "minimum": 0
                     }
                   },
-                  "required": ["format"],
+                  "required": [
+                    "format"
+                  ],
                   "additionalProperties": false
                 },
                 "maxItems": 20
               }
             },
-            "required": ["checks"],
+            "required": [
+              "checks"
+            ],
             "additionalProperties": false
           },
           "deployment": {
@@ -6244,12 +6804,24 @@
                     "pattern": "^https://"
                   }
                 },
-                "required": ["repo_id", "commit", "tree", "version", "url"]
+                "required": [
+                  "repo_id",
+                  "commit",
+                  "tree",
+                  "version",
+                  "url"
+                ]
               }
             ]
           }
         },
-        "required": ["event_id", "run_id", "pins_hash", "pins", "state"],
+        "required": [
+          "event_id",
+          "run_id",
+          "pins_hash",
+          "pins",
+          "state"
+        ],
         "additionalProperties": true
       },
       "CallbackReceipt": {
@@ -6270,7 +6842,12 @@
             "type": "boolean"
           }
         },
-        "required": ["run_id", "event_id", "state", "duplicate"],
+        "required": [
+          "run_id",
+          "event_id",
+          "state",
+          "duplicate"
+        ],
         "additionalProperties": false
       },
       "AccessChange": {
@@ -6282,18 +6859,30 @@
             "maxLength": 200
           },
           "repo_id": {
-            "type": ["string", "null"]
+            "type": [
+              "string",
+              "null"
+            ]
           },
           "roles": {
             "type": "array",
             "items": {
               "type": "string",
-              "enum": ["reader", "producer", "reviewer", "maintainer", "admin"]
+              "enum": [
+                "reader",
+                "producer",
+                "reviewer",
+                "maintainer",
+                "admin"
+              ]
             },
             "maxItems": 5
           }
         },
-        "required": ["actor_id", "roles"],
+        "required": [
+          "actor_id",
+          "roles"
+        ],
         "additionalProperties": false
       },
       "AccessUpdate": {
@@ -6338,7 +6927,10 @@
             "additionalProperties": false
           }
         },
-        "required": ["expected_version", "changes"],
+        "required": [
+          "expected_version",
+          "changes"
+        ],
         "additionalProperties": false
       },
       "Session": {
@@ -6351,7 +6943,11 @@
           },
           "kind": {
             "type": "string",
-            "enum": ["human", "service", "internal"]
+            "enum": [
+              "human",
+              "service",
+              "internal"
+            ]
           },
           "auth_method": {
             "type": "string",
@@ -6388,7 +6984,10 @@
                   "maxItems": 5
                 }
               },
-              "required": ["repo_id", "roles"],
+              "required": [
+                "repo_id",
+                "roles"
+              ],
               "additionalProperties": false
             },
             "maxItems": 1000
@@ -6435,7 +7034,9 @@
                   "maxLength": 200
                 }
               },
-              "required": ["actor_id"],
+              "required": [
+                "actor_id"
+              ],
               "additionalProperties": true
             }
           },
@@ -6474,7 +7075,10 @@
             "additionalProperties": false
           }
         },
-        "required": ["schema_version", "version"],
+        "required": [
+          "schema_version",
+          "version"
+        ],
         "additionalProperties": true
       },
       "CloudEvent": {
@@ -6507,7 +7111,15 @@
             "type": "object"
           }
         },
-        "required": ["specversion", "id", "type", "source", "time", "datacontenttype", "data"],
+        "required": [
+          "specversion",
+          "id",
+          "type",
+          "source",
+          "time",
+          "datacontenttype",
+          "data"
+        ],
         "additionalProperties": false
       },
       "EvaluatorView": {
@@ -6547,7 +7159,13 @@
             }
           }
         },
-        "required": ["profiles", "bindings", "runs", "events", "declarations"],
+        "required": [
+          "profiles",
+          "bindings",
+          "runs",
+          "events",
+          "declarations"
+        ],
         "additionalProperties": false
       },
       "EvaluatorBinding": {
@@ -6564,7 +7182,10 @@
             "$ref": "#/components/schemas/Identifier"
           },
           "previous": {
-            "type": ["string", "null"]
+            "type": [
+              "string",
+              "null"
+            ]
           },
           "actor": {
             "type": "string"
@@ -6574,7 +7195,45 @@
             "format": "date-time"
           }
         },
-        "required": ["id", "key", "profile_id", "previous", "actor", "created_at"]
+        "required": [
+          "id",
+          "key",
+          "profile_id",
+          "previous",
+          "actor",
+          "created_at"
+        ]
+      },
+      "EventSubscription": {
+        "type": "object",
+        "required": [
+          "status"
+        ],
+        "properties": {
+          "status": {
+            "type": "string",
+            "enum": [
+              "pending",
+              "ready"
+            ]
+          },
+          "repo_id": {
+            "$ref": "#/components/schemas/RepositoryId"
+          },
+          "subscription_id": {
+            "type": "string"
+          },
+          "namespace": {
+            "type": "string"
+          },
+          "queue_id": {
+            "type": "string"
+          },
+          "basis": {
+            "const": "observed"
+          }
+        },
+        "description": "Repository push delivery. Ready is recorded only after the exact provider subscription is read back. Pending delivery blocks Future activation."
       }
     }
   }

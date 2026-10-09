@@ -1,6 +1,11 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { validateLiveManifest, liveAcceptancePassed, nativePromotionInput, NATIVE_LIVE_CHECKS } from '../scripts/cloudflare-live.mjs';
+import {
+  validateLiveManifest,
+  liveAcceptancePassed,
+  nativePromotionInput,
+  NATIVE_LIVE_CHECKS,
+} from '../scripts/cloudflare-live.mjs';
 
 const account = 'a'.repeat(32);
 const fixture = () => ({
@@ -25,8 +30,10 @@ test('live native check requires a dedicated explicitly mutable two-repository f
     { repositories: fixture().repositories.map((repo) => ({ ...repo, disposable: false })) },
     { repositories: [fixture().repositories[0]] },
     { repositories: [fixture().repositories[0], fixture().repositories[0]] },
-    { executorControlUrl: undefined }, { queue: undefined },
-  ]) assert.throws(() => validateLiveManifest({ ...fixture(), ...change }, 'check'));
+    { executorControlUrl: undefined },
+    { queue: undefined },
+  ])
+    assert.throws(() => validateLiveManifest({ ...fixture(), ...change }, 'check'));
 });
 
 test('live manifest cannot direct scoped Git credentials to another account, namespace or repository', () => {
@@ -54,16 +61,24 @@ test('provisioning and preflight cannot masquerade as complete live verification
   const complete = { mode: 'check', live: true, status: 'passed', checks };
   assert.equal(liveAcceptancePassed(complete), true);
   for (const change of [
-    { mode: 'preflight' }, { mode: 'provision-events' }, { mode: 'verify' },
-    { live: false }, { status: 'blocked' }, { checks: checks.slice(0, -1) },
-    { checks: checks.map((entry, index) => index === 4 ? { ...entry, passed: false } : entry) },
-  ]) assert.equal(liveAcceptancePassed({ ...complete, ...change }), false);
+    { mode: 'preflight' },
+    { mode: 'provision-events' },
+    { mode: 'verify' },
+    { live: false },
+    { status: 'blocked' },
+    { checks: checks.slice(0, -1) },
+    { checks: checks.map((entry, index) => (index === 4 ? { ...entry, passed: false } : entry)) },
+  ])
+    assert.equal(liveAcceptancePassed({ ...complete, ...change }), false);
 });
 
 test('promotion request pins the displayed native basis and head vector without refreshing stale review', () => {
   const review = {
-    validation_passing: true, sources_current: true, heads_current: true,
-    promotion_supported: true, decision_basis_hash: 'immutable-reviewed-basis',
+    validation_passing: true,
+    sources_current: true,
+    heads_current: true,
+    promotion_supported: true,
+    decision_basis_hash: 'immutable-reviewed-basis',
     expected_heads: { app: 'a'.repeat(40), policy: 'b'.repeat(40) },
   };
   const input = nativePromotionInput(review, 'live-request');
@@ -72,7 +87,14 @@ test('promotion request pins the displayed native basis and head vector without 
   assert.deepEqual(input.expected_heads, review.expected_heads);
   input.expected_heads.app = 'c'.repeat(40);
   assert.equal(review.expected_heads.app, 'a'.repeat(40));
-  for (const changed of ['validation_passing', 'sources_current', 'heads_current', 'promotion_supported'])
-    assert.throws(() => nativePromotionInput({ ...review, [changed]: false }, 'live-request'),
-      /LIVE_CANDIDATE_NOT_PROMOTABLE/);
+  for (const changed of [
+    'validation_passing',
+    'sources_current',
+    'heads_current',
+    'promotion_supported',
+  ])
+    assert.throws(
+      () => nativePromotionInput({ ...review, [changed]: false }, 'live-request'),
+      /LIVE_CANDIDATE_NOT_PROMOTABLE/,
+    );
 });

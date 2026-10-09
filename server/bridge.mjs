@@ -100,9 +100,11 @@ export async function createBridge({ manifest, token = process.env.GIT_BRIDGE_TO
           canonical_repo: input.canonical_repo,
           source_repo: input.source_repo,
         });
-        if (req.url === '/retain-observation') return execution.retainObservation(repo, input.objects);
+        if (req.url === '/retain-observation')
+          return execution.retainObservation(repo, input.objects);
         if (req.url === '/read-ref') return execution.readRef(repo, input.ref);
-        if (req.url === '/list-refs') return execution.listRefs(repo, { limit: input.limit, cursor: input.cursor });
+        if (req.url === '/list-refs')
+          return execution.listRefs(repo, { limit: input.limit, cursor: input.cursor });
         if (req.url === '/profile')
           return {
             validation_profile: repo.validation_profile ?? null,
@@ -140,7 +142,8 @@ export async function createBridge({ manifest, token = process.env.GIT_BRIDGE_TO
         if (req.url === '/validate' || req.url === '/suite')
           return execution.validate(repo, input.commit, input.constraints, input.validityHeads);
         if (req.url === '/trailers') return execution.trailers(repo, input.commit);
-        if (req.url === '/diff') return { diff: await execution.diff(repo, input.base, input.head) };
+        if (req.url === '/diff')
+          return { diff: await execution.diff(repo, input.base, input.head) };
         if (req.url === '/cas')
           return { updated: await execution.cas(repo, input.expected, input.commit) };
         throw new DomainError('NOT_FOUND', 'Unknown executor operation', 404);

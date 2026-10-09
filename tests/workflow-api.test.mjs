@@ -1,10 +1,17 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { handleWorkflowRequest } from '../server/workflow-api.mjs';
+import { AccessControl } from '../core/access.mjs';
+import { forwardPrincipal, internalPrincipal, trustedPrincipal } from '../worker/identity.mjs';
 import worker, { WorkspaceCoordinator } from '../worker/index.mjs';
 import { Readable } from 'node:stream';
 import { handleLocalRequest } from '../server/local-api.mjs';
-import { authenticatedActor, assertSameOrigin, readRequestBody } from '../server/local-http.mjs';
+import {
+  authenticatedActor,
+  authenticatedPrincipal,
+  assertSameOrigin,
+  readRequestBody,
+} from '../server/local-http.mjs';
 
 const request = (url, input = {}, method = 'POST', actor = 'authenticated-owner') => ({
   url: 'https://coordination' + url,
@@ -326,12 +333,13 @@ test('Worker routes queue processing through the serialization boundary and conf
       {
         WORKSPACE_ID: 'klocgit',
         ACTOR_ID: 'owner',
+        COORDINATOR_AUTH_SECRET: 'workflow-api-private-coordinator-fixture-secret',
         ANALYSIS_QUEUE: { send: async (body) => calls.push({ analysis: body }) },
       },
     );
   await coordinator.ready;
   assert.equal(coordinator.engine.state.workspace.owner_id, 'owner');
-  coordinator.engine = {
+  Object.assign(coordinator.engine, {
     serial: async (fn) => {
       calls.push({ serialized: true });
       return fn();
@@ -342,12 +350,16 @@ test('Worker routes queue processing through the serialization boundary and conf
         return { processed: true, entry: { id: 'queue_1' } };
       },
     },
-  };
+  });
   const response = await coordinator.fetch(
-    new Request('https://coordinator/internal/merge-queue', {
-      method: 'POST',
-      body: JSON.stringify({ request_id: 'process-1', actor: 'injected' }),
-    }),
+    await forwardPrincipal(
+      new Request('https://coordinator/internal/merge-queue', {
+        method: 'POST',
+        body: JSON.stringify({ request_id: 'process-1', actor: 'injected' }),
+      }),
+      internalPrincipal('merge-queue-coordinator'),
+      coordinator.env,
+    ),
   );
   assert.equal(response.status, 200);
   assert.equal(calls[1].actor, 'merge-queue-coordinator');
@@ -359,10 +371,15 @@ test('Queue consumer ignores producer actor claims and forwards only an exact pr
     acked = 0;
   const env = {
     WORKSPACE_ID: 'workspace',
+    COORDINATOR_AUTH_SECRET: 'workflow-api-queue-consumer-fixture-secret',
     COORDINATOR: {
       idFromName: (id) => id,
       get: () => ({
         fetch: async (req) => {
+          assert.deepEqual(
+            await trustedPrincipal(req, env),
+            internalPrincipal('merge-queue-coordinator'),
+          );
           forwarded = { path: new URL(req.url).pathname, body: await req.json() };
           return Response.json({ processed: false });
         },
@@ -435,10 +452,12 @@ test('native Git branch deletion reaches version-gated withdrawal and schedules 
   const env = {
     WORKSPACE_ID: 'workspace',
     ARTIFACTS_NAMESPACE: 'namespace',
+    COORDINATOR_AUTH_SECRET: 'workflow-api-artifacts-ingress-fixture-secret',
     COORDINATOR: {
       idFromName: (id) => id,
       get: () => ({
         fetch: async (req) => {
+          assert.deepEqual(await trustedPrincipal(req, env), internalPrincipal('artifacts-ingress'));
           calls.push({ path: new URL(req.url).pathname, body: await req.json() });
           return Response.json({ withdrawn: true });
         },
@@ -517,7 +536,7 @@ test('local route extraction preserves task wrappers, trusted actor and the requ
   const calls = [],
     task = { task: { id: 'task-1' }, question: { statement: 'One material question' } },
     engine = {
-      state: { tasks: [task] },
+      state: { workspace: { owner_id: 'configured-local-owner' }, tasks: [task] },
       prepareTask: async (...args) => {
         calls.push(args);
         return { prepared: true };
@@ -527,12 +546,18 @@ test('local route extraction preserves task wrappers, trusted actor and the requ
         return { answered: true };
       },
     };
-  // The transport supplies URL objects after parsing the HTTP request.
+  engine.access = new AccessControl(engine);
+  const principal = await authenticatedPrincipal(
+    { headers: { authorization: 'Bearer workflow-api-local-fixture-token' } },
+    { actor: 'configured-local-owner', ownerToken: 'workflow-api-local-fixture-token' },
+  );
+  // The transport supplies the verified principal and parsed URL.
   const route = (path, input = {}, method = 'POST') =>
     handleLocalRequest(
       engine,
       {
         ...request(path, input, method, 'configured-local-owner'),
+        principal,
         url: new URL('https://coordination' + path),
       },
       {},

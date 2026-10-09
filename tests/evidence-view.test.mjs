@@ -68,7 +68,7 @@ test('external evidence view follows actual signed runs, reruns and evaluator po
   let view = await f.engine.view();
   assert.equal(view.evidence.find((entry) => entry.id === signed.evidence.id).validity.status, 'current');
   assert.equal(view.evidence.find((entry) => entry.id === signed.evidence.id).result.passed, true);
-  assert.equal(signed.evidence.source, 'evaluator:ci');
+  assert.equal(signed.evidence.source, 'evaluator-service:ci');
   assert.equal(signed.evidence.basis, 'observed');
   assert.match(signed.evidence.claim, /only these checks/);
 

@@ -25,6 +25,8 @@ The coordinator orders writes; adapters access providers. Git CAS protects refs.
 
 Cloudflare uses Workers, Queues, a Durable Object, Artifacts and a private Container.
 Local development uses the same domain engine with filesystem and Git adapters.
+Repository creation journals its push subscription. A Future becomes active only
+after repository-scoped delivery is read back; uncertain delivery is reconciled.
 
 ## State model
 

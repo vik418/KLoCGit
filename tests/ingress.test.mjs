@@ -8,6 +8,8 @@ import { DomainError } from '../core/hash.mjs';
 import { LocalGit, git } from '../server/git.mjs';
 import worker, { WorkspaceCoordinator } from '../worker/index.mjs';
 
+const coordinatorSecret = 'test-coordinator-transport-secret-at-least-32-characters';
+
 // Artifacts can read valid custom refs as well as heads. Use real bare Git with
 // that capability here, without changing the local adapter's branch-only API.
 class IngressGit extends LocalGit {
@@ -36,6 +38,7 @@ async function fixture(t) {
   await git(root, ['clone', '--quiet', '--bare', work, adapter.dir(repo)]);
   await git(work, ['remote', 'add', 'origin', adapter.dir(repo)]);
   const state = emptyState();
+  state.workspace.owner_id = 'owner';
   state.repositories.push(repo);
   let saves = 0;
   const engine = new Engine(state, adapter, async () => {
@@ -127,12 +130,13 @@ test('native candidate pushes acknowledge without analysis feedback while normal
       storage: { get: async () => undefined, put: async () => {} },
       blockConcurrencyWhile: (fn) => fn(),
     },
-    { ACTOR_ID: 'owner', WORKSPACE_ID: 'klocgit' },
+    { ACTOR_ID: 'owner', WORKSPACE_ID: 'klocgit', COORDINATOR_AUTH_SECRET: coordinatorSecret },
   );
   await coordinator.ready;
   coordinator.engine = f.engine;
   const env = {
     WORKSPACE_ID: 'klocgit',
+    COORDINATOR_AUTH_SECRET: coordinatorSecret,
     ARTIFACTS_NAMESPACE: 'test',
     COORDINATOR: { idFromName: (name) => name, get: () => coordinator },
     ANALYSIS_QUEUE: { send: async (event) => analysis.push(event) },

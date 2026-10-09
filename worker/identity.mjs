@@ -382,26 +382,41 @@ async function sameSecret(actual, expected) {
  * The legacy 'human' category means an individually granted owner/OIDC principal.
  * It does not establish personhood; workloads can use their own OIDC subjects.
  */
+function missingConfiguration(names) {
+  throw new DomainError(
+    'AUTH_NOT_CONFIGURED',
+    'Configure ' + names.join(', ') + ' before authenticating requests',
+    503,
+    { missing: names },
+  );
+}
+
+/** Authenticate one credential without choosing a workspace or trusting payload identity. */
 export async function authenticateRequest(request, env, { ingress = false } = {}) {
   const authorization = request.headers.get('Authorization') ?? '';
   if (authorization.length > MAX_JWT_BYTES + 7) fail();
   const bearer = authorization.match(/^Bearer +([^\s]+)$/i)?.[1] ?? null;
+  const configured = (name) => typeof env[name] === 'string' && Boolean(env[name].trim());
   if (ingress) {
-    if (typeof env.INGEST_TOKEN !== 'string' || !env.INGEST_TOKEN.trim())
-      fail('AUTH_NOT_CONFIGURED', 503);
-    if (!bearer || !(await sameSecret(bearer, env.INGEST_TOKEN))) fail();
+    if (!configured('INGEST_TOKEN')) missingConfiguration(['INGEST_TOKEN']);
+    if (!bearer || !(await sameSecret(bearer, env.INGEST_TOKEN)))
+      throw new DomainError('UNAUTHENTICATED', 'INGEST_TOKEN is missing or incorrect', 401);
     return identity({ actor_id: 'git-ingress', kind: 'service', auth_method: 'ingest-token' });
   }
+  const verifier = oidcVerifier(env);
+  if (!verifier) {
+    const missing = ['AUTH_TOKEN', 'ACTOR_ID'].filter((name) => !configured(name));
+    if (missing.length) missingConfiguration(missing);
+  }
   if (bearer && (await sameSecret(bearer, env.AUTH_TOKEN))) {
-    if (typeof env.ACTOR_ID !== 'string' || !env.ACTOR_ID.trim()) fail('AUTH_NOT_CONFIGURED', 503);
+    if (!configured('ACTOR_ID')) missingConfiguration(['ACTOR_ID']);
     return identity({ actor_id: env.ACTOR_ID, kind: 'human', auth_method: 'owner-token' });
   }
-  const verifier = oidcVerifier(env);
   const assertion = request.headers.get('Cf-Access-Jwt-Assertion');
   if (bearer && assertion && bearer !== assertion) fail();
   if (verifier && (bearer || assertion)) return verifier.verify(bearer || assertion);
-  if (!verifier && (typeof env.AUTH_TOKEN !== 'string' || !env.AUTH_TOKEN.trim()))
-    fail('AUTH_NOT_CONFIGURED', 503);
+  if (!verifier)
+    throw new DomainError('UNAUTHENTICATED', 'AUTH_TOKEN is missing or incorrect', 401);
   fail();
 }
 

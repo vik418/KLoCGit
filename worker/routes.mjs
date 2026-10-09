@@ -237,7 +237,7 @@ export async function handleCoordinatorRequest(
     return jsonResponse(await registerRepository(engine, env, input, actor), 201);
   }
   if (path === '/api/repositories/fork' && method === 'POST') {
-    engine.access.require(principal, 'repository.fork', [input.repo]);
+    engine.access.require(principal, 'repository.fork', [input.repo ?? input.source]);
     return jsonResponse(await forkRepository(engine, env, input, actor), 201);
   }
   const decision = path.match(/^\/api\/decisions\/([^/]+)\/(refresh|resolve)$/);

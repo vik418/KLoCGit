@@ -19,10 +19,19 @@ const policy = {
   scope: [{ repo_id: 'app', path: 'client/delivery.mjs' }],
   choice: {
     key: 'lost-response-behavior',
-    question: 'Should the client retry after the server processed a request but its response was lost?',
+    question:
+      'Should the client retry after the server processed a request but its response was lost?',
     options: [
-      { id: 'retry', label: 'Retry', effects: ['The client repeats the request after a lost response.'] },
-      { id: 'surface', label: 'Surface failure', effects: ['The client returns an uncertain result without retrying.'] },
+      {
+        id: 'retry',
+        label: 'Retry',
+        effects: ['The client repeats the request after a lost response.'],
+      },
+      {
+        id: 'surface',
+        label: 'Surface failure',
+        effects: ['The client returns an uncertain result without retrying.'],
+      },
     ],
   },
 };
@@ -37,8 +46,10 @@ async function fixture(t, document = { constraints: [policy], secret: 'HIDDEN_SE
   for (const id of ['app', 'policy']) {
     const work = path.join(root, id + '-work');
     await git(root, ['init', '--quiet', '-b', 'main', work]);
-    await writeFile(path.join(work, id === 'policy' ? 'policy.json' : 'README.md'),
-      id === 'policy' ? JSON.stringify(document) : '# Application\n');
+    await writeFile(
+      path.join(work, id === 'policy' ? 'policy.json' : 'README.md'),
+      id === 'policy' ? JSON.stringify(document) : '# Application\n',
+    );
     await git(work, ['add', '.']);
     await git(work, ['commit', '--quiet', '-m', 'baseline']);
     const head = await git(work, ['rev-parse', 'HEAD']);
@@ -50,31 +61,58 @@ async function fixture(t, document = { constraints: [policy], secret: 'HIDDEN_SE
   const state = {
     ...emptyState(),
     repositories,
-    systems: [{ id: 'system', name: 'Delivery', repository_refs: repositories.map((repo) => ({
-      repo_id: repo.id, ref,
-    })) }],
-    objectives: [{
-      id: 'objective', system_id: 'system', statement: 'Improve response handling.',
-      scope: ['client/delivery.mjs'], status: 'open', source: { basis: 'declared', actor: 'owner' },
-    }],
-    futures: [], futureRevisions: [],
+    systems: [
+      {
+        id: 'system',
+        name: 'Delivery',
+        repository_refs: repositories.map((repo) => ({
+          repo_id: repo.id,
+          ref,
+        })),
+      },
+    ],
+    objectives: [
+      {
+        id: 'objective',
+        system_id: 'system',
+        statement: 'Improve response handling.',
+        scope: ['client/delivery.mjs'],
+        status: 'open',
+        source: { basis: 'declared', actor: 'owner' },
+      },
+    ],
+    futures: [],
+    futureRevisions: [],
   };
   const engine = new Engine(state, adapter);
   engine.objectiveContext = new NativeContext(engine);
   const context = engine.objectiveContext;
   return {
-    root, state, adapter, engine, context, workspaces,
+    root,
+    state,
+    adapter,
+    engine,
+    context,
+    workspaces,
     async prepare(requestId = 'prepare', sources = [{ repo_id: 'policy', path: 'policy.json' }]) {
       return context.prepare('objective', { sources, request_id: requestId }, 'owner');
     },
     async resolve(preparation, mode = 'answer', requestId = 'answer', option = 'retry') {
-      return context.resolve(preparation.id, {
-        expected_basis_hash: preparation.basis_hash,
-        mode,
-        answers: Object.fromEntries(preparation.questions.map((question) => [question.id, option])),
-        ...(mode === 'assumption' ? { rationale: 'Proceed under this explicit assumption until confirmed.' } : {}),
-        request_id: requestId,
-      }, 'owner');
+      return context.resolve(
+        preparation.id,
+        {
+          expected_basis_hash: preparation.basis_hash,
+          mode,
+          answers: Object.fromEntries(
+            preparation.questions.map((question) => [question.id, option]),
+          ),
+          ...(mode === 'assumption'
+            ? { rationale: 'Proceed under this explicit assumption until confirmed.' }
+            : {}),
+          request_id: requestId,
+        },
+        'owner',
+      );
     },
     async changePolicy(document) {
       const work = workspaces.policy;
@@ -87,7 +125,9 @@ async function fixture(t, document = { constraints: [policy], secret: 'HIDDEN_SE
       const binding = await context.bindFuture(state.objectives[0], snapshotId);
       const future = {
         id: 'future-' + state.futures.length,
-        objective_id: 'objective', system_id: 'system', provenance_state: provenance,
+        objective_id: 'objective',
+        system_id: 'system',
+        provenance_state: provenance,
         ...binding,
       };
       state.futures.push(future);
@@ -98,7 +138,8 @@ async function fixture(t, document = { constraints: [policy], secret: 'HIDDEN_SE
         tree_hashes: [{ repo_id: 'app', tree: repo.tree }],
         baseline_refs: [{ repo_id: 'app', ref, commit: repo.head, tree: repo.tree }],
         affected_scope: [{ repo_id: 'app', paths: ['client/delivery.mjs'] }],
-        provenance_state: provenance, ...binding,
+        provenance_state: provenance,
+        ...binding,
       });
       state.futureRevisions.push(revision);
       return revision;
@@ -108,9 +149,11 @@ async function fixture(t, document = { constraints: [policy], secret: 'HIDDEN_SE
 
 test('plain Objectives retrieve exact cross-repository context and ask only a material annotated question', async (t) => {
   const redundant = {
-    ...policy, id: 'logging-policy',
+    ...policy,
+    id: 'logging-policy',
     choice: {
-      key: 'log-format', question: 'Which log spelling?',
+      key: 'log-format',
+      question: 'Which log spelling?',
       options: [
         { id: 'a', label: 'First', effects: ['Records the same event.'] },
         { id: 'b', label: 'Second', effects: ['Records the same event.'] },
@@ -126,17 +169,30 @@ test('plain Objectives retrieve exact cross-repository context and ask only a ma
   const source = preparation.sources[0];
   assert.equal(source.repo_id, 'policy');
   assert.equal(source.commit, await f.adapter.ref(f.engine.repo('policy'), ref));
-  assert.equal(source.tree, (await f.adapter.facts(f.engine.repo('policy'), source.commit, source.commit)).tree);
-  assert.ok(preparation.items.some((item) => item.type === 'objective' && item.basis === 'declared'));
-  assert.ok(preparation.items.some((item) => item.type === 'constraint' && item.basis === 'retrieved'));
-  assert.ok(preparation.items.some((item) => item.type === 'git-state' && item.basis === 'observed'));
+  assert.equal(
+    source.tree,
+    (await f.adapter.facts(f.engine.repo('policy'), source.commit, source.commit)).tree,
+  );
+  assert.ok(
+    preparation.items.some((item) => item.type === 'objective' && item.basis === 'declared'),
+  );
+  assert.ok(
+    preparation.items.some((item) => item.type === 'constraint' && item.basis === 'retrieved'),
+  );
+  assert.ok(
+    preparation.items.some((item) => item.type === 'git-state' && item.basis === 'observed'),
+  );
   assert.equal((await f.prepare('same-stable-inputs')).preparation.id, preparation.id);
   const stored = f.state.nativeContextPreparations.find((entry) => entry.id === preparation.id);
   assert.ok(Object.isFrozen(stored));
   assert.ok(Object.isFrozen(stored.questions[0].options));
   const question = structuredClone(stored.questions[0]);
   preparation.questions[0].options[0].label = 'Changed response copy';
-  assert.deepEqual(stored.questions[0], question, 'Mutating a response cannot rewrite stored context');
+  assert.deepEqual(
+    stored.questions[0],
+    question,
+    'Mutating a response cannot rewrite stored context',
+  );
 });
 
 test('answers bind immutable snapshots; provenance does not claim unknown producers were identified', async (t) => {
@@ -158,7 +214,9 @@ test('answers bind immutable snapshots; provenance does not claim unknown produc
   const retry = await f.resolve(preparation);
   assert.equal(retry.snapshot.id, result.snapshot.id);
   assert.equal(f.state.nativeContextResolutions.length, 1);
-  await assert.rejects(f.resolve(preparation, 'answer', 'another-answer'), { code: 'CONTEXT_ALREADY_RESOLVED' });
+  await assert.rejects(f.resolve(preparation, 'answer', 'another-answer'), {
+    code: 'CONTEXT_ALREADY_RESOLVED',
+  });
 });
 
 test('unanswered questions become explicit assumptions and unrelated producers can remain unknown', async (t) => {
@@ -181,10 +239,19 @@ test('unanswered questions become explicit assumptions and unrelated producers c
 test('question answers use reviewed basis CAS and remain stale after source ref movement', async (t) => {
   const f = await fixture(t);
   const { preparation } = await f.prepare();
-  await assert.rejects(f.context.resolve(preparation.id, {
-    expected_basis_hash: 'unreviewed-basis',
-    mode: 'answer', answers: { [preparation.questions[0].id]: 'retry' }, request_id: 'stale-answer',
-  }, 'owner'), { code: 'CONTEXT_STALE' });
+  await assert.rejects(
+    f.context.resolve(
+      preparation.id,
+      {
+        expected_basis_hash: 'unreviewed-basis',
+        mode: 'answer',
+        answers: { [preparation.questions[0].id]: 'retry' },
+        request_id: 'stale-answer',
+      },
+      'owner',
+    ),
+    { code: 'CONTEXT_STALE' },
+  );
   await f.changePolicy({ constraints: [{ ...policy, version: 'v1' }] });
   const review = await f.context.review(preparation.id);
   assert.equal(review.validity.status, 'stale');
@@ -195,17 +262,26 @@ test('question answers use reviewed basis CAS and remain stale after source ref 
 test('context remains historical after a source or relevant constraint version changes', async (t) => {
   const f = await fixture(t);
   f.state.constraints.push({
-    id: 'constraint-v0', active: true, kind: 'advisory',
-    statement: 'Response handling must remain observable.', scope: ['client/delivery.mjs'],
+    id: 'constraint-v0',
+    active: true,
+    kind: 'advisory',
+    statement: 'Response handling must remain observable.',
+    scope: ['client/delivery.mjs'],
   });
   const { preparation } = await f.prepare();
   const { snapshot } = await f.resolve(preparation);
   const revision = await f.bindRevision(snapshot.id);
-  f.state.constraints[0] = { ...f.state.constraints[0], id: 'constraint-v1', statement: 'Record response uncertainty.' };
+  f.state.constraints[0] = {
+    ...f.state.constraints[0],
+    id: 'constraint-v1',
+    statement: 'Record response uncertainty.',
+  };
   assert.equal((await f.context.validity(snapshot.id)).status, 'stale');
   assert.equal((await f.context.revisionsValidity([revision.id])).status, 'stale');
   assert.equal(f.context.trace({ kind: 'revision', id: revision.id }).snapshots[0].id, snapshot.id);
-  await assert.rejects(f.context.bindFuture(f.state.objectives[0], snapshot.id), { code: 'CONTEXT_STALE' });
+  await assert.rejects(f.context.bindFuture(f.state.objectives[0], snapshot.id), {
+    code: 'CONTEXT_STALE',
+  });
   assert.equal(preparation.applicable.constraints[0].id, 'constraint-v0');
 });
 
@@ -214,8 +290,11 @@ test('unrelated scoped constraints do not invalidate context', async (t) => {
   const { preparation } = await f.prepare();
   const { snapshot } = await f.resolve(preparation);
   f.state.constraints.push({
-    id: 'unrelated', active: true, kind: 'advisory',
-    statement: 'Dashboard layout is separate.', scope: ['dashboard/layout.jsx'],
+    id: 'unrelated',
+    active: true,
+    kind: 'advisory',
+    statement: 'Dashboard layout is separate.',
+    scope: ['dashboard/layout.jsx'],
   });
   assert.equal((await f.context.validity(snapshot.id)).status, 'current');
 });
@@ -231,20 +310,31 @@ test('raw files and producer secrets are excluded from scoped search and metadat
   const matches = f.context.search({ system_id: 'system', query: 'lost response', limit: 1 });
   assert.equal(matches.length, 1);
   assert.equal(matches[0].objective_id, 'objective');
-  await assert.rejects(f.prepare('secret-path', [{ repo_id: 'policy', path: '.env' }]), { code: 'INVALID_CONTEXT_PATH' });
-  await assert.rejects(f.prepare('parent-path', [{ repo_id: 'policy', path: '../policy.json' }]), { code: 'INVALID_CONTEXT_PATH' });
+  await assert.rejects(f.prepare('secret-path', [{ repo_id: 'policy', path: '.env' }]), {
+    code: 'INVALID_CONTEXT_PATH',
+  });
+  await assert.rejects(f.prepare('parent-path', [{ repo_id: 'policy', path: '../policy.json' }]), {
+    code: 'INVALID_CONTEXT_PATH',
+  });
 });
 
 test('generic non-retry choices work, while unannotated prose remains retrieved data', async (t) => {
   const document = {
-    id: 'cache-policy', version: 'v0', visibility: 'coordination',
+    id: 'cache-policy',
+    version: 'v0',
+    visibility: 'coordination',
     statement: 'Choose the cache invalidation strategy.',
     scope: [{ repo_id: 'app', path: 'client/delivery.mjs' }],
     choice: {
-      key: 'cache-invalidation', question: 'Use bounded TTL or explicit invalidation?',
+      key: 'cache-invalidation',
+      question: 'Use bounded TTL or explicit invalidation?',
       options: [
         { id: 'ttl', label: 'TTL', effects: ['Stale data is bounded by the chosen TTL.'] },
-        { id: 'explicit', label: 'Explicit', effects: ['Every update must invalidate matching keys.'] },
+        {
+          id: 'explicit',
+          label: 'Explicit',
+          effects: ['Every update must invalidate matching keys.'],
+        },
       ],
     },
   };
@@ -257,7 +347,9 @@ test('generic non-retry choices work, while unannotated prose remains retrieved 
   const plain = await f.prepare('readme-context', [{ repo_id: 'app', path: 'README.md' }]);
   assert.equal(plain.preparation.questions.length, 0);
   assert.ok(plain.snapshot);
-  assert.ok(plain.preparation.items.some((item) => item.type === 'source' && item.basis === 'retrieved'));
+  assert.ok(
+    plain.preparation.items.some((item) => item.type === 'source' && item.basis === 'retrieved'),
+  );
   assert.equal(JSON.stringify(plain.preparation).includes('# Application'), false);
 });
 
@@ -268,7 +360,8 @@ test('decision trace preserves rationale and exact selected Git origins without 
   const revision = await f.bindRevision(snapshot.id);
   const repo = f.engine.repo('app');
   const selection = await record('selection', {
-    future_revision_id: revision.id, kind: 'future',
+    future_revision_id: revision.id,
+    kind: 'future',
     entries: [{ repo_id: 'app', source_repo: 'app', head_commit: repo.head, commits: [] }],
   });
   const candidate = await record('candidate', {
@@ -276,9 +369,11 @@ test('decision trace preserves rationale and exact selected Git origins without 
     repositories: [{ repo_id: 'app', commit: repo.head, tree: repo.tree }],
   });
   const decision = await record('native-decision', {
-    candidate_id: candidate.id, resolution: 'accept',
+    candidate_id: candidate.id,
+    resolution: 'accept',
     rationale: 'Keep the explicit retry choice and retain its uncertainty.',
-    actor: 'owner', decision_basis_hash: 'reviewed-basis',
+    actor: 'owner',
+    decision_basis_hash: 'reviewed-basis',
   });
   f.state.selections = [selection];
   f.state.candidateStates = [candidate];
@@ -309,7 +404,10 @@ test('two concurrent answers serialize to one immutable resolution and rejected 
     f.engine.serial(() => f.resolve(preparation, 'answer', 'answer-two', 'surface')),
   ]);
   assert.equal(results.filter((result) => result.status === 'fulfilled').length, 1);
-  assert.equal(results.find((result) => result.status === 'rejected').reason.code, 'CONTEXT_ALREADY_RESOLVED');
+  assert.equal(
+    results.find((result) => result.status === 'rejected').reason.code,
+    'CONTEXT_ALREADY_RESOLVED',
+  );
   assert.equal(f.state.nativeContextResolutions.length, 1);
   assert.equal(f.state.nativeContextSnapshots.length, 1);
   assert.equal(f.state.nativeContextSnapshots[0].resolutions[0].value.option_id, 'retry');
@@ -318,28 +416,59 @@ test('two concurrent answers serialize to one immutable resolution and rejected 
 test('context cannot be bound to another Objective and answer fields cannot silently introduce extra choices', async (t) => {
   const f = await fixture(t);
   const { preparation } = await f.prepare();
-  await assert.rejects(f.context.resolve(preparation.id, {
-    expected_basis_hash: preparation.basis_hash, mode: 'answer',
-    answers: { [preparation.questions[0].id]: 'retry', extra: 'surface' }, request_id: 'extra-choice',
-  }, 'owner'), { code: 'INVALID_CONTEXT_ANSWER' });
+  await assert.rejects(
+    f.context.resolve(
+      preparation.id,
+      {
+        expected_basis_hash: preparation.basis_hash,
+        mode: 'answer',
+        answers: { [preparation.questions[0].id]: 'retry', extra: 'surface' },
+        request_id: 'extra-choice',
+      },
+      'owner',
+    ),
+    { code: 'INVALID_CONTEXT_ANSWER' },
+  );
   const { snapshot } = await f.resolve(preparation);
-  await assert.rejects(f.context.bindFuture({ ...f.state.objectives[0], id: 'other' }, snapshot.id), { code: 'CONTEXT_OBJECTIVE_MISMATCH' });
-  await assert.rejects(f.context.resolve(preparation.id, {
-    expected_basis_hash: preparation.basis_hash, mode: 'answer',
-    answers: { [preparation.questions[0].id]: 'retry' }, request_id: 'unauthenticated',
-  }, ''), { code: 'UNAUTHENTICATED' });
+  await assert.rejects(
+    f.context.bindFuture({ ...f.state.objectives[0], id: 'other' }, snapshot.id),
+    { code: 'CONTEXT_OBJECTIVE_MISMATCH' },
+  );
+  await assert.rejects(
+    f.context.resolve(
+      preparation.id,
+      {
+        expected_basis_hash: preparation.basis_hash,
+        mode: 'answer',
+        answers: { [preparation.questions[0].id]: 'retry' },
+        request_id: 'unauthenticated',
+      },
+      '',
+    ),
+    { code: 'UNAUTHENTICATED' },
+  );
 });
 
 test('named competing approaches preserve separate answers to the same pinned material question', async (t) => {
   const f = await fixture(t);
-  const first = await f.context.prepare('objective', {
-    sources: [{ repo_id: 'policy', path: 'policy.json' }],
-    hypothesis: 'Retry strategy', request_id: 'prepare-retry',
-  }, 'owner');
-  const second = await f.context.prepare('objective', {
-    sources: [{ repo_id: 'policy', path: 'policy.json' }],
-    hypothesis: 'Surface uncertainty', request_id: 'prepare-surface',
-  }, 'owner');
+  const first = await f.context.prepare(
+    'objective',
+    {
+      sources: [{ repo_id: 'policy', path: 'policy.json' }],
+      hypothesis: 'Retry strategy',
+      request_id: 'prepare-retry',
+    },
+    'owner',
+  );
+  const second = await f.context.prepare(
+    'objective',
+    {
+      sources: [{ repo_id: 'policy', path: 'policy.json' }],
+      hypothesis: 'Surface uncertainty',
+      request_id: 'prepare-surface',
+    },
+    'owner',
+  );
   assert.notEqual(first.preparation.id, second.preparation.id);
   assert.equal(first.preparation.questions[0].id, second.preparation.questions[0].id);
   const retry = await f.resolve(first.preparation, 'answer', 'answer-retry', 'retry');

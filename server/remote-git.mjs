@@ -39,9 +39,16 @@ export class RemoteGit extends LocalGit {
     return adapter;
   }
   requireCanonicalAuthority(repo) {
-    if (this.#readOnlySources.has(repo.id) || !Object.hasOwn(this.manifest.repositories ?? {}, repo.id) ||
-        (repo.canonical_repo && repo.canonical_repo !== repo.id))
-      throw new DomainError('SOURCE_WRITE_FORBIDDEN', 'Isolated source credentials cannot write canonical Git', 403);
+    if (
+      this.#readOnlySources.has(repo.id) ||
+      !Object.hasOwn(this.manifest.repositories ?? {}, repo.id) ||
+      (repo.canonical_repo && repo.canonical_repo !== repo.id)
+    )
+      throw new DomainError(
+        'SOURCE_WRITE_FORBIDDEN',
+        'Isolated source credentials cannot write canonical Git',
+        403,
+      );
   }
   entry(id) {
     if (!/^[A-Za-z0-9][A-Za-z0-9._-]{0,99}$/.test(id ?? ''))
@@ -49,7 +56,11 @@ export class RemoteGit extends LocalGit {
     const source = this.#sources.get(id);
     if (source) {
       if (Date.parse(source.expiresAt) <= Date.now())
-        throw new DomainError('SOURCE_CREDENTIAL_EXPIRED', 'The private source credential expired', 403);
+        throw new DomainError(
+          'SOURCE_CREDENTIAL_EXPIRED',
+          'The private source credential expired',
+          403,
+        );
       return {
         id: source.id,
         remote: source.remote,
@@ -83,7 +94,11 @@ export class RemoteGit extends LocalGit {
   configured(repo) {
     const entry = this.entry(repo.id);
     if (entry.readonly && entry.canonical_repo !== repo.canonical_repo)
-      throw new DomainError('SOURCE_AUTHORITY_INVALID', 'Source canonical pairing differs from the private authority', 403);
+      throw new DomainError(
+        'SOURCE_AUTHORITY_INVALID',
+        'Source canonical pairing differs from the private authority',
+        403,
+      );
     return {
       ...repo,
       validation_profile: entry.validation_profile,
@@ -92,24 +107,31 @@ export class RemoteGit extends LocalGit {
   }
   async remote(id, args) {
     const entry = this.entry(id);
-    if ((entry.readonly || this.#readOnlySources.has(id)) && !['fetch', 'ls-remote'].includes(args[0]))
-      throw new DomainError('SOURCE_WRITE_FORBIDDEN', 'Isolated source credentials permit Git reads only', 403);
-    const transportEnvironment = Object.fromEntries(
-        [
-          'HTTP_PROXY',
-          'HTTPS_PROXY',
-          'ALL_PROXY',
-          'NO_PROXY',
-          'http_proxy',
-          'https_proxy',
-          'all_proxy',
-          'no_proxy',
-          'SSL_CERT_FILE',
-          'GIT_SSL_CAINFO',
-        ]
-          .filter((key) => process.env[key])
-          .map((key) => [key, process.env[key]]),
+    if (
+      (entry.readonly || this.#readOnlySources.has(id)) &&
+      !['fetch', 'ls-remote'].includes(args[0])
+    )
+      throw new DomainError(
+        'SOURCE_WRITE_FORBIDDEN',
+        'Isolated source credentials permit Git reads only',
+        403,
       );
+    const transportEnvironment = Object.fromEntries(
+      [
+        'HTTP_PROXY',
+        'HTTPS_PROXY',
+        'ALL_PROXY',
+        'NO_PROXY',
+        'http_proxy',
+        'https_proxy',
+        'all_proxy',
+        'no_proxy',
+        'SSL_CERT_FILE',
+        'GIT_SSL_CAINFO',
+      ]
+        .filter((key) => process.env[key])
+        .map((key) => [key, process.env[key]]),
+    );
     const env = {
       ...transportEnvironment,
       PATH: '/usr/bin:/bin',
@@ -119,7 +141,9 @@ export class RemoteGit extends LocalGit {
       GIT_CONFIG_GLOBAL: '/dev/null',
       GIT_CONFIG_COUNT: '1',
       GIT_CONFIG_KEY_0: 'http.extraHeader',
-      GIT_CONFIG_VALUE_0: 'Authorization: Bearer ' + (this.#sources.get(id)?.plaintext ?? process.env[entry.tokenEnv]),
+      GIT_CONFIG_VALUE_0:
+        'Authorization: Bearer ' +
+        (this.#sources.get(id)?.plaintext ?? process.env[entry.tokenEnv]),
     };
     try {
       return (
@@ -192,10 +216,11 @@ export class RemoteGit extends LocalGit {
     observationRef(ref);
     await this.prepareCache(repo.id);
     const rows = (await this.remote(repo.id, ['ls-remote', this.entry(repo.id).remote, ref]))
-      .split('\n').filter(Boolean).map((line) => line.split(/\s+/));
+      .split('\n')
+      .filter(Boolean)
+      .map((line) => line.split(/\s+/));
     const object_id = rows.find((row) => row[1] === ref)?.[0];
-    if (!object_id)
-      throw new DomainError('REF_NOT_FOUND', 'Remote Git ref is unavailable', 404);
+    if (!object_id) throw new DomainError('REF_NOT_FOUND', 'Remote Git ref is unavailable', 404);
     if (!gitObjectId.test(object_id))
       throw new DomainError('INVALID_GIT_FACTS', 'Remote Git returned an invalid ref object', 503);
     try {
@@ -212,21 +237,45 @@ export class RemoteGit extends LocalGit {
         resolved = null;
       }
     }
-    return { ref, kind: ref.startsWith('refs/tags/') ? 'tag' : 'branch', object_id, object_type, commit: resolved, available_for_future: gitObjectId.test(resolved) };
+    return {
+      ref,
+      kind: ref.startsWith('refs/tags/') ? 'tag' : 'branch',
+      object_id,
+      object_type,
+      commit: resolved,
+      available_for_future: gitObjectId.test(resolved),
+    };
   }
   async listRefs(repo, input = {}) {
     await this.prepareCache(repo.id);
-    const rows = (await this.remote(repo.id, ['ls-remote', '--heads', '--tags', this.entry(repo.id).remote]))
-      .split('\n').filter(Boolean).map((line) => line.split(/\s+/));
-    const refs = rows.filter((row) => !row[1]?.endsWith('^{}')).map(([object_id, ref]) => {
-      observationRef(ref);
-      if (!gitObjectId.test(object_id))
-        throw new DomainError('INVALID_GIT_FACTS', 'Remote Git returned an invalid ref object', 503);
-      const peeled = rows.find((row) => row[1] === ref + '^{}')?.[0];
-      const branch = ref.startsWith('refs/heads/');
-      // Advertising an unpeeled tag alone cannot establish its target object type.
-      return { ref, kind: branch ? 'branch' : 'tag', object_id, object_type: branch ? 'commit' : peeled ? 'tag' : 'unknown', commit: branch ? object_id : null, available_for_future: branch ? true : null };
-    });
+    const rows = (
+      await this.remote(repo.id, ['ls-remote', '--heads', '--tags', this.entry(repo.id).remote])
+    )
+      .split('\n')
+      .filter(Boolean)
+      .map((line) => line.split(/\s+/));
+    const refs = rows
+      .filter((row) => !row[1]?.endsWith('^{}'))
+      .map(([object_id, ref]) => {
+        observationRef(ref);
+        if (!gitObjectId.test(object_id))
+          throw new DomainError(
+            'INVALID_GIT_FACTS',
+            'Remote Git returned an invalid ref object',
+            503,
+          );
+        const peeled = rows.find((row) => row[1] === ref + '^{}')?.[0];
+        const branch = ref.startsWith('refs/heads/');
+        // Advertising an unpeeled tag alone cannot establish its target object type.
+        return {
+          ref,
+          kind: branch ? 'branch' : 'tag',
+          object_id,
+          object_type: branch ? 'commit' : peeled ? 'tag' : 'unknown',
+          commit: branch ? object_id : null,
+          available_for_future: branch ? true : null,
+        };
+      });
     return pageRefs(refs, input);
   }
   async retainObservation(repo, objects) {
@@ -236,7 +285,11 @@ export class RemoteGit extends LocalGit {
     this.requireCanonicalAuthority(archive);
     const source = this.entry(repo.id);
     if (source.readonly && source.canonical_repo !== archive.id)
-      throw new DomainError('SOURCE_AUTHORITY_INVALID', 'Archive must match the admitted source canonical repository', 403);
+      throw new DomainError(
+        'SOURCE_AUTHORITY_INVALID',
+        'Archive must match the admitted source canonical repository',
+        403,
+      );
     await this.prepareCache(repo.id);
     await this.prepareCache(archive.id);
     for (const oid of [...new Set(objects)]) {
@@ -246,13 +299,24 @@ export class RemoteGit extends LocalGit {
     const retained = await super.retainObservation(repo, objects);
     for (const entry of retained.objects) {
       await this.remote(archive.id, [
-        'push', '--porcelain', '--force-with-lease=' + entry.ref + ':',
-        this.entry(archive.id).remote, entry.object_id + ':' + entry.ref,
+        'push',
+        '--porcelain',
+        '--force-with-lease=' + entry.ref + ':',
+        this.entry(archive.id).remote,
+        entry.object_id + ':' + entry.ref,
       ]);
-      const rows = (await this.remote(archive.id, ['ls-remote', this.entry(archive.id).remote, entry.ref]))
-        .split('\n').filter(Boolean).map((line) => line.split(/\s+/));
+      const rows = (
+        await this.remote(archive.id, ['ls-remote', this.entry(archive.id).remote, entry.ref])
+      )
+        .split('\n')
+        .filter(Boolean)
+        .map((line) => line.split(/\s+/));
       if (rows.find((row) => row[1] === entry.ref)?.[0] !== entry.object_id)
-        throw new DomainError('RETENTION_UNCERTAIN', 'Remote archive retention is unconfirmed', 503);
+        throw new DomainError(
+          'RETENTION_UNCERTAIN',
+          'Remote archive retention is unconfirmed',
+          503,
+        );
     }
     return retained;
   }

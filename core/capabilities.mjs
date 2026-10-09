@@ -293,13 +293,15 @@ const registry = {
       status: 'EXPERIMENTAL',
       tests: [
         'tests/artifacts.test.mjs',
+        'tests/artifact-subscriptions.test.mjs',
+        'tests/source-authority.test.mjs',
         'tests/native-state.test.mjs',
         'tests/native-api.test.mjs',
       ],
       scope:
-        'Provider adapters create, import, inspect and fork repositories while returning token-free descriptors.',
+        'Provider adapters create, import, inspect and fork repositories. Scoped read leases admit isolated sources; journaled repository subscriptions gate activation. Returned descriptors contain no credentials.',
       limits:
-        'API and executor tests do not verify live Artifacts lifecycle, scoped credential provisioning, imports, native push delivery or recovery.',
+        'Live lifecycle, credential issuance, imports, native push delivery and recovery remain unverified. Subscription discovery is bounded to 1,000 entries per queue.',
     },
     {
       id: 'cloudflare.live',

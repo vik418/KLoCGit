@@ -357,8 +357,14 @@ try {
   await git(futureCheckout, 'push', 'origin', 'refs/tags/review-state', 'refs/tags/tree-only');
   const sourceRepository = future.repositories[0];
   const listed = await api('/repositories/' + sourceRepository.repo_id + '/refs?limit=50');
-  assert.equal(listed.refs.find((entry) => entry.ref === 'refs/tags/tree-only').available_for_future, false);
-  assert.equal(listed.refs.find((entry) => entry.ref === 'refs/tags/review-state').commit, changedCommit);
+  assert.equal(
+    listed.refs.find((entry) => entry.ref === 'refs/tags/tree-only').available_for_future,
+    false,
+  );
+  assert.equal(
+    listed.refs.find((entry) => entry.ref === 'refs/tags/review-state').commit,
+    changedCommit,
+  );
 
   async function chooseSource(ref) {
     const control = page.getByRole('button', { name: 'Choose source refs', exact: true });
@@ -393,35 +399,58 @@ try {
   assert.equal(native.repositories.find((item) => item.id === 'app').head, baselineCommit);
   assert.deepEqual(native.futureRevisions[0], firstRevision);
   assert.equal(native.futureRevisions.length, 5);
-  const retainedTag = native.retentions.find((entry) =>
-    entry.subject.source_repo_id === sourceRepository.repo_id &&
-    entry.subject.object_ids.includes(annotatedTag) &&
-    entry.status === 'retained',
+  const retainedTag = native.retentions.find(
+    (entry) =>
+      entry.subject.source_repo_id === sourceRepository.repo_id &&
+      entry.subject.object_ids.includes(annotatedTag) &&
+      entry.status === 'retained',
   );
   assert.ok(retainedTag, 'An annotated tag and its commit must have an archive receipt');
   assert.equal(
-    await git(repository.remote, 'rev-parse', 'refs/klocgit/observations/' + sourceRepository.repo_id + '/' + annotatedTag),
+    await git(
+      repository.remote,
+      'rev-parse',
+      'refs/klocgit/observations/' + sourceRepository.repo_id + '/' + annotatedTag,
+    ),
     annotatedTag,
     'The archive must pin the tag object itself, not only its peeled commit',
   );
   const provenance = await api('/provenance/revision/' + tagRevision.revision.id);
   assert.equal(provenance.version, 0);
-  const provenanceRevision = provenance.records.find((record) =>
-    record.kind === 'revision' && record.id === tagRevision.revision.id,
+  const provenanceRevision = provenance.records.find(
+    (record) => record.kind === 'revision' && record.id === tagRevision.revision.id,
   );
   assert.equal(provenanceRevision.basis, 'observed');
-  assert.equal(provenanceRevision.provenance_state, 'unknown', 'Observed Git facts must not invent producer provenance');
+  assert.equal(
+    provenanceRevision.provenance_state,
+    'unknown',
+    'Observed Git facts must not invent producer provenance',
+  );
   assert.deepEqual(provenanceRevision.repository_heads, tagRevision.revision.repository_heads);
   assert.deepEqual(provenanceRevision.tree_hashes, tagRevision.revision.tree_hashes);
-  assert.ok(provenance.records.some((record) =>
-    record.kind === 'objective' && record.id === future.objective_id && record.basis === 'unknown',
-  ));
-  assert.ok(provenance.links.some((link) =>
-    link.from.kind === 'objective' && link.from.id === future.objective_id &&
-    link.to.kind === 'revision' && link.to.id === tagRevision.revision.id,
-  ), 'The recorded outcome must remain linked to this exact revision');
+  assert.ok(
+    provenance.records.some(
+      (record) =>
+        record.kind === 'objective' &&
+        record.id === future.objective_id &&
+        record.basis === 'unknown',
+    ),
+  );
+  assert.ok(
+    provenance.links.some(
+      (link) =>
+        link.from.kind === 'objective' &&
+        link.from.id === future.objective_id &&
+        link.to.kind === 'revision' &&
+        link.to.id === tagRevision.revision.id,
+    ),
+    'The recorded outcome must remain linked to this exact revision',
+  );
 
-  const tagHistory = page.getByRole('region', { name: 'Revision history for ' + future.name, exact: true });
+  const tagHistory = page.getByRole('region', {
+    name: 'Revision history for ' + future.name,
+    exact: true,
+  });
   const tagRecord = tagHistory.locator('div.rounded-md.border.p-3').filter({
     has: page.getByText(tagRevision.revision.id, { exact: true }),
   });
@@ -443,9 +472,20 @@ try {
   const restoredMain = await chooseSource('refs/heads/main');
   assert.equal(restoredMain.revision.repository_heads[0].commit, baselineCommit);
   assert.equal(restoredMain.revision.repository_heads[0].ref, 'refs/heads/main');
-  await git(futureCheckout, 'push', 'origin', '--delete', 'refs/heads/ref-choice', 'refs/tags/review-state');
+  await git(
+    futureCheckout,
+    'push',
+    'origin',
+    '--delete',
+    'refs/heads/ref-choice',
+    'refs/tags/review-state',
+  );
   assert.equal(
-    await git(repository.remote, 'rev-parse', 'refs/klocgit/observations/' + sourceRepository.repo_id + '/' + changedCommit),
+    await git(
+      repository.remote,
+      'rev-parse',
+      'refs/klocgit/observations/' + sourceRepository.repo_id + '/' + changedCommit,
+    ),
     changedCommit,
     'Deleting source refs must not discard objects referenced by historical revisions',
   );
@@ -536,31 +576,40 @@ try {
   await git(policyCheckout, 'config', 'user.email', 'tests@localhost');
   await git(policyCheckout, 'checkout', '-B', 'main');
   const policyDocument = {
-    constraints: [{
-      id: 'retry-contract',
-      version: 'v0',
-      visibility: 'coordination',
-      statement: 'Retries require an explicit failure policy.',
-      scope: [{ repo_id: 'app', path: 'app.mjs' }],
-      choice: {
-        key: 'retry',
-        question: 'May a failed request be retried?',
-        options: [
-          { id: 'retry', label: 'Retry once', effects: ['A failed request can produce a second attempt'] },
-          { id: 'once', label: 'Attempt once', effects: ['A failed request ends the operation'] },
-        ],
+    constraints: [
+      {
+        id: 'retry-contract',
+        version: 'v0',
+        visibility: 'coordination',
+        statement: 'Retries require an explicit failure policy.',
+        scope: [{ repo_id: 'app', path: 'app.mjs' }],
+        choice: {
+          key: 'retry',
+          question: 'May a failed request be retried?',
+          options: [
+            {
+              id: 'retry',
+              label: 'Retry once',
+              effects: ['A failed request can produce a second attempt'],
+            },
+            { id: 'once', label: 'Attempt once', effects: ['A failed request ends the operation'] },
+          ],
+        },
       },
-    }],
+    ],
   };
-  await writeFile(path.join(policyCheckout, 'context.json'), JSON.stringify(policyDocument, null, 2) + '\n');
+  await writeFile(
+    path.join(policyCheckout, 'context.json'),
+    JSON.stringify(policyDocument, null, 2) + '\n',
+  );
   await git(policyCheckout, 'add', 'context.json');
   await git(policyCheckout, 'commit', '-m', 'Record retry policy');
   await git(policyCheckout, 'push', 'origin', 'HEAD:refs/heads/main');
   const policyCommit = await git(policyCheckout, 'rev-parse', 'HEAD');
   await api('/repositories/policy/refresh', { request_id: 'browser-policy-refresh' });
   const contextState = await api('/native-state');
-  const applicationSystem = contextState.systems.find((system) =>
-    system.repository_ids.length === 1 && system.repository_ids[0] === 'app',
+  const applicationSystem = contextState.systems.find(
+    (system) => system.repository_ids.length === 1 && system.repository_ids[0] === 'app',
   );
   const { objective } = await api('/objectives', {
     system_id: applicationSystem.id,
@@ -571,8 +620,10 @@ try {
   const futureCountBeforeContext = contextState.futures.length;
   await authenticate(page, url);
   await page.getByRole('button', { name: 'Systems', exact: true }).click();
-  const objectiveCard = page.getByRole('region', { name: 'Objectives', exact: true })
-    .locator('[data-slot="card"]').filter({
+  const objectiveCard = page
+    .getByRole('region', { name: 'Objectives', exact: true })
+    .locator('[data-slot="card"]')
+    .filter({
       has: page.getByRole('heading', { name: 'Apply retry policy', exact: true }),
     });
   await objectiveCard.getByRole('button', { name: 'Prepare context', exact: true }).click();
@@ -585,12 +636,19 @@ try {
   const preparedResponse = await prepared;
   assert.equal(preparedResponse.status(), 200, await preparedResponse.text());
   const { preparation } = await preparedResponse.json();
-  assert.equal(preparation.questions.length, 1, 'Only the declared material ambiguity should become a question');
+  assert.equal(
+    preparation.questions.length,
+    1,
+    'Only the declared material ambiguity should become a question',
+  );
   assert.equal(preparation.sources[0].repo_id, 'policy');
   assert.equal(preparation.sources[0].commit, policyCommit);
   await dialog.getByLabel('May a failed request be retried?', { exact: true }).waitFor();
-  assert.equal((await api('/native-state')).futures.length, futureCountBeforeContext,
-    'Preparing context must not start work before the answer');
+  assert.equal(
+    (await api('/native-state')).futures.length,
+    futureCountBeforeContext,
+    'Preparing context must not start work before the answer',
+  );
   await dialog.getByLabel('May a failed request be retried?', { exact: true }).selectOption('once');
   const answered = waitForMutation(page, '/context/' + preparation.id + '/resolve');
   await dialog.getByRole('button', { name: 'Record answers', exact: true }).click();
@@ -603,7 +661,10 @@ try {
   assert.deepEqual(snapshot.assumption_refs, []);
   dialog = page.getByRole('dialog', { name: 'Fork repositories', exact: true });
   await dialog.waitFor();
-  assert.equal(await dialog.getByLabel('Objective (optional)', { exact: true }).inputValue(), objective.id);
+  assert.equal(
+    await dialog.getByLabel('Objective (optional)', { exact: true }).inputValue(),
+    objective.id,
+  );
   assert.equal(await dialog.getByLabel('Objective (optional)', { exact: true }).isDisabled(), true);
   const contextFutureCreated = waitForMutation(page, '/futures');
   await dialog.getByRole('button', { name: 'Fork repositories', exact: true }).click();
@@ -617,11 +678,22 @@ try {
   await dialog.waitFor({ state: 'hidden' });
   const contextGraph = await api('/provenance/revision/' + contextFuture.revision.id);
   assert.ok(contextGraph.records.some((record) => record.id === snapshot.id));
-  assert.ok(contextGraph.records.some((record) => record.id === snapshot.resolutions[0].id && record.basis === 'declared'));
-  assert.equal((await api('/native-state')).repositories.find((entry) => entry.id === 'app').head, baselineCommit);
+  assert.ok(
+    contextGraph.records.some(
+      (record) => record.id === snapshot.resolutions[0].id && record.basis === 'declared',
+    ),
+  );
+  assert.equal(
+    (await api('/native-state')).repositories.find((entry) => entry.id === 'app').head,
+    baselineCommit,
+  );
   await assertFitsViewport(page);
   assert.deepEqual(pageErrors, [], 'Context workflow must not throw browser errors');
-  assert.deepEqual(accessibilityWarnings, [], 'Context and Future dialogs must use accessible titles and descriptions');
+  assert.deepEqual(
+    accessibilityWarnings,
+    [],
+    'Context and Future dialogs must use accessible titles and descriptions',
+  );
   await capture('context-desktop');
 
   console.log(

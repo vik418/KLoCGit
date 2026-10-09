@@ -44,14 +44,37 @@ const baseFiles = () => ({
 });
 
 const specs = () => [
-  { name: 'a', objective: 'checkout', files: { 'client.json': JSON.stringify({ retryFailedResponse: true }) } },
-  { name: 'b', objective: 'checkout', files: { 'server.json': JSON.stringify({ deduplicateConfirmations: false }) } },
+  {
+    name: 'a',
+    objective: 'checkout',
+    files: { 'client.json': JSON.stringify({ retryFailedResponse: true }) },
+  },
+  {
+    name: 'b',
+    objective: 'checkout',
+    files: { 'server.json': JSON.stringify({ deduplicateConfirmations: false }) },
+  },
   { name: 'c', objective: 'tracing', files: { 'trace.json': JSON.stringify({ enabled: true }) } },
   { name: 'd', objective: 'tracing', files: { 'trace.json': JSON.stringify({ enabled: true }) } },
-  { name: 'e', objective: 'retention', files: { 'retention.json': JSON.stringify({ days: 1 }) }, declaration: { decision_key: 'retention', choice: 'short' } },
-  { name: 'f', objective: 'retention', files: { 'retention.json': JSON.stringify({ days: 30 }) }, declaration: { decision_key: 'retention', choice: 'long' } },
+  {
+    name: 'e',
+    objective: 'retention',
+    files: { 'retention.json': JSON.stringify({ days: 1 }) },
+    declaration: { decision_key: 'retention', choice: 'short' },
+  },
+  {
+    name: 'f',
+    objective: 'retention',
+    files: { 'retention.json': JSON.stringify({ days: 30 }) },
+    declaration: { decision_key: 'retention', choice: 'long' },
+  },
   { name: 'g', objective: 'metrics', files: { 'metrics.json': JSON.stringify({ enabled: true }) } },
-  { name: 'h', objective: 'unknown', provenance: 'unknown', files: { 'README.md': 'Documentation from an arbitrary Git client.\n' } },
+  {
+    name: 'h',
+    objective: 'unknown',
+    provenance: 'unknown',
+    files: { 'README.md': 'Documentation from an arbitrary Git client.\n' },
+  },
 ];
 
 async function finiteValidation(files) {
@@ -90,11 +113,19 @@ async function fixture(inputSpecs = specs()) {
     objects.set(commit, { commit, tree, files });
     refs.set(repoId + ':' + ref, commit);
     baselines.set(repoId, { commit, tree });
-    state.repositories.push({ id: repoId, canonical_ref: ref, head: commit, tree, baseline: commit });
+    state.repositories.push({
+      id: repoId,
+      canonical_ref: ref,
+      head: commit,
+      tree,
+      baseline: commit,
+    });
   }
   const systemIds = sorted(inputSpecs.map((spec) => spec.system ?? 'checkout-system'));
   state.systems = systemIds.map((id) => ({
-    id, name: id, version: 1,
+    id,
+    name: id,
+    version: 1,
     repository_refs: repoIds.map((repo_id) => ({ repo_id, ref })),
   }));
   state.objectives = [];
@@ -107,8 +138,12 @@ async function fixture(inputSpecs = specs()) {
     const objectiveId = systemId + ':objective:' + (spec.objective ?? spec.name);
     if (!state.objectives.some((objective) => objective.id === objectiveId))
       state.objectives.push({
-        id: objectiveId, system_id: systemId, statement: spec.objective ?? spec.name,
-        source: { basis: 'declared', actor }, status: 'open', scope: [repoId],
+        id: objectiveId,
+        system_id: systemId,
+        statement: spec.objective ?? spec.name,
+        source: { basis: 'declared', actor },
+        status: 'open',
+        scope: [repoId],
       });
     const baseline = baselines.get(repoId);
     const files = { ...baseFiles(), ...spec.files };
@@ -119,23 +154,37 @@ async function fixture(inputSpecs = specs()) {
     objects.set(commit, { commit, tree, files });
     refs.set(sourceRepo + ':' + ref, commit);
     const baselineRefs = [{ repo_id: repoId, ref, ...baseline }];
-    const producer = { kind: spec.provenance === 'unknown' ? 'unknown' : 'git-client', id: spec.name };
+    const producer = {
+      kind: spec.provenance === 'unknown' ? 'unknown' : 'git-client',
+      id: spec.name,
+    };
     const revision = await record('future_revision', {
       future_id: 'future-' + spec.name,
       previous_revision_id: null,
       repository_heads: [{ repo_id: repoId, source_repo_id: sourceRepo, ref, commit }],
       tree_hashes: [{ repo_id: repoId, tree }],
       baseline_refs: baselineRefs,
-      affected_scope: [{ repo_id: repoId, paths: sorted(Object.keys(files).filter((name) => files[name] !== baseFiles()[name])) }],
+      affected_scope: [
+        {
+          repo_id: repoId,
+          paths: sorted(Object.keys(files).filter((name) => files[name] !== baseFiles()[name])),
+        },
+      ],
       producer,
       context_snapshot: null,
       provenance_state: spec.provenance ?? 'declared',
     });
     state.futureRevisions.push(revision);
     state.futures.push({
-      id: revision.future_id, system_id: systemId, objective_id: objectiveId,
-      name: spec.name, producer, provenance_state: revision.provenance_state,
-      status: 'active', version: 1, current_revision_id: revision.id,
+      id: revision.future_id,
+      system_id: systemId,
+      objective_id: objectiveId,
+      name: spec.name,
+      producer,
+      provenance_state: revision.provenance_state,
+      status: 'active',
+      version: 1,
+      current_revision_id: revision.id,
       baseline_refs: baselineRefs,
       repositories: [{ canonical_repo_id: repoId, repo_id: sourceRepo, ref, status: 'ready' }],
     });
@@ -149,33 +198,49 @@ async function fixture(inputSpecs = specs()) {
       return value;
     },
     async facts(_repo, head, base) {
-      const current = objects.get(head), previous = objects.get(base);
+      const current = objects.get(head),
+        previous = objects.get(base);
       if (!current || !previous) throw new DomainError('MISSING_COMMIT', 'Git object missing', 404);
       return {
-        head, base, tree: current.tree,
-        scope: sorted(Object.keys(current.files).filter((name) => current.files[name] !== previous.files[name])),
+        head,
+        base,
+        tree: current.tree,
+        scope: sorted(
+          Object.keys(current.files).filter((name) => current.files[name] !== previous.files[name]),
+        ),
       };
     },
     async file(_repo, head, name) {
       return objects.get(head)?.files[name] ?? null;
     },
     async isAncestor(_repo, ancestor, descendant) {
-      return ancestor === descendant || [...baselines.values()].some((base) => base.commit === ancestor);
+      return (
+        ancestor === descendant || [...baselines.values()].some((base) => base.commit === ancestor)
+      );
     },
     async composeSelections(repo, head, selections) {
       calls.compositions.push({ repo: repo.id, head, selections: structuredClone(selections) });
-      const baseline = objects.get(head), files = { ...baseline.files }, changed = new Map();
+      const baseline = objects.get(head),
+        files = { ...baseline.files },
+        changed = new Map();
       for (const selection of selections) {
-        const previous = objects.get(selection.base_commit), current = objects.get(selection.head_commit);
+        const previous = objects.get(selection.base_commit),
+          current = objects.get(selection.head_commit);
         for (const [name, content] of Object.entries(current.files)) {
           if (content === previous.files[name]) continue;
           if (changed.has(name) && changed.get(name) !== content)
             throw new DomainError('COMPOSITION_CONFLICT', 'Git merge conflict', 422);
-          changed.set(name, content); files[name] = content;
+          changed.set(name, content);
+          files[name] = content;
         }
       }
       const tree = await oid(files);
-      const commit = await oid({ repo: repo.id, head, tree, parents: sorted(selections.map((item) => item.head_commit)) });
+      const commit = await oid({
+        repo: repo.id,
+        head,
+        tree,
+        parents: sorted(selections.map((item) => item.head_commit)),
+      });
       objects.set(commit, { commit, tree, files });
       return { commit, tree, baseTree: baseline.tree, canonical_parent: head };
     },
@@ -183,21 +248,32 @@ async function fixture(inputSpecs = specs()) {
       calls.validations.push({ repo: repo.id, commit });
       const files = objects.get(commit)?.files;
       let result = await finiteValidation(files);
-      if (adapter.validationOverride) result = await adapter.validationOverride({ repo, commit, files, result });
+      if (adapter.validationOverride)
+        result = await adapter.validationOverride({ repo, commit, files, result });
       return result;
     },
     async cas(repo, expected, target) {
       calls.cas.push({ repo: repo.id, expected, target });
       if (refs.get(repo.id + ':' + ref) !== expected) return false;
-      refs.set(repo.id + ':' + ref, target); return true;
+      refs.set(repo.id + ':' + ref, target);
+      return true;
     },
   };
   const engine = new Engine(state, adapter, async (value) => saved.push(structuredClone(value)));
   return {
-    engine, state, adapter, objects, refs, revisions, calls, saved, baselines,
+    engine,
+    state,
+    adapter,
+    objects,
+    refs,
+    revisions,
+    calls,
+    saved,
+    baselines,
     graph: engine.futuresGraph,
     run: (fn) => engine.serial(fn),
-    analyze: (input = {}) => engine.serial(() => engine.futuresGraph.analyze({ request_id: 'analyze', ...input }, actor)),
+    analyze: (input = {}) =>
+      engine.serial(() => engine.futuresGraph.analyze({ request_id: 'analyze', ...input }, actor)),
   };
 }
 
@@ -225,29 +301,55 @@ async function candidateFor(f, names) {
   const selections = [];
   for (const name of names) {
     const revision = f.revisions.get(name);
-    const result = await f.run(() => f.engine.pipeline.createSelection({
-      future_revision_id: revision.id, request_id: 'selection-' + name,
-    }, actor));
+    const result = await f.run(() =>
+      f.engine.pipeline.createSelection(
+        {
+          future_revision_id: revision.id,
+          request_id: 'selection-' + name,
+        },
+        actor,
+      ),
+    );
     selections.push(result.selection.id);
   }
-  const { candidate } = await f.run(() => f.engine.pipeline.createCandidate({
-    selection_ids: selections, request_id: 'candidate-' + names.join('-'),
-  }, actor));
-  await f.run(() => f.engine.pipeline.validateCandidate(
-    candidate.id, { request_id: 'validate-' + names.join('-') }, actor,
-  ));
+  const { candidate } = await f.run(() =>
+    f.engine.pipeline.createCandidate(
+      {
+        selection_ids: selections,
+        request_id: 'candidate-' + names.join('-'),
+      },
+      actor,
+    ),
+  );
+  await f.run(() =>
+    f.engine.pipeline.validateCandidate(
+      candidate.id,
+      { request_id: 'validate-' + names.join('-') },
+      actor,
+    ),
+  );
   return candidate;
 }
 
 test('native discovery derives two decisions without scripted groups or compatibility history', async () => {
   const f = await fixture();
-  f.state.relationships.push({ id: 'legacy-inference', from_revision: f.revisions.get('c').id, to_revision: f.revisions.get('g').id, type: 'conflicts_with', basis: 'inferred', confidence: 1 });
+  f.state.relationships.push({
+    id: 'legacy-inference',
+    from_revision: f.revisions.get('c').id,
+    to_revision: f.revisions.get('g').id,
+    type: 'conflicts_with',
+    basis: 'inferred',
+    confidence: 1,
+  });
   await f.analyze();
   const view = await f.graph.view();
   assert.equal(view.decisionGroups.length, 2);
   await groupFor(f, ['a', 'b']);
   await groupFor(f, ['e', 'f']);
-  assert.deepEqual(sorted(view.discovery.ungrouped_revision_ids), sorted(['c', 'd', 'g', 'h'].map((name) => f.revisions.get(name).id)));
+  assert.deepEqual(
+    sorted(view.discovery.ungrouped_revision_ids),
+    sorted(['c', 'd', 'g', 'h'].map((name) => f.revisions.get(name).id)),
+  );
   assert.ok(view.discovery.unknown_revision_ids.includes(f.revisions.get('h').id));
   assert.equal(f.state.proposals.length, 0);
   assert.equal(f.state.decisionComponents.length, 0);
@@ -261,7 +363,8 @@ test('identical complete trees share implementation identity while preserving Fu
   const f = await fixture();
   await f.analyze();
   const view = await f.graph.view();
-  const c = f.revisions.get('c'), d = f.revisions.get('d');
+  const c = f.revisions.get('c'),
+    d = f.revisions.get('d');
   assert.notEqual(c.id, d.id);
   assert.notEqual(c.future_id, d.future_id);
   assert.notEqual(c.repository_heads[0].commit, d.repository_heads[0].commit);
@@ -274,27 +377,47 @@ test('identical complete trees share implementation identity while preserving Fu
   assert.equal(f.engine.native.future(d.future_id).producer.id, 'd');
   const snapshot = await f.graph.view();
   snapshot.implementations[0].revision_ids.push('untrusted-local-edit');
-  assert.equal((await f.graph.view()).implementations.some((entry) => entry.revision_ids.includes('untrusted-local-edit')), false);
+  assert.equal(
+    (await f.graph.view()).implementations.some((entry) =>
+      entry.revision_ids.includes('untrusted-local-edit'),
+    ),
+    false,
+  );
 });
 
 test('producer-declared conflict, unknown and inferred confidence never become observed interaction facts', async () => {
   const f = await fixture();
   for (const type of ['unknown', 'conflicts_with', 'compatible_candidate', 'depends_on']) {
-    await f.run(() => f.graph.addRelationship({
-      request_id: 'declare-' + type,
-      from_revision: f.revisions.get('c').id,
-      to_revision: f.revisions.get('g').id,
-      type, statement: 'Producer assertion requiring review.',
-      basis: 'observed', confidence: 1, evidence_refs: ['producer-reported-passing-tests'],
-    }, actor));
+    await f.run(() =>
+      f.graph.addRelationship(
+        {
+          request_id: 'declare-' + type,
+          from_revision: f.revisions.get('c').id,
+          to_revision: f.revisions.get('g').id,
+          type,
+          statement: 'Producer assertion requiring review.',
+          basis: 'observed',
+          confidence: 1,
+          evidence_refs: ['producer-reported-passing-tests'],
+        },
+        actor,
+      ),
+    );
   }
   await f.analyze();
   assert.equal((await f.graph.view()).decisionGroups.length, 2);
-  const declarations = f.state.nativeRelationships.filter((entry) =>
-    entry.from_revision === f.revisions.get('c').id && entry.to_revision === f.revisions.get('g').id);
+  const declarations = f.state.nativeRelationships.filter(
+    (entry) =>
+      entry.from_revision === f.revisions.get('c').id &&
+      entry.to_revision === f.revisions.get('g').id,
+  );
   assert.ok(declarations.length >= 4);
   assert.ok(declarations.every((entry) => entry.basis === 'declared'));
-  assert.ok(declarations.every((entry) => !(entry.evidence_refs ?? []).includes('producer-reported-passing-tests')));
+  assert.ok(
+    declarations.every(
+      (entry) => !(entry.evidence_refs ?? []).includes('producer-reported-passing-tests'),
+    ),
+  );
 });
 
 test('declared alternatives can connect separate objectives, but cannot connect separate Systems', async () => {
@@ -306,7 +429,10 @@ test('declared alternatives can connect separate objectives, but cannot connect 
   const separate = await fixture(input.map((spec) => ({ ...spec, system: 'system-' + spec.name })));
   await separate.analyze();
   assert.equal((await separate.graph.view()).decisionGroups.length, 0);
-  assert.deepEqual(sorted((await separate.graph.view()).discovery.ungrouped_revision_ids), sorted([...separate.revisions.values()].map((entry) => entry.id)));
+  assert.deepEqual(
+    sorted((await separate.graph.view()).discovery.ungrouped_revision_ids),
+    sorted([...separate.revisions.values()].map((entry) => entry.id)),
+  );
 });
 
 test('a baseline or singleton failure prevents the claim of an emergent pair interaction', async () => {
@@ -314,16 +440,29 @@ test('a baseline or singleton failure prevents the claim of an emergent pair int
     const f = await fixture(specs().filter((spec) => ['a', 'b'].includes(spec.name)));
     f.adapter.validationOverride = ({ commit, files, result }) => {
       const baseline = commit === f.baselines.get('app').commit;
-      const aOnly = JSON.parse(files['client.json']).retryFailedResponse &&
+      const aOnly =
+        JSON.parse(files['client.json']).retryFailedResponse &&
         JSON.parse(files['server.json']).deduplicateConfirmations;
       return (control === 'baseline' && baseline) || (control === 'singleton-a' && aOnly)
-        ? { ...result, passed: false, checks: [{ name: 'Control fails independently', passed: false }] }
+        ? {
+            ...result,
+            passed: false,
+            checks: [{ name: 'Control fails independently', passed: false }],
+          }
         : result;
     };
     await f.analyze();
     assert.equal((await f.graph.view()).decisionGroups.length, 0);
-    assert.equal(f.state.nativeRelationships.some((entry) => entry.type === 'conflicts_with' && entry.basis === 'observed'), false);
-    assert.deepEqual(sorted((await f.graph.view()).discovery.ungrouped_revision_ids), sorted([...f.revisions.values()].map((entry) => entry.id)));
+    assert.equal(
+      f.state.nativeRelationships.some(
+        (entry) => entry.type === 'conflicts_with' && entry.basis === 'observed',
+      ),
+      false,
+    );
+    assert.deepEqual(
+      sorted((await f.graph.view()).discovery.ungrouped_revision_ids),
+      sorted([...f.revisions.values()].map((entry) => entry.id)),
+    );
     assert.equal(f.calls.cas.length, 0);
   }
 });
@@ -339,26 +478,43 @@ test('unfinished or cancelled composed evaluations establish neither compatibili
   ]) {
     const f = await fixture(specs().filter((spec) => ['a', 'b'].includes(spec.name)));
     f.adapter.validationOverride = ({ files, result }) => {
-      const pair = JSON.parse(files['client.json']).retryFailedResponse &&
+      const pair =
+        JSON.parse(files['client.json']).retryFailedResponse &&
         !JSON.parse(files['server.json']).deduplicateConfirmations;
-      return pair ? {
-        passed: false, state: outcome.state,
-        ...(outcome.status ? { status: outcome.status } : {}),
-        checks: [{
-          name: 'Lost-response scenario is not completed',
-          passed: false,
-          state: outcome.state,
-          ...(outcome.check_status ? { status: outcome.check_status } : {}),
-        }],
-      } : result;
+      return pair
+        ? {
+            passed: false,
+            state: outcome.state,
+            ...(outcome.status ? { status: outcome.status } : {}),
+            checks: [
+              {
+                name: 'Lost-response scenario is not completed',
+                passed: false,
+                state: outcome.state,
+                ...(outcome.check_status ? { status: outcome.check_status } : {}),
+              },
+            ],
+          }
+        : result;
     };
     await f.analyze();
     const view = await f.graph.view();
     assert.equal(view.decisionGroups.length, 0);
-    assert.deepEqual(sorted(view.discovery.ungrouped_revision_ids), sorted([...f.revisions.values()].map((entry) => entry.id)));
-    assert.equal(view.relationships.some((entry) => entry.basis === 'observed' &&
-      ['conflicts_with', 'compatible_candidate'].includes(entry.type)), false);
-    assert.ok(view.discovery.diagnostics.some((entry) => entry.code === 'COMPOSITION_OUTCOME_UNKNOWN'));
+    assert.deepEqual(
+      sorted(view.discovery.ungrouped_revision_ids),
+      sorted([...f.revisions.values()].map((entry) => entry.id)),
+    );
+    assert.equal(
+      view.relationships.some(
+        (entry) =>
+          entry.basis === 'observed' &&
+          ['conflicts_with', 'compatible_candidate'].includes(entry.type),
+      ),
+      false,
+    );
+    assert.ok(
+      view.discovery.diagnostics.some((entry) => entry.code === 'COMPOSITION_OUTCOME_UNKNOWN'),
+    );
     assert.equal(f.calls.cas.length, 0);
   }
 });
@@ -368,17 +524,23 @@ test('a pending rerun retains a stale proven interaction until completed same-ba
   await f.analyze();
   const original = await groupFor(f, ['a', 'b']);
   const originalReview = await f.graph.review(original.id);
-  const proof = originalReview.relationships.find((entry) => entry.type === 'conflicts_with' && entry.basis === 'observed');
+  const proof = originalReview.relationships.find(
+    (entry) => entry.type === 'conflicts_with' && entry.basis === 'observed',
+  );
   assert.ok(proof);
   const immutableHistory = structuredClone(proof);
   f.adapter.configHash = 'native-discovery-fixture-v1';
   f.adapter.validationOverride = ({ files, result }) => {
-    const pair = JSON.parse(files['client.json']).retryFailedResponse &&
+    const pair =
+      JSON.parse(files['client.json']).retryFailedResponse &&
       !JSON.parse(files['server.json']).deduplicateConfirmations;
-    return pair ? {
-      passed: false, state: 'pending',
-      checks: [{ name: 'New composed run has not completed', passed: false, state: 'pending' }],
-    } : result;
+    return pair
+      ? {
+          passed: false,
+          state: 'pending',
+          checks: [{ name: 'New composed run has not completed', passed: false, state: 'pending' }],
+        }
+      : result;
   };
   await f.analyze({ request_id: 'reanalyse-with-pending-result' });
   const retained = await groupFor(f, ['a', 'b']);
@@ -387,12 +549,24 @@ test('a pending rerun retains a stale proven interaction until completed same-ba
   assert.equal(retained.stale, true);
   const review = await f.graph.review(retained.id);
   assert.ok(review.relationships.some((entry) => entry.id === proof.id));
-  assert.deepEqual(f.state.nativeRelationships.find((entry) => entry.id === proof.id), immutableHistory);
+  assert.deepEqual(
+    f.state.nativeRelationships.find((entry) => entry.id === proof.id),
+    immutableHistory,
+  );
   assert.ok(review.stale_reasons.some((reason) => /stale|repeat analysis/i.test(reason)));
-  assert.ok(review.evidence.some((entry) => proof.evidence_refs.includes(entry.id) &&
-    entry.validity.status === 'stale'));
-  assert.equal(review.relationships.some((entry) => entry.type === 'compatible_candidate' &&
-    equalIds([entry.from_revision, entry.to_revision], original.revision_ids)), false);
+  assert.ok(
+    review.evidence.some(
+      (entry) => proof.evidence_refs.includes(entry.id) && entry.validity.status === 'stale',
+    ),
+  );
+  assert.equal(
+    review.relationships.some(
+      (entry) =>
+        entry.type === 'compatible_candidate' &&
+        equalIds([entry.from_revision, entry.to_revision], original.revision_ids),
+    ),
+    false,
+  );
   assert.equal(f.state.operations.length, 0);
   assert.equal(f.calls.cas.length, 0);
 });
@@ -410,7 +584,10 @@ test('indexing avoids global comparisons for unrelated repository paths and obje
   assert.equal(view.discovery.ungrouped_revision_ids.length, 24);
   assert.equal(view.discovery.comparisons, 0);
   assert.ok(view.discovery.comparisons_avoided > 0);
-  assert.equal(view.discovery.diagnostics.some((entry) => /budget/i.test(entry.code)), false);
+  assert.equal(
+    view.discovery.diagnostics.some((entry) => /budget/i.test(entry.code)),
+    false,
+  );
   assert.equal(f.calls.cas.length, 0);
 });
 
@@ -438,12 +615,17 @@ test('exact analyze request replay does not repeat compositions, checks or graph
     relationships: f.state.nativeRelationships.length,
   };
   assert.deepEqual(await f.analyze(input), first);
-  assert.deepEqual({
-    compositions: f.calls.compositions.length,
-    validations: f.calls.validations.length,
-    relationships: f.state.nativeRelationships.length,
-  }, counts);
-  await assert.rejects(() => f.analyze({ ...input, max_comparisons: 1 }), { code: 'IDEMPOTENCY_CONFLICT' });
+  assert.deepEqual(
+    {
+      compositions: f.calls.compositions.length,
+      validations: f.calls.validations.length,
+      relationships: f.state.nativeRelationships.length,
+    },
+    counts,
+  );
+  await assert.rejects(() => f.analyze({ ...input, max_comparisons: 1 }), {
+    code: 'IDEMPOTENCY_CONFLICT',
+  });
   assert.equal(f.calls.cas.length, 0);
 });
 
@@ -451,10 +633,19 @@ test('an unprocessed source push invalidates a reviewed native decision before a
   const f = await fixture();
   await f.analyze();
   const group = await groupFor(f, ['a', 'b']);
-  const input = await resolutionInput(f, group, group.revision_ids.map((future_revision_id) => ({ future_revision_id, outcome: 'defer' })));
+  const input = await resolutionInput(
+    f,
+    group,
+    group.revision_ids.map((future_revision_id) => ({ future_revision_id, outcome: 'defer' })),
+  );
   const revision = f.revisions.get('a');
-  f.refs.set(revision.repository_heads[0].source_repo_id + ':' + ref, await oid('new-unprocessed-source-head'));
-  await assert.rejects(() => f.run(() => f.graph.resolve(group.id, input, actor)), { code: 'DECISION_STALE' });
+  f.refs.set(
+    revision.repository_heads[0].source_repo_id + ':' + ref,
+    await oid('new-unprocessed-source-head'),
+  );
+  await assert.rejects(() => f.run(() => f.graph.resolve(group.id, input, actor)), {
+    code: 'DECISION_STALE',
+  });
   assert.equal(f.state.operations.length, 0);
   assert.equal(f.calls.cas.length, 0);
 });
@@ -464,15 +655,27 @@ test('changed constraints, evaluator configuration and canonical heads each reje
     const f = await fixture();
     await f.analyze();
     const group = await groupFor(f, ['e', 'f']);
-    const input = await resolutionInput(f, group, group.revision_ids.map((future_revision_id) => ({ future_revision_id, outcome: 'defer' })));
-    if (change === 'constraint') f.state.constraints.push({ id: 'policy-v2', active: true, kind: 'advisory', statement: 'Changed retention policy.' });
+    const input = await resolutionInput(
+      f,
+      group,
+      group.revision_ids.map((future_revision_id) => ({ future_revision_id, outcome: 'defer' })),
+    );
+    if (change === 'constraint')
+      f.state.constraints.push({
+        id: 'policy-v2',
+        active: true,
+        kind: 'advisory',
+        statement: 'Changed retention policy.',
+      });
     if (change === 'configuration') f.adapter.configHash = 'trusted-fixture-v2';
     if (change === 'canonical') {
       const head = await oid('external-canonical-change');
       f.objects.set(head, { commit: head, tree: await oid('external-tree'), files: baseFiles() });
       f.refs.set('app:' + ref, head);
     }
-    await assert.rejects(() => f.run(() => f.graph.resolve(group.id, input, actor)), { code: 'DECISION_STALE' });
+    await assert.rejects(() => f.run(() => f.graph.resolve(group.id, input, actor)), {
+      code: 'DECISION_STALE',
+    });
     assert.equal(f.state.operations.length, 0);
     assert.equal(f.calls.cas.length, 0);
   }
@@ -492,9 +695,15 @@ test('metadata-only resolution records each immutable revision and rationale wit
   assert.equal(result.decision.actor, actor);
   assert.equal(result.decision.rationale, input.rationale);
   assert.equal(Object.isFrozen(f.state.nativeGroupDecisions[0]), true);
-  assert.deepEqual(sorted(f.state.nativeGroupDispositions.map((entry) => entry.future_revision_id)), sorted(group.revision_ids));
+  assert.deepEqual(
+    sorted(f.state.nativeGroupDispositions.map((entry) => entry.future_revision_id)),
+    sorted(group.revision_ids),
+  );
   assert.ok(f.state.nativeGroupDispositions.every((entry) => entry.scope === 'whole_future'));
-  assert.deepEqual(sorted(f.state.nativeGroupDispositions.map((entry) => entry.status)), ['deferred', 'rejected']);
+  assert.deepEqual(sorted(f.state.nativeGroupDispositions.map((entry) => entry.status)), [
+    'deferred',
+    'rejected',
+  ]);
   assert.equal(await f.adapter.ref({ id: 'app' }, ref), before);
   assert.equal(f.calls.cas.length, 0);
   assert.equal(f.state.futureRevisions.length, 8);
@@ -508,10 +717,16 @@ test('incomplete dispositions and unrelated unknown additions cannot silently se
     await f.analyze();
     const group = await groupFor(f, ['e', 'f']);
     const dispositions = extra
-      ? [...group.revision_ids, f.revisions.get('h').id].map((future_revision_id) => ({ future_revision_id, outcome: 'defer' }))
+      ? [...group.revision_ids, f.revisions.get('h').id].map((future_revision_id) => ({
+          future_revision_id,
+          outcome: 'defer',
+        }))
       : [{ future_revision_id: group.revision_ids[0], outcome: 'defer' }];
     const input = await resolutionInput(f, group, dispositions);
-    await assert.rejects(() => f.run(() => f.graph.resolve(group.id, input, actor)), (error) => error instanceof DomainError);
+    await assert.rejects(
+      () => f.run(() => f.graph.resolve(group.id, input, actor)),
+      (error) => error instanceof DomainError,
+    );
     assert.equal(f.state.nativeGroupDecisions.length, 0);
     assert.equal(f.state.operations.length, 0);
     assert.equal(f.calls.cas.length, 0);
@@ -524,11 +739,19 @@ test('acceptance requires exactly the reviewed accepted whole-Future candidate, 
   const group = await groupFor(f, ['e', 'f']);
   const candidate = await candidateFor(f, ['e', 'h']);
   const candidateReview = await f.engine.pipeline.review(candidate.id);
-  const input = await resolutionInput(f, group, [
-    { future_revision_id: f.revisions.get('e').id, outcome: 'accept' },
-    { future_revision_id: f.revisions.get('f').id, outcome: 'defer' },
-  ], { candidate_id: candidate.id, candidate_basis_hash: candidateReview.decision_basis_hash });
-  await assert.rejects(() => f.run(() => f.graph.resolve(group.id, input, actor)), (error) => error instanceof DomainError);
+  const input = await resolutionInput(
+    f,
+    group,
+    [
+      { future_revision_id: f.revisions.get('e').id, outcome: 'accept' },
+      { future_revision_id: f.revisions.get('f').id, outcome: 'defer' },
+    ],
+    { candidate_id: candidate.id, candidate_basis_hash: candidateReview.decision_basis_hash },
+  );
+  await assert.rejects(
+    () => f.run(() => f.graph.resolve(group.id, input, actor)),
+    (error) => error instanceof DomainError,
+  );
   assert.equal(f.state.operations.length, 0);
   assert.equal(f.calls.cas.length, 0);
 });
@@ -539,16 +762,31 @@ test('accepted graph resolution delegates one trusted exact candidate promotion 
   const group = await groupFor(f, ['e', 'f']);
   const candidate = await candidateFor(f, ['e']);
   const candidateReview = await f.engine.pipeline.review(candidate.id);
-  const input = await resolutionInput(f, group, [
-    { future_revision_id: f.revisions.get('e').id, outcome: 'accept' },
-    { future_revision_id: f.revisions.get('f').id, outcome: 'defer' },
-  ], { candidate_id: candidate.id, candidate_basis_hash: candidateReview.decision_basis_hash });
+  const input = await resolutionInput(
+    f,
+    group,
+    [
+      { future_revision_id: f.revisions.get('e').id, outcome: 'accept' },
+      { future_revision_id: f.revisions.get('f').id, outcome: 'defer' },
+    ],
+    { candidate_id: candidate.id, candidate_basis_hash: candidateReview.decision_basis_hash },
+  );
   const result = await f.run(() => f.graph.resolve(group.id, input, actor));
   assert.equal(result.group.status, 'resolved');
   assert.equal(f.calls.cas.length, 1);
   assert.equal(await f.adapter.ref({ id: 'app' }, ref), candidate.repositories[0].commit);
-  assert.equal(f.state.nativeGroupDispositions.find((entry) => entry.future_revision_id === f.revisions.get('e').id).status, 'applied');
-  assert.equal(f.state.nativeGroupDispositions.find((entry) => entry.future_revision_id === f.revisions.get('f').id).status, 'deferred');
+  assert.equal(
+    f.state.nativeGroupDispositions.find(
+      (entry) => entry.future_revision_id === f.revisions.get('e').id,
+    ).status,
+    'applied',
+  );
+  assert.equal(
+    f.state.nativeGroupDispositions.find(
+      (entry) => entry.future_revision_id === f.revisions.get('f').id,
+    ).status,
+    'deferred',
+  );
   assert.deepEqual(await f.run(() => f.graph.resolve(group.id, input, actor)), result);
   assert.equal(f.calls.cas.length, 1);
   assert.equal(f.state.operations.length, 1);
@@ -558,14 +796,26 @@ test('a newly declared relevant relationship invalidates the decision basis the 
   const f = await fixture();
   await f.analyze();
   const group = await groupFor(f, ['e', 'f']);
-  const input = await resolutionInput(f, group, group.revision_ids.map((future_revision_id) => ({ future_revision_id, outcome: 'defer' })));
-  await f.run(() => f.graph.addRelationship({
-    request_id: 'new-relevant-rationale',
-    from_revision: f.revisions.get('e').id,
-    to_revision: f.revisions.get('f').id,
-    type: 'unknown', statement: 'A previously unreviewed retention interaction remains unresolved.',
-  }, actor));
-  await assert.rejects(() => f.run(() => f.graph.resolve(group.id, input, actor)), { code: 'DECISION_STALE' });
+  const input = await resolutionInput(
+    f,
+    group,
+    group.revision_ids.map((future_revision_id) => ({ future_revision_id, outcome: 'defer' })),
+  );
+  await f.run(() =>
+    f.graph.addRelationship(
+      {
+        request_id: 'new-relevant-rationale',
+        from_revision: f.revisions.get('e').id,
+        to_revision: f.revisions.get('f').id,
+        type: 'unknown',
+        statement: 'A previously unreviewed retention interaction remains unresolved.',
+      },
+      actor,
+    ),
+  );
+  await assert.rejects(() => f.run(() => f.graph.resolve(group.id, input, actor)), {
+    code: 'DECISION_STALE',
+  });
   assert.equal(f.state.operations.length, 0);
   assert.equal(f.calls.cas.length, 0);
 });
@@ -576,10 +826,15 @@ test('native discovery recovery settles only its linked applied promotion withou
   const group = await groupFor(f, ['e', 'f']);
   const candidate = await candidateFor(f, ['e']);
   const candidateReview = await f.engine.pipeline.review(candidate.id);
-  const input = await resolutionInput(f, group, [
-    { future_revision_id: f.revisions.get('e').id, outcome: 'accept' },
-    { future_revision_id: f.revisions.get('f').id, outcome: 'defer' },
-  ], { candidate_id: candidate.id, candidate_basis_hash: candidateReview.decision_basis_hash });
+  const input = await resolutionInput(
+    f,
+    group,
+    [
+      { future_revision_id: f.revisions.get('e').id, outcome: 'accept' },
+      { future_revision_id: f.revisions.get('f').id, outcome: 'defer' },
+    ],
+    { candidate_id: candidate.id, candidate_basis_hash: candidateReview.decision_basis_hash },
+  );
   const cas = f.adapter.cas.bind(f.adapter);
   f.adapter.cas = async (...args) => {
     await cas(...args);
@@ -593,8 +848,18 @@ test('native discovery recovery settles only its linked applied promotion withou
   assert.equal(f.calls.cas.length, 1);
   assert.equal(f.state.operations[0].status, 'applied');
   assert.equal((await f.graph.review(group.id)).group.status, 'resolved');
-  assert.equal(f.state.nativeGroupDispositions.find((entry) => entry.future_revision_id === f.revisions.get('e').id).status, 'applied');
-  assert.equal(f.state.nativeGroupDispositions.find((entry) => entry.future_revision_id === f.revisions.get('f').id).status, 'deferred');
+  assert.equal(
+    f.state.nativeGroupDispositions.find(
+      (entry) => entry.future_revision_id === f.revisions.get('e').id,
+    ).status,
+    'applied',
+  );
+  assert.equal(
+    f.state.nativeGroupDispositions.find(
+      (entry) => entry.future_revision_id === f.revisions.get('f').id,
+    ).status,
+    'deferred',
+  );
   const count = f.state.nativeGroupDispositions.length;
   await f.run(() => f.graph.reconcile());
   assert.equal(f.state.nativeGroupDispositions.length, count);
@@ -608,14 +873,19 @@ test('a later unrelated direct promotion cannot establish an interrupted discove
   const selected = await candidateFor(f, ['e']);
   const unrelated = await candidateFor(f, ['c']);
   const selectedReview = await f.engine.pipeline.review(selected.id);
-  const input = await resolutionInput(f, group, [
-    { future_revision_id: f.revisions.get('e').id, outcome: 'accept' },
-    { future_revision_id: f.revisions.get('f').id, outcome: 'defer' },
-  ], {
-    request_id: 'same-public-promotion-identity',
-    candidate_id: selected.id,
-    candidate_basis_hash: selectedReview.decision_basis_hash,
-  });
+  const input = await resolutionInput(
+    f,
+    group,
+    [
+      { future_revision_id: f.revisions.get('e').id, outcome: 'accept' },
+      { future_revision_id: f.revisions.get('f').id, outcome: 'defer' },
+    ],
+    {
+      request_id: 'same-public-promotion-identity',
+      candidate_id: selected.id,
+      candidate_basis_hash: selectedReview.decision_basis_hash,
+    },
+  );
   const promote = f.engine.pipeline.promote.bind(f.engine.pipeline);
   f.engine.pipeline.promote = async () => {
     throw new Error('Interrupted before preparing a canonical operation');
@@ -626,12 +896,18 @@ test('a later unrelated direct promotion cannot establish an interrupted discove
   const unrelatedReview = await f.engine.pipeline.review(unrelated.id);
   assert.equal(unrelatedReview.validation_passing, true);
   try {
-    await f.run(() => f.engine.pipeline.promote(unrelated.id, {
-      request_id: input.request_id,
-      decision_basis_hash: unrelatedReview.decision_basis_hash,
-      expected_heads: unrelatedReview.expected_heads,
-      rationale: 'A separate direct request to promote tracing.',
-    }, actor));
+    await f.run(() =>
+      f.engine.pipeline.promote(
+        unrelated.id,
+        {
+          request_id: input.request_id,
+          decision_basis_hash: unrelatedReview.decision_basis_hash,
+          expected_heads: unrelatedReview.expected_heads,
+          rationale: 'A separate direct request to promote tracing.',
+        },
+        actor,
+      ),
+    );
   } catch (error) {
     // A reserved identity may reject the direct request before any write.
     assert.ok(error instanceof DomainError);
@@ -655,7 +931,8 @@ async function actualGitFixture(t) {
     const work = path.join(root, repoId + '-baseline');
     await mkdir(work);
     await git(work, ['init', '--quiet', '-b', 'main']);
-    const files = repoId === 'app' ? baseFiles() : { 'policy.json': JSON.stringify({ maxConfirmations: 1 }) };
+    const files =
+      repoId === 'app' ? baseFiles() : { 'policy.json': JSON.stringify({ maxConfirmations: 1 }) };
     for (const [name, content] of Object.entries(files)) {
       await mkdir(path.dirname(path.join(work, name)), { recursive: true });
       await writeFile(path.join(work, name), content);
@@ -668,9 +945,11 @@ async function actualGitFixture(t) {
     repositories.push({ id: repoId, canonical_ref: ref, head, tree, baseline: head });
   }
   adapter.validate = async (repo, commit) => {
-    if (repo.id === 'policy') return { passed: true, checks: [{ name: 'Policy fixture', passed: true }] };
+    if (repo.id === 'policy')
+      return { passed: true, checks: [{ name: 'Policy fixture', passed: true }] };
     const files = {};
-    for (const name of ['app.mjs', 'client.json', 'server.json']) files[name] = await adapter.file(repo, commit, name);
+    for (const name of ['app.mjs', 'client.json', 'server.json'])
+      files[name] = await adapter.file(repo, commit, name);
     // Git.file trims content, so compare against the same trusted exact module text.
     files['app.mjs'] += '\n';
     return finiteValidation(files);
@@ -678,51 +957,91 @@ async function actualGitFixture(t) {
   const state = { ...emptyState(), repositories };
   state.workspace.owner_id = actor;
   const engine = new Engine(state, adapter);
-  const { system } = await engine.serial(() => engine.native.createSystem({
-    name: 'Checkout', repository_ids: ['app', 'policy'], request_id: 'checkout-system',
-  }, actor));
+  const { system } = await engine.serial(() =>
+    engine.native.createSystem(
+      {
+        name: 'Checkout',
+        repository_ids: ['app', 'policy'],
+        request_id: 'checkout-system',
+      },
+      actor,
+    ),
+  );
   const objectives = new Map();
   for (const name of ['checkout', 'tracing', 'retention', 'metrics', 'unknown']) {
-    const { objective } = await engine.serial(() => engine.native.createObjective({
-      system_id: system.id, statement: name, scope: ['app'], request_id: 'objective-' + name,
-    }, actor));
+    const { objective } = await engine.serial(() =>
+      engine.native.createObjective(
+        {
+          system_id: system.id,
+          statement: name,
+          scope: ['app'],
+          request_id: 'objective-' + name,
+        },
+        actor,
+      ),
+    );
     objectives.set(name, objective);
   }
   const entries = [];
   for (const spec of specs()) {
-    const created = await engine.serial(() => engine.native.createFuture({
-      system_id: system.id, objective_id: objectives.get(spec.objective).id,
-      repository_ids: ['app'], name: spec.name,
-      producer: spec.provenance === 'unknown' ? { kind: 'unknown' } : { kind: 'git-client', id: spec.name },
-      request_id: 'future-' + spec.name,
-    }, actor));
+    const created = await engine.serial(() =>
+      engine.native.createFuture(
+        {
+          system_id: system.id,
+          objective_id: objectives.get(spec.objective).id,
+          repository_ids: ['app'],
+          name: spec.name,
+          producer:
+            spec.provenance === 'unknown'
+              ? { kind: 'unknown' }
+              : { kind: 'git-client', id: spec.name },
+          request_id: 'future-' + spec.name,
+        },
+        actor,
+      ),
+    );
     entries.push({ spec, future: created.future });
   }
   const revisions = new Map();
   // Producers use ordinary clone/commit/push concurrently. Ingress is serialized.
-  await Promise.all(entries.map(async ({ spec, future }) => {
-    const source = future.repositories[0];
-    const work = path.join(root, 'producer-' + spec.name);
-    await git(root, ['clone', '--quiet', adapter.dir({ id: source.repo_id }), work]);
-    const changes = { ...spec.files };
-    if (spec.declaration) changes['.klocgit/proposal.json'] = JSON.stringify(spec.declaration);
-    for (const [name, content] of Object.entries(changes)) {
-      await mkdir(path.dirname(path.join(work, name)), { recursive: true });
-      await writeFile(path.join(work, name), content);
-    }
-    await git(work, ['add', '.']);
-    await git(work, ['commit', '--quiet', '-m', 'Independent producer ' + spec.name]);
-    const head = await git(work, ['rev-parse', 'HEAD']);
-    await git(work, ['push', '--quiet', 'origin', 'HEAD:' + ref]);
-    await engine.serial(() => engine.native.observeRepositoryPush({
-      repo: source.repo_id, ref, before: future.baseline_refs[0].commit, after: head,
-    }, 'git-ingress'));
-    const observed = engine.native.future(future.id);
-    revisions.set(spec.name, engine.native.revision(observed.current_revision_id));
-  }));
+  await Promise.all(
+    entries.map(async ({ spec, future }) => {
+      const source = future.repositories[0];
+      const work = path.join(root, 'producer-' + spec.name);
+      await git(root, ['clone', '--quiet', adapter.dir({ id: source.repo_id }), work]);
+      const changes = { ...spec.files };
+      if (spec.declaration) changes['.klocgit/proposal.json'] = JSON.stringify(spec.declaration);
+      for (const [name, content] of Object.entries(changes)) {
+        await mkdir(path.dirname(path.join(work, name)), { recursive: true });
+        await writeFile(path.join(work, name), content);
+      }
+      await git(work, ['add', '.']);
+      await git(work, ['commit', '--quiet', '-m', 'Independent producer ' + spec.name]);
+      const head = await git(work, ['rev-parse', 'HEAD']);
+      await git(work, ['push', '--quiet', 'origin', 'HEAD:' + ref]);
+      await engine.serial(() =>
+        engine.native.observeRepositoryPush(
+          {
+            repo: source.repo_id,
+            ref,
+            before: future.baseline_refs[0].commit,
+            after: head,
+          },
+          'git-ingress',
+        ),
+      );
+      const observed = engine.native.future(future.id);
+      revisions.set(spec.name, engine.native.revision(observed.current_revision_id));
+    }),
+  );
   return {
-    root, engine, adapter, revisions, graph: engine.futuresGraph,
-    state: engine.state, run: (fn) => engine.serial(fn),
+    root,
+    engine,
+    adapter,
+    revisions,
+    graph: engine.futuresGraph,
+    state: engine.state,
+    run: (fn) => engine.serial(fn),
   };
 }
 
@@ -736,51 +1055,109 @@ test('real concurrent Git work cleanly merges A+B, passes each singleton, discov
   assert.equal(view.decisionGroups.length, 2);
   const interaction = await groupFor(f, ['a', 'b']);
   await groupFor(f, ['e', 'f']);
-  assert.deepEqual(sorted(view.discovery.ungrouped_revision_ids), sorted(['c', 'd', 'g', 'h'].map((name) => f.revisions.get(name).id)));
+  assert.deepEqual(
+    sorted(view.discovery.ungrouped_revision_ids),
+    sorted(['c', 'd', 'g', 'h'].map((name) => f.revisions.get(name).id)),
+  );
   assert.equal(f.state.proposals.length, 0);
   assert.equal(f.state.decisionComponents.length, 0);
   const review = await f.graph.review(interaction.id);
-  const edge = review.relationships.find((entry) => entry.type === 'conflicts_with' && entry.basis === 'observed');
-  assert.ok(edge, 'A finite trusted composed failure, with passing controls, must establish the interaction edge');
+  const edge = review.relationships.find(
+    (entry) => entry.type === 'conflicts_with' && entry.basis === 'observed',
+  );
+  assert.ok(
+    edge,
+    'A finite trusted composed failure, with passing controls, must establish the interaction edge',
+  );
   assert.ok(edge.evidence_refs.length >= 4);
   assert.ok(edge.evidence_refs.every((id) => review.evidence.some((entry) => entry.id === id)));
-  const proofEvidence = edge.evidence_refs.map((id) => review.evidence.find((entry) => entry.id === id));
-  assert.ok(proofEvidence.every((entry) => entry.type === 'trusted-validation' && entry.source === 'platform-owned checks'));
+  const proofEvidence = edge.evidence_refs.map((id) =>
+    review.evidence.find((entry) => entry.id === id),
+  );
+  assert.ok(
+    proofEvidence.every(
+      (entry) => entry.type === 'trusted-validation' && entry.source === 'platform-owned checks',
+    ),
+  );
   assert.ok(proofEvidence.filter((entry) => entry.result.passed === true).length >= 3);
   assert.ok(proofEvidence.some((entry) => entry.result.passed === false));
-  assert.ok(proofEvidence.every((entry) => entry.validity_heads.app === baseline && entry.config_hash === f.adapter.configHash));
+  assert.ok(
+    proofEvidence.every(
+      (entry) =>
+        entry.validity_heads.app === baseline && entry.config_hash === f.adapter.configHash,
+    ),
+  );
   const candidates = f.state.candidateStates;
-  const candidateOf = (names) => candidates.find((candidate) => equalIds(
-    candidate.selection_ids.map((id) => f.state.selections.find((selection) => selection.id === id).future_revision_id),
-    names.map((name) => f.revisions.get(name).id),
-  ));
-  const a = candidateOf(['a']), b = candidateOf(['b']), pair = candidateOf(['a', 'b']);
-  assert.ok(a && b && pair, 'Discovery must retain the exact same-base singleton and clean merged candidates');
-  for (const candidate of [a, b, pair]) assert.equal(candidate.repositories[0].base_commit, baseline);
+  const candidateOf = (names) =>
+    candidates.find((candidate) =>
+      equalIds(
+        candidate.selection_ids.map(
+          (id) => f.state.selections.find((selection) => selection.id === id).future_revision_id,
+        ),
+        names.map((name) => f.revisions.get(name).id),
+      ),
+    );
+  const a = candidateOf(['a']),
+    b = candidateOf(['b']),
+    pair = candidateOf(['a', 'b']);
+  assert.ok(
+    a && b && pair,
+    'Discovery must retain the exact same-base singleton and clean merged candidates',
+  );
+  for (const candidate of [a, b, pair])
+    assert.equal(candidate.repositories[0].base_commit, baseline);
   assert.equal((await f.engine.pipeline.review(a.id)).validation_passing, true);
   assert.equal((await f.engine.pipeline.review(b.id)).validation_passing, true);
   assert.equal((await f.engine.pipeline.review(pair.id)).validation_passing, false);
   const pairedResult = await f.adapter.validate(f.engine.repo('app'), pair.repositories[0].commit);
   assert.equal(pairedResult.observations.lostResponse.attempts, 2);
   assert.equal(pairedResult.observations.lostResponse.confirmations, 2);
-  assert.equal(JSON.parse(await f.adapter.file(f.engine.repo('app'), pair.repositories[0].commit, 'client.json')).retryFailedResponse, true);
-  assert.equal(JSON.parse(await f.adapter.file(f.engine.repo('app'), pair.repositories[0].commit, 'server.json')).deduplicateConfirmations, false);
+  assert.equal(
+    JSON.parse(
+      await f.adapter.file(f.engine.repo('app'), pair.repositories[0].commit, 'client.json'),
+    ).retryFailedResponse,
+    true,
+  );
+  assert.equal(
+    JSON.parse(
+      await f.adapter.file(f.engine.repo('app'), pair.repositories[0].commit, 'server.json'),
+    ).deduplicateConfirmations,
+    false,
+  );
   assert.deepEqual(f.revisions.get('c').tree_hashes, f.revisions.get('d').tree_hashes);
-  assert.notEqual(f.revisions.get('c').repository_heads[0].commit, f.revisions.get('d').repository_heads[0].commit);
+  assert.notEqual(
+    f.revisions.get('c').repository_heads[0].commit,
+    f.revisions.get('d').repository_heads[0].commit,
+  );
   assert.equal(f.revisions.get('h').provenance_state, 'unknown');
   const candidateReview = await f.engine.pipeline.review(a.id);
-  const input = await resolutionInput(f, interaction, [
-    { future_revision_id: f.revisions.get('a').id, outcome: 'accept' },
-    { future_revision_id: f.revisions.get('b').id, outcome: 'defer' },
-  ], { candidate_id: a.id, candidate_basis_hash: candidateReview.decision_basis_hash });
+  const input = await resolutionInput(
+    f,
+    interaction,
+    [
+      { future_revision_id: f.revisions.get('a').id, outcome: 'accept' },
+      { future_revision_id: f.revisions.get('b').id, outcome: 'defer' },
+    ],
+    { candidate_id: a.id, candidate_basis_hash: candidateReview.decision_basis_hash },
+  );
   const result = await f.run(() => f.graph.resolve(interaction.id, input, actor));
   assert.equal(result.group.status, 'resolved');
-  assert.equal((await f.adapter.validate(f.engine.repo('app'), f.engine.repo('app').head)).observations.lostResponse.confirmations, 1);
+  assert.equal(
+    (await f.adapter.validate(f.engine.repo('app'), f.engine.repo('app').head)).observations
+      .lostResponse.confirmations,
+    1,
+  );
   assert.deepEqual(f.state.futureRevisions, original);
   const clone = path.join(f.root, 'ordinary-client-clone');
   await git(f.root, ['clone', '--quiet', f.adapter.dir({ id: 'app' }), clone]);
   assert.equal(await git(clone, ['rev-parse', 'HEAD']), a.repositories[0].commit);
   await git(clone, ['fsck', '--full']);
-  assert.equal(JSON.parse(await git(clone, ['show', 'HEAD:client.json'])).retryFailedResponse, true);
-  assert.equal(JSON.parse(await git(clone, ['show', 'HEAD:server.json'])).deduplicateConfirmations, true);
+  assert.equal(
+    JSON.parse(await git(clone, ['show', 'HEAD:client.json'])).retryFailedResponse,
+    true,
+  );
+  assert.equal(
+    JSON.parse(await git(clone, ['show', 'HEAD:server.json'])).deduplicateConfirmations,
+    true,
+  );
 });

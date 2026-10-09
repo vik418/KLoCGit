@@ -53,7 +53,6 @@ export async function handlePublicRequest(request, env) {
   const url = new URL(request.url);
   if (!url.pathname.startsWith('/api/')) return env.ASSETS.fetch(request);
   try {
-    const workspace = configuredWorkspace(env);
     const origin = request.headers.get('Origin');
     if (!['GET', 'HEAD'].includes(request.method) && origin) {
       let allowed = false;
@@ -87,6 +86,7 @@ export async function handlePublicRequest(request, env) {
     request = new Request(request, {
       body: ['GET', 'HEAD'].includes(request.method) ? undefined : payload.raw,
     });
+    const workspace = configuredWorkspace(env);
     const forwarded = await forwardPrincipal(request, principal, env);
     const id = env.COORDINATOR.idFromName(workspace);
     return env.COORDINATOR.get(id).fetch(forwarded);

@@ -535,18 +535,20 @@ async function nativeCheck(m) {
   };
 
   async function subscribe(repoId) {
-    const subscriptions = await cf(m, '/event_subscriptions/subscriptions?queue_id=' + queue.queue_id + '&per_page=100');
-    const existing = subscriptions.find((entry) => entry.enabled &&
-      entry.source?.type === 'artifacts.repo' && entry.source.namespace === m.namespace &&
-      entry.source.repo_name === repoId && entry.events?.includes('cf.artifacts.repo.pushed'));
-    if (existing) return;
-    const created = await cf(m, '/event_subscriptions/subscriptions', 'POST', {
-      name: (runId + ':' + repoId).slice(0, 100), enabled: true,
-      source: { type: 'artifacts.repo', namespace: m.namespace, repo_name: repoId },
-      destination: { type: 'queues.queue', queue_id: queue.queue_id },
-      events: ['cf.artifacts.repo.pushed'],
-    });
-    report.resources.push({ type: 'fixture-native-push-subscription', repo: repoId, id: created.id });
+    const current = await nativeState(m);
+    const repository = current.futures.flatMap((future) => future.repositories)
+      .find((entry) => entry.repo_id === repoId);
+    const receipt = repository?.event_subscription;
+    assert.equal(receipt?.status, 'ready', 'Product must confirm push delivery before a Future becomes active');
+    const subscription = await cf(m, '/event_subscriptions/subscriptions/' + encodeURIComponent(receipt.subscription_id));
+    assert.equal(subscription.enabled, true);
+    assert.equal(subscription.source?.type, 'artifacts.repo');
+    assert.equal(subscription.source?.namespace, m.namespace);
+    assert.equal(subscription.source?.repo_name, repoId);
+    assert.equal(subscription.destination?.type, 'queues.queue');
+    assert.equal(subscription.destination?.queue_id, queue.queue_id);
+    assert.ok(subscription.events?.includes('cf.artifacts.repo.pushed'));
+    report.resources.push({ type: 'product-native-push-subscription', repo: repoId, id: subscription.id });
   }
 
   async function producerToken(repository) {
@@ -757,7 +759,7 @@ if (invoked) {
     report.completed_at = new Date().toISOString();
     report.limitations = [
       'Dry runs and resource provisioning do not establish live acceptance.',
-      'Fixture subscriptions are provisioned by this harness; automatic product subscription lifecycle is not established.',
+      'Native fork subscription ownership and Queue delivery require actual account execution.',
       'Coordinator process termination and cross-repository atomic promotion are not tested.',
       'Passing checks establish their stated code and environment scope only.',
     ];

@@ -395,7 +395,6 @@ test('a failed continuation retains the partial-rollout block and can be freshly
   const input = await f.review(candidate, f.operation);
   const cas = f.adapter.cas.bind(f.adapter);
   f.adapter.cas = async (repo, expected, target) => {
-    f.attempts.push(repo.id);
     await git(f.adapter.dir(repo), ['update-ref', ref, f.facts.beta.base]);
     return cas(repo, expected, target);
   };
@@ -411,7 +410,6 @@ test('a failed continuation retains the partial-rollout block and can be freshly
   const next = await f.composeCandidate(f.selections);
   const nextInput = await f.review(next, attempted);
   f.adapter.cas = async (repo, expected, target) => {
-    f.attempts.push(repo.id);
     return cas(repo, expected, target);
   };
   const completed = await f.engine.pipeline.continuePromotion(attempted.id, nextInput, actor);

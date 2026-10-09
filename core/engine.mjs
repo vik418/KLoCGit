@@ -175,7 +175,8 @@ export class Engine {
       return {
         ignored: true,
         reason: event.ref.startsWith('refs/klocgit/candidates/')
-          ? 'INTERNAL_CANDIDATE_REF' : 'INTERNAL_OBSERVATION_REF',
+          ? 'INTERNAL_CANDIDATE_REF'
+          : 'INTERNAL_OBSERVATION_REF',
       };
     if (
       /^0{40,64}$/.test(event.after) &&
@@ -407,11 +408,17 @@ export class Engine {
     if (!evidence.run_id) return { ...evidence, validity: this.evidenceValidity(evidence) };
     const run = (this.state.evaluationRuns ?? []).find((entry) => entry.id === evidence.run_id);
     if (!run)
-      return { ...evidence, validity: { status: 'stale', reasons: ['Issued evaluation is unavailable.'] } };
+      return {
+        ...evidence,
+        validity: { status: 'stale', reasons: ['Issued evaluation is unavailable.'] },
+      };
     const validity = await this.evaluators.validity(run);
     const reasons = [...validity.reasons];
-    const latestRun = this.state.evaluationRuns.filter((entry) =>
-      entry.candidate_id === run.candidate_id && entry.profile_id === run.profile_id).at(-1);
+    const latestRun = this.state.evaluationRuns
+      .filter(
+        (entry) => entry.candidate_id === run.candidate_id && entry.profile_id === run.profile_id,
+      )
+      .at(-1);
     if (latestRun?.id !== run.id) reasons.push('A newer evaluation superseded this result.');
     const event = this.evaluators.latest(run.id);
     if (!event?.evidence_ids?.includes(evidence.id))
@@ -420,7 +427,10 @@ export class Engine {
     // policy can authorize passing checks; this projection never upgrades them.
     return {
       ...evidence,
-      validity: { status: validity.state === 'stale' || reasons.length ? 'stale' : 'current', reasons },
+      validity: {
+        status: validity.state === 'stale' || reasons.length ? 'stale' : 'current',
+        reasons,
+      },
     };
   }
 
@@ -438,7 +448,9 @@ export class Engine {
   }
   async syncHeads(repoIds = null) {
     let changed = false;
-    for (const repo of this.state.repositories.filter((repo) => repoIds === null || repoIds.includes(repo.id))) {
+    for (const repo of this.state.repositories.filter(
+      (repo) => repoIds === null || repoIds.includes(repo.id),
+    )) {
       let head;
       try {
         head = await this.git.ref(repo, repo.canonical_ref);
@@ -772,21 +784,30 @@ export class Engine {
     if (!futures.length) return { state: 'not-needed' };
     const source = trigger.source_repo ?? trigger.repo;
     const future = futures.find((entry) =>
-      (entry.repositories ?? []).some((repo) => repo.repo_id === source));
+      (entry.repositories ?? []).some((repo) => repo.repo_id === source),
+    );
     const repository = source ? this.access.canonicalRepository(source) : null;
-    const systems = future ? [future.system_id] : source
-      ? (this.state.systems ?? []).filter((system) =>
-          system.repository_refs.some((ref) => ref.repo_id === repository)).map((system) => system.id)
-      : [];
+    const systems = future
+      ? [future.system_id]
+      : source
+        ? (this.state.systems ?? [])
+            .filter((system) => system.repository_refs.some((ref) => ref.repo_id === repository))
+            .map((system) => system.id)
+        : [];
     if (source && !systems.length) return { state: 'not-needed' };
     // A shared canonical repository may affect several Systems. The workspace
     // analyzer keeps their indexes separate and applies one total pair budget.
     const systemId = systems.length === 1 ? systems[0] : null;
-    const result = await this.futuresGraph.analyze({
-      ...(systemId ? { system_id: systemId } : {}),
-      request_id: 'native:' + await hash({ trigger, request_id: request_id ?? null, system_id: systemId }),
-      max_comparisons: 100,
-    }, actor);
+    const result = await this.futuresGraph.analyze(
+      {
+        ...(systemId ? { system_id: systemId } : {}),
+        request_id:
+          'native:' +
+          (await hash({ trigger, request_id: request_id ?? null, system_id: systemId })),
+        max_comparisons: 100,
+      },
+      actor,
+    );
     return { state: 'ready', run_id: result.run.id };
   }
   async basis(component) {
@@ -794,7 +815,9 @@ export class Engine {
     const accessVersion = this.state.access?.version ?? 0;
     // Preserve legacy owner-only hashes. Explicit governance changes invalidate
     // every previously reviewed conventional decision and queued approval.
-    return accessVersion === 0 ? basis : hash({ decision_basis: basis, access_version: accessVersion });
+    return accessVersion === 0
+      ? basis
+      : hash({ decision_basis: basis, access_version: accessVersion });
   }
   async buildDecision(c) {
     return buildDecision(this, c);
@@ -854,7 +877,9 @@ export class Engine {
   async view(principal = null) {
     if (principal) this.access.require(principal, 'workspace.read');
     await this.syncHeads(principal ? this.access.visibleRepositories(principal) : null);
-    const evidence = await Promise.all(this.state.evidence.map((entry) => this.presentEvidence(entry)));
+    const evidence = await Promise.all(
+      this.state.evidence.map((entry) => this.presentEvidence(entry)),
+    );
     const decisions = await Promise.all(
       this.state.decisionComponents.map(async (c) => ({
         ...c,
@@ -884,10 +909,11 @@ export class Engine {
     const snapshot = {
       ...this.state,
       nativeState: {
-        ...this.native.view(), ...this.pipeline.view(),
-        ...await this.objectiveContext.view(),
-        ...await this.evaluators.view(),
-        ...await this.futuresGraph.view(),
+        ...this.native.view(),
+        ...this.pipeline.view(),
+        ...(await this.objectiveContext.view()),
+        ...(await this.evaluators.view()),
+        ...(await this.futuresGraph.view()),
       },
       discovery,
       mergeRequests: this.mr.list(),
