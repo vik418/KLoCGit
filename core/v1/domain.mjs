@@ -70,7 +70,7 @@ function wellFormed(value) {
  * Read data descriptors rather than invoking getters. Copy every value so a
  * producer cannot change an accepted snapshot by retaining a mutable reference.
  */
-function copyJson(value, ancestors = new Set()) {
+export function copyJsonData(value, ancestors = new Set()) {
   if (value === null || typeof value === 'boolean') return value;
   if (typeof value === 'string') return wellFormed(value);
   if (typeof value === 'number') {
@@ -96,7 +96,7 @@ function copyJson(value, ancestors = new Set()) {
     for (let index = 0; index < value.length; index += 1) {
       const descriptor = descriptors[index];
       assertValid(descriptor && Object.hasOwn(descriptor, 'value') && descriptor.enumerable);
-      result.push(copyJson(descriptor.value, ancestors));
+      result.push(copyJsonData(descriptor.value, ancestors));
     }
   } else {
     result = {};
@@ -106,7 +106,7 @@ function copyJson(value, ancestors = new Set()) {
       assertValid(Object.hasOwn(descriptor, 'value') && descriptor.enumerable);
       // defineProperty treats "__proto__" as an ordinary data key.
       Object.defineProperty(result, key, {
-        value: copyJson(descriptor.value, ancestors),
+        value: copyJsonData(descriptor.value, ancestors),
         enumerable: true,
         configurable: true,
         writable: true,
@@ -126,7 +126,7 @@ function freeze(value) {
 }
 
 function record(input, fields) {
-  const result = copyJson(input);
+  const result = copyJsonData(input);
   plain(result);
   assertSchemaVersion(result);
   const expected = ['schema_version', ...fields];
@@ -480,9 +480,13 @@ function constructor(type) {
   return constructors[type];
 }
 
-/** JSON persistence only. Deterministic CBOR and content verification are T011. */
+export function validateDomain(type, input) {
+  return constructor(type)(input);
+}
+
+/** JSON persistence preserves input order; canonical CBOR has its own encoder. */
 export function serializeDomain(type, input) {
-  return JSON.stringify(constructor(type)(input));
+  return JSON.stringify(validateDomain(type, input));
 }
 
 export function deserializeDomain(type, encoded) {
@@ -493,5 +497,5 @@ export function deserializeDomain(type, encoded) {
   } catch {
     throw new V1Error('INVALID_ARGUMENT');
   }
-  return constructor(type)(input);
+  return validateDomain(type, input);
 }

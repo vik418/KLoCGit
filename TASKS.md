@@ -7,7 +7,8 @@ Complete in dependency order. Do not skip acceptance criteria.
 - T000: COMPLETE. [Passing verification](https://github.com/vik418/KLoCGit/actions/runs/37960093987) on `c72610ce`.
 - T001: COMPLETE. [Passing golden tests](https://github.com/vik418/KLoCGit/actions/runs/37966913365) on `efa41b72`.
 - T010: COMPLETE. [Passing record tests](https://github.com/vik418/KLoCGit/actions/runs/37969107882) on `5184798a`.
-- Next incomplete task: T011.
+- T011: COMPLETE. Local `npm run verify` passed 585 tests and browser/build checks on 2026-10-10. Node and Python matched all 13 encoding vectors.
+- Next incomplete task: T012.
 - All remaining tasks: INCOMPLETE.
 
 Existing v0 behavior does not establish v1 completion. Task completion requires the tests and acceptance criteria below.

@@ -43,6 +43,8 @@ Benchmark candidate backends for:
 
 ## D006 - Deterministic CBOR tooling
 
+Status: RESOLVED by [ADR 0005](docs/adr/0005-canonical-encoding.md).
+
 Requirements:
 
 - RFC 8949 deterministic encoding

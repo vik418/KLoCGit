@@ -55,3 +55,16 @@ jobs:
         run: |
           npx --no-install prettier . --write
           git diff --exit-code
+
+  encoding-reference:
+    runs-on: ubuntu-22.04
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-python@v6
+        with:
+          python-version: '3.12'
+          cache: pip
+          cache-dependency-path: tests/v1/requirements.txt
+      - run: python -m pip install -r tests/v1/requirements.txt
+      - run: python tests/v1/encoding_reference.py
