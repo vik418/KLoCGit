@@ -14,7 +14,9 @@ Complete in dependency order. Do not skip acceptance criteria.
 - T022: COMPLETE. Local SQLite-backed tests verify restart persistence, atomic rollback, concurrent connections, guarded Decision transitions, scope separation and durable outbox recovery on 2026-10-10.
 - T023: COMPLETE. Local workerd tests verify persisted runtime restart, concurrent writes, rollback and scope misrouting. [Load measurements](benchmarks/results/coordination-local.json) cover 512 requests at concurrency 1/4/16/64 over one/eight scopes, with zero request failures. Live deployment remains a release gate.
 - T030: COMPLETE. Provider-independent contract tests exercise exact ref/tree reads, source identity, guarded writes and an external-push race against ordinary local Git. Substituted states and invalid write requests are rejected.
-- Next incomplete task: T031.
+- T031: COMPLETE. Artifacts binding/transport contract tests use real Git objects to verify branch updates, force pushes, rebases, external pushes, annotated tags, immutable reads, tree modes and ambiguous CAS replies. Workspace hydration remains injected; live account verification remains a release gate.
+- T032: COMPLETE. Real Git/SQLite tests cover duplicate delivery and restart, reordered events, delayed delivery, force pushes, rebases, unknown provenance and tenant/ref authorization. Ingestion rereads Git and preserves declared producer claims separately from observed state.
+- Next incomplete task: T033.
 - All remaining tasks: INCOMPLETE.
 
 Existing v0 behavior does not establish v1 completion. Task completion requires the tests and acceptance criteria below.

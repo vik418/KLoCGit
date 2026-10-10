@@ -107,7 +107,8 @@ export class GitStore {
       target_oid,
       request,
     );
-    valid(typeof updated === 'boolean');
+    // An ambiguous reply after a write attempt requires reconciliation.
+    if (typeof updated !== 'boolean') throw new V1Error('OUTCOME_UNKNOWN');
     return updated;
   }
 }

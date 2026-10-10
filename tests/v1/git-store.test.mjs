@@ -118,6 +118,6 @@ test('Git CAS always requires a bounded idempotency key and definite provider re
     store.compare_and_swap_ref('refs/heads/main', 'a'.repeat(40), 'b'.repeat(40), {
       idempotency_key: 'attempt',
     }),
-    { code: 'INVALID_ARGUMENT' },
+    { code: 'OUTCOME_UNKNOWN' },
   );
 });
