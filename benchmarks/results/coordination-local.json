@@ -1,0 +1,91 @@
+{
+  "schema_version": 1,
+  "measured_at": "2026-10-10T21:01:01.211Z",
+  "runtime": "local-workerd",
+  "node_version": "24.19.0",
+  "platform": "linux",
+  "architecture": "x64",
+  "timing": "warm; runtime startup and per-scope warmup excluded",
+  "rows": [
+    {
+      "concurrency": 1,
+      "requests": 512,
+      "shards": 1,
+      "elapsed_ms": 1271.4838799999998,
+      "requests_per_second": 402.67911221965323,
+      "latency_p50_ms": 2.0532290000001012,
+      "latency_p95_ms": 4.57930000000033,
+      "failures": 0
+    },
+    {
+      "concurrency": 4,
+      "requests": 512,
+      "shards": 1,
+      "elapsed_ms": 535.6495539999996,
+      "requests_per_second": 955.8488309690637,
+      "latency_p50_ms": 3.7320249999993393,
+      "latency_p95_ms": 7.117167999999765,
+      "failures": 0
+    },
+    {
+      "concurrency": 16,
+      "requests": 512,
+      "shards": 1,
+      "elapsed_ms": 591.868872,
+      "requests_per_second": 865.0564748740495,
+      "latency_p50_ms": 16.083660000000236,
+      "latency_p95_ms": 34.14352700000018,
+      "failures": 0
+    },
+    {
+      "concurrency": 64,
+      "requests": 512,
+      "shards": 1,
+      "elapsed_ms": 630.9025460000003,
+      "requests_per_second": 811.5357962115432,
+      "latency_p50_ms": 72.52308799999992,
+      "latency_p95_ms": 116.97792900000059,
+      "failures": 0
+    },
+    {
+      "concurrency": 1,
+      "requests": 512,
+      "shards": 8,
+      "elapsed_ms": 1265.75184,
+      "requests_per_second": 404.5026709184954,
+      "latency_p50_ms": 2.1199790000000576,
+      "latency_p95_ms": 4.140976000000592,
+      "failures": 0
+    },
+    {
+      "concurrency": 4,
+      "requests": 512,
+      "shards": 8,
+      "elapsed_ms": 629.8958659999998,
+      "requests_per_second": 812.8327675038277,
+      "latency_p50_ms": 4.551163000000088,
+      "latency_p95_ms": 8.172120999999606,
+      "failures": 0
+    },
+    {
+      "concurrency": 16,
+      "requests": 512,
+      "shards": 8,
+      "elapsed_ms": 606.7507580000001,
+      "requests_per_second": 843.8390776596275,
+      "latency_p50_ms": 15.877441000000545,
+      "latency_p95_ms": 40.01777000000038,
+      "failures": 0
+    },
+    {
+      "concurrency": 64,
+      "requests": 512,
+      "shards": 8,
+      "elapsed_ms": 566.7834929999999,
+      "requests_per_second": 903.3431748161375,
+      "latency_p50_ms": 61.28938300000027,
+      "latency_p95_ms": 103.05938799999967,
+      "failures": 0
+    }
+  ]
+}

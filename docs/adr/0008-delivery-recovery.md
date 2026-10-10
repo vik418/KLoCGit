@@ -1,8 +1,8 @@
 # ADR 0008: Delivery receipts and effect recovery
 
-Status: Accepted for T021.
+Status: Accepted.
 
-The consumer prepares receipts, projections and an outbox in one atomic storage transaction. External execution happens after commit. Each effect carries a tenant/resource/action-scoped T001 operation ID and a stable idempotency key. Executors must explicitly support idempotent execution and recheck their own authorization/preconditions. A receipt alone cannot make an arbitrary remote service exactly-once.
+The consumer prepares receipts, projections and an outbox in one atomic storage transaction. External execution happens after commit. Each effect carries a tenant/resource/action-scoped operation ID and a stable idempotency key. Executors must support idempotent execution and recheck authorization/preconditions. A receipt alone cannot make a remote service exactly-once.
 
 Versions gate each event type and subject within its objective scope. Older observations are ignored. Version gaps and distinct same-version observations require a trusted reconciliation callback; absence of that capability retries without applying the event. The callback must reread authoritative state. Application callbacks may update local transaction state and return effect plans, but must not perform external effects inside the transaction.
 

@@ -125,6 +125,7 @@ export class CoordinationStore {
 
   async transitionDecision(scope, id, transition, basis, options) {
     parseObjectId(id, 'decision');
+    const basisSnapshot = basis === undefined ? undefined : copyJsonData(basis);
     const transitions = {
       REVIEWABLE: makeReviewable,
       RESOLVABLE: makeResolvable,
@@ -136,7 +137,7 @@ export class CoordinationStore {
       const key = 'decision:' + id;
       const current = await tx.get(key);
       if (!current) throw new V1Error('NOT_FOUND');
-      const next = await transitions[transition](current, basis, options);
+      const next = await transitions[transition](current, basisSnapshot, options);
       await tx.put(key, next);
       return next;
     });
