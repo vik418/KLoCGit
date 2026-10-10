@@ -107,6 +107,13 @@ async function identity(value) {
   return objectId('event', await digestCanonical('object-event', body));
 }
 
+/** Verify metadata and payload binding without hydrating a claim-check object. */
+export async function verifyEventEnvelope(input, configuredLimits) {
+  const value = EventEnvelope(input, configuredLimits);
+  if ((await identity(value)) !== value.event_id) throw new V1Error('INTEGRITY_MISMATCH');
+  return value;
+}
+
 export function serializeEvent(input, limits) {
   return bytes(EventEnvelope(input, limits));
 }
@@ -158,8 +165,7 @@ export async function createEvent(input, payload, configuredLimits, objectStore)
 /** Verify transport and claim identity before any payload reaches a handler. */
 export async function readEventPayload(input, configuredLimits, objectStore) {
   const limits = eventLimits(configuredLimits);
-  const value = EventEnvelope(input, limits);
-  if ((await identity(value)) !== value.event_id) throw new V1Error('INTEGRITY_MISMATCH');
+  const value = await verifyEventEnvelope(input, limits);
   if (Object.hasOwn(value, 'payload')) return value.payload;
   valid(typeof objectStore?.get === 'function');
   const stored = await objectStore.get({

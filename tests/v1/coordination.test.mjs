@@ -251,3 +251,94 @@ test('scope rejects branch aliases and malformed refs', () => {
     );
   }
 });
+
+test('queued Decision transitions capture requested selection and policy context before waiting', async (t) => {
+  const { store } = (await fixture(t)).open();
+  await store.createDecision(scope, {
+    schema_version: 1,
+    id: decisionId,
+    state: 'DISCOVERED',
+    basis: null,
+    resolution: null,
+  });
+  const { digest: unused, ...projection } = await basis();
+  void unused;
+  const second = 'sha256:object-candidate:v1:' + 'b'.repeat(64);
+  const currentBasis = await buildDecisionBasis({
+    ...projection,
+    candidate_digests: [...projection.candidate_digests, second],
+  });
+  await store.transitionDecision(scope, decisionId, 'REVIEWABLE', currentBasis);
+  await store.transitionDecision(scope, decisionId, 'RESOLVABLE', currentBasis, {
+    policyEvaluator,
+    subject: {},
+    effects: {},
+  });
+  let release;
+  let started;
+  const gate = new Promise((resolve) => {
+    release = resolve;
+  });
+  const entered = new Promise((resolve) => {
+    started = resolve;
+  });
+  const blocker = store.transaction(scope, async () => {
+    started();
+    await gate;
+  });
+  await entered;
+  let capturedContext;
+  const requested = {
+    policyEvaluator: {
+      required_analysis: async (subject, effects) => {
+        capturedContext = { subject, effects };
+        return ['semantic'];
+      },
+      can_resolve: async () => true,
+    },
+    subject: { system_id: 'system-1' },
+    effects: [{ target: 'original' }],
+    expectedBasisDigest: currentBasis.digest,
+    resolution: { candidate_digest: currentBasis.candidate_digests[0], actor: 'original-actor' },
+  };
+  const transition = store.transitionDecision(
+    scope,
+    decisionId,
+    'RESOLVED',
+    currentBasis,
+    requested,
+  );
+  requested.resolution.candidate_digest = second;
+  requested.resolution.actor = 'different-actor';
+  requested.subject.system_id = 'different-system';
+  requested.effects[0].target = 'changed';
+  requested.expectedBasisDigest = digest('decision-basis');
+  requested.policyEvaluator = { required_analysis: async () => [], can_resolve: async () => false };
+  release();
+  await blocker;
+  const resolved = await transition;
+  assert.equal(resolved.resolution.candidate_digest, currentBasis.candidate_digests[0]);
+  assert.equal(resolved.resolution.actor, 'original-actor');
+  assert.deepEqual(capturedContext, {
+    subject: { system_id: 'system-1' },
+    effects: [{ target: 'original' }],
+  });
+});
+
+test('transition option accessors are rejected without invoking producer code', async (t) => {
+  const { store } = (await fixture(t)).open();
+  let calls = 0;
+  const options = { policyEvaluator, effects: {} };
+  Object.defineProperty(options, 'subject', {
+    enumerable: true,
+    get() {
+      calls += 1;
+      return {};
+    },
+  });
+  await assert.rejects(
+    store.transitionDecision(scope, decisionId, 'RESOLVABLE', await basis(), options),
+    { code: 'INVALID_ARGUMENT' },
+  );
+  assert.equal(calls, 0);
+});

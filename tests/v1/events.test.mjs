@@ -8,6 +8,7 @@ import {
   eventLimits,
   readEventPayload,
   serializeEvent,
+  verifyEventEnvelope,
 } from '../../core/v1/events.mjs';
 
 const limits = { max_event_bytes: 1024, inline_payload_bytes: 100, max_claim_bytes: 8192 };
@@ -114,6 +115,18 @@ test('transport identity detects payload, tenant, version and claim substitution
   const claim = await createEvent(metadata, 'x'.repeat(101), limits, objects);
   await assert.rejects(
     readEventPayload({ ...claim, payload_ref: 'other' }, limits, objects),
+    fails('INTEGRITY_MISMATCH'),
+  );
+  assert.equal(objects.reads.length, 0);
+});
+
+test('envelope identity can be verified without hydrating a claim object', async () => {
+  const objects = store();
+  const event = await createEvent(metadata, 'x'.repeat(101), limits, objects);
+  assert.deepEqual(await verifyEventEnvelope(event, limits), event);
+  assert.equal(objects.reads.length, 0);
+  await assert.rejects(
+    verifyEventEnvelope({ ...event, payload_ref: 'substituted' }, limits),
     fails('INTEGRITY_MISMATCH'),
   );
   assert.equal(objects.reads.length, 0);

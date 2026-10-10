@@ -16,7 +16,8 @@ Complete in dependency order. Do not skip acceptance criteria.
 - T030: COMPLETE. Provider-independent contract tests exercise exact ref/tree reads, source identity, guarded writes and an external-push race against ordinary local Git. Substituted states and invalid write requests are rejected.
 - T031: COMPLETE. Artifacts binding/transport contract tests use real Git objects to verify branch updates, force pushes, rebases, external pushes, annotated tags, immutable reads, tree modes and ambiguous CAS replies. Workspace hydration remains injected; live account verification remains a release gate.
 - T032: COMPLETE. Real Git/SQLite tests cover duplicate delivery and restart, reordered events, delayed delivery, force pushes, rebases, unknown provenance and tenant/ref authorization. Ingestion rereads Git and preserves declared producer claims separately from observed state.
-- Next incomplete task: T033.
+- T033: COMPLETE. Eighteen real Git/SQLite promotion tests cover stale basis/policy, required analysis, candidate substitution, concurrent resolutions, external-push races, idempotency binding and crash/restart recovery. Current authorization is rechecked after durable preparation. Ambiguous unchanged refs remain blocked; multi-repository acceptance belongs to its own coordination layer.
+- Next incomplete task: T040.
 - All remaining tasks: INCOMPLETE.
 
 Existing v0 behavior does not establish v1 completion. Task completion requires the tests and acceptance criteria below.

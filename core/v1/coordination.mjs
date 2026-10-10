@@ -72,6 +72,46 @@ function persisted(input) {
   return freeze(value);
 }
 
+function transitionOptions(transition, input) {
+  if (!['RESOLVABLE', 'RESOLVED'].includes(transition)) return undefined;
+  valid(input && typeof input === 'object' && !Array.isArray(input));
+  const prototype = Object.getPrototypeOf(input);
+  valid(prototype === Object.prototype || prototype === null);
+  const descriptors = Object.getOwnPropertyDescriptors(input);
+  const fields = [
+    'policyEvaluator',
+    'subject',
+    'effects',
+    ...(transition === 'RESOLVED' ? ['expectedBasisDigest', 'resolution'] : []),
+  ];
+  const keys = Reflect.ownKeys(descriptors);
+  valid(keys.length === fields.length && fields.every((field) => keys.includes(field)));
+  valid(
+    keys.every(
+      (field) => Object.hasOwn(descriptors[field], 'value') && descriptors[field].enumerable,
+    ),
+  );
+  const provider = descriptors.policyEvaluator.value;
+  valid(
+    provider &&
+      typeof provider.required_analysis === 'function' &&
+      typeof provider.can_resolve === 'function',
+  );
+  // Only trusted service callbacks remain references. Request data is captured
+  // before hashing or waiting for another transaction to release the scope.
+  const data = {};
+  for (const field of fields) {
+    if (field !== 'policyEvaluator') data[field] = copyJsonData(descriptors[field].value);
+  }
+  return Object.freeze({
+    ...freeze(data),
+    policyEvaluator: Object.freeze({
+      required_analysis: provider.required_analysis.bind(provider),
+      can_resolve: provider.can_resolve.bind(provider),
+    }),
+  });
+}
+
 export class CoordinationStore {
   constructor(backend) {
     valid(typeof backend?.transaction === 'function');
@@ -133,11 +173,12 @@ export class CoordinationStore {
       STALE: markStale,
     };
     valid(Object.hasOwn(transitions, transition));
+    const optionsSnapshot = transitionOptions(transition, options);
     return this.transaction(scope, async (tx) => {
       const key = 'decision:' + id;
       const current = await tx.get(key);
       if (!current) throw new V1Error('NOT_FOUND');
-      const next = await transitions[transition](current, basisSnapshot, options);
+      const next = await transitions[transition](current, basisSnapshot, optionsSnapshot);
       await tx.put(key, next);
       return next;
     });
