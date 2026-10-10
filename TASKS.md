@@ -18,7 +18,8 @@ Complete in dependency order. Do not skip acceptance criteria.
 - T032: COMPLETE. Real Git/SQLite tests cover duplicate delivery and restart, reordered events, delayed delivery, force pushes, rebases, unknown provenance and tenant/ref authorization. Ingestion rereads Git and preserves declared producer claims separately from observed state.
 - T033: COMPLETE. Eighteen real Git/SQLite promotion tests cover stale basis/policy, required analysis, candidate substitution, concurrent resolutions, external-push races, idempotency binding and crash/restart recovery. Current authorization is rechecked after durable preparation. Ambiguous unchanged refs remain blocked; multi-repository acceptance belongs to its own coordination layer.
 - T040: COMPLETE. Nine contract tests verify registered version/capability metadata, exact source identity, deterministic effects, explicit failures and policy blocking for required incomplete analysis. Plugins cannot silently change tier or claim complete analysis from partial capability.
-- Next incomplete task: T041.
+- T041: COMPLETE. Seven real-Git tests cover exact path/blob changes, targeted manifest hydration, declared dependencies, security path hints, traversal budgets, unavailable observations and file/directory replacements. Incomplete traversal never establishes absence.
+- Next incomplete task: T042.
 - All remaining tasks: INCOMPLETE.
 
 Existing v0 behavior does not establish v1 completion. Task completion requires the tests and acceptance criteria below.
