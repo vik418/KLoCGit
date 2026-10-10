@@ -144,17 +144,18 @@ const setFields = Object.freeze({
   SystemRevision: ['accepted_decisions'],
 });
 
-function normalizedRecord(type, input) {
+/** Return an immutable record with only its declared set fields reordered. */
+export function normalizeDomain(type, input) {
   if (type === 'EffectSet') return normalizeEffectSet(input);
   const record = { ...validateDomain(type, input) };
   for (const field of setFields[type] ?? []) record[field] = orderedSet(record[field]);
   if (type === 'Decision' && record.basis !== null) {
-    record.basis = normalizedRecord('DecisionBasis', record.basis);
+    record.basis = normalizeDomain('DecisionBasis', record.basis);
   }
-  return record;
+  return validateDomain(type, record);
 }
 
 /** Persistence encoding includes IDs and self digests; it is not an ID builder. */
 export function encodeDomain(type, input) {
-  return encodeCanonical(normalizedRecord(type, input));
+  return encodeCanonical(normalizeDomain(type, input));
 }

@@ -8,6 +8,7 @@ import {
   encodeDomain,
   materialEffectDigest,
   materialEffectProjection,
+  normalizeDomain,
   normalizeEffectSet,
 } from '../../core/v1/encoding.mjs';
 
@@ -275,6 +276,9 @@ test('CandidateSpec set order is canonical while selection order is significant'
 
 test('DecisionBasis sets normalize directly and inside a Decision', () => {
   const input = basis();
+  const normalized = normalizeDomain('DecisionBasis', input);
+  assert.equal(Object.isFrozen(normalized.candidate_digests), true);
+  assert.deepEqual(normalized.candidate_digests, input.candidate_digests.toSorted());
   assert.equal(
     hex(encodeDomain('DecisionBasis', input)),
     golden.vectors.find((entry) => entry.name === 'decision-basis-record').cbor_hex,
