@@ -196,6 +196,8 @@ function timestamp(value) {
   return value;
 }
 
+export { oid as gitOid, ref as gitRef };
+
 function oidMap(value) {
   plain(value);
   assertValid(Object.keys(value).length > 0);
