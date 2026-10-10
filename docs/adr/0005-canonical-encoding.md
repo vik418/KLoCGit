@@ -26,7 +26,7 @@ Duplicate set entries are rejected. Annotation differences cannot manufacture di
 
 ## Evidence
 
-Thirteen literal vectors cover integer and float widths, subnormal floats, UTF-8 identity, map ordering, opaque keys, ordered arrays and normalized records. Node and the independent Python encoder agree on every byte and framed SHA-256 digest. JavaScript tests cover metadata exclusion, material changes, set ordering and rejected producer hooks. CI checks both implementations against the same literals.
+Fourteen literal vectors cover integer and float widths, subnormal floats, UTF-8 identity, map ordering, opaque keys, ordered arrays and normalized records. Node and the independent Python encoder agree on every byte and framed SHA-256 digest. JavaScript tests cover metadata exclusion, material changes, set ordering and rejected producer hooks. CI checks both implementations against the same literals.
 
 Local reference check: install `tests/v1/requirements.txt` in a Python 3.12 virtual environment, then run `python tests/v1/encoding_reference.py`. It does not invoke Node or regenerate expectations.
 
