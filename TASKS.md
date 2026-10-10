@@ -19,6 +19,7 @@ Complete in dependency order. Do not skip acceptance criteria.
 - T033: COMPLETE. Eighteen real Git/SQLite promotion tests cover stale basis/policy, required analysis, candidate substitution, concurrent resolutions, external-push races, idempotency binding and crash/restart recovery. Current authorization is rechecked after durable preparation. Ambiguous unchanged refs remain blocked; multi-repository acceptance belongs to its own coordination layer.
 - T040: COMPLETE. Nine contract tests verify registered version/capability metadata, exact source identity, deterministic effects, explicit failures and policy blocking for required incomplete analysis. Plugins cannot silently change tier or claim complete analysis from partial capability.
 - T041: COMPLETE. Seven real-Git tests cover exact path/blob changes, targeted manifest hydration, declared dependencies, security path hints, traversal budgets, unavailable observations and file/directory replacements. Incomplete traversal never establishes absence.
+- T050: COMPLETE. Six reduction tests verify exact-tree sharing, preserved origins, separate targets/bases, explicit acyclic supersession, deterministic CandidateSpec identity and substituted-plan rejection. Distinct trees are never discarded on effect similarity.
 - Next incomplete task: T042.
 - All remaining tasks: INCOMPLETE.
 
