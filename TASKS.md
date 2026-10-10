@@ -9,7 +9,8 @@ Complete in dependency order. Do not skip acceptance criteria.
 - T010: COMPLETE. [Passing record tests](https://github.com/vik418/KLoCGit/actions/runs/37969107882) on `5184798a`.
 - T011: COMPLETE. Local `npm run verify` passed 585 tests and browser/build checks on 2026-10-10. Node and Python matched all 13 encoding vectors.
 - T012: COMPLETE. Local `npm run verify` passed 628 tests and browser/build checks on 2026-10-10. Node and Python matched all 14 encoding vectors.
-- Next incomplete task: T020.
+- T020: COMPLETE. Local event tests verify byte bounds, claim-check integrity, transport substitution rejection and tenant-scoped storage calls on 2026-10-10. Threshold defaults remain open under D008.
+- Next incomplete task: T021.
 - All remaining tasks: INCOMPLETE.
 
 Existing v0 behavior does not establish v1 completion. Task completion requires the tests and acceptance criteria below.
