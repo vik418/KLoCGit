@@ -11,7 +11,8 @@ Complete in dependency order. Do not skip acceptance criteria.
 - T012: COMPLETE. Local `npm run verify` passed 628 tests and browser/build checks on 2026-10-10. Node and Python matched all 14 encoding vectors.
 - T020: COMPLETE. Local event tests verify byte bounds, claim-check integrity, transport substitution rejection and tenant-scoped storage calls on 2026-10-10. Threshold defaults remain open under D008.
 - T021: COMPLETE. Local consumer tests cover restart, concurrent duplicates, out-of-order delivery, reconciliation, atomic rollback, idempotent external-effect recovery and bounded DLQ delivery on 2026-10-10.
-- Next incomplete task: T022.
+- T022: COMPLETE. Local SQLite-backed tests verify restart persistence, atomic rollback, concurrent connections, guarded Decision transitions, scope separation and durable outbox recovery on 2026-10-10.
+- Next incomplete task: T023.
 - All remaining tasks: INCOMPLETE.
 
 Existing v0 behavior does not establish v1 completion. Task completion requires the tests and acceptance criteria below.
