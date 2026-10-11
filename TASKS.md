@@ -19,8 +19,17 @@ Complete in dependency order. Do not skip acceptance criteria.
 - T033: COMPLETE. Eighteen real Git/SQLite promotion tests cover stale basis/policy, required analysis, candidate substitution, concurrent resolutions, external-push races, idempotency binding and crash/restart recovery. Current authorization is rechecked after durable preparation. Ambiguous unchanged refs remain blocked; multi-repository acceptance belongs to its own coordination layer.
 - T040: COMPLETE. Nine contract tests verify registered version/capability metadata, exact source identity, deterministic effects, explicit failures and policy blocking for required incomplete analysis. Plugins cannot silently change tier or claim complete analysis from partial capability.
 - T041: COMPLETE. Seven real-Git tests cover exact path/blob changes, targeted manifest hydration, declared dependencies, security path hints, traversal budgets, unavailable observations and file/directory replacements. Incomplete traversal never establishes absence.
+- T042: COMPLETE. Twenty-four structural tests cover ordered declarations, signatures, bodies, references, modules, whitespace, omitted source, parser failures and version limits. Parser nodes remain inside the adapter.
+- T043: COMPLETE. Fourteen TypeScript/JavaScript compiler tests cover resolved types/references/calls, configuration, JSDoc, modules, hydrated dependencies, CommonJS loaders, version limits and incomplete analysis.
+- T044: COMPLETE. Thirty-six CPython tests cover compiled lexical scopes, closures, imports, static calls, shadowing, compiler failures and unresolved/dynamic behavior. Producer code is never imported or executed.
+- T045: COMPLETE. Real semantic/syntax fixtures and helper tests pass on Go 1.26.9 and 1.27.2. Build configurations, unavailable dependencies and dynamic dispatch retain explicit limits.
+- T046: COMPLETE. Pinned Rust 1.90.0 compiler fixtures cover typed MIR, modules, generics, calls, editions, source/type failures and blocked build hooks. Coverage remains PARTIAL; required Rust analysis cannot authorize resolution.
+- T047: COMPLETE. Scheduled compatibility CI covers each declared compiler version and executes actual compiler fixtures. CI provisions verified toolchains; missing compilers fail validation rather than skipping it.
 - T050: COMPLETE. Six reduction tests verify exact-tree sharing, preserved origins, separate targets/bases, explicit acyclic supersession, deterministic CandidateSpec identity and substituted-plan rejection. Distinct trees are never discarded on effect similarity.
-- Next incomplete task: T042.
+- T051: COMPLETE. Security override tests preserve dependency/build/CI/auth/IAM/schema/migration/secret effects regardless of non-critical hub thresholds. Hints cannot authorize mutation.
+- T052: COMPLETE. Four indexing tests cover dense hyperedges, security bypass, scope separation, deterministic ordering, incomplete analysis and substituted payload rejection. A 1,000-member shared effect requires no pairwise expansion.
+- T060: COMPLETE. Twelve real-Git workspace tests cover blobless/targeted hydration, exact object verification, source substitution, binary/missing objects, SHA-256 repositories, UTF-8 preservation and cache loss. Transfer counters describe their provider boundary.
+- Next incomplete task: T053.
 - All remaining tasks: INCOMPLETE.
 
 Existing v0 behavior does not establish v1 completion. Task completion requires the tests and acceptance criteria below.

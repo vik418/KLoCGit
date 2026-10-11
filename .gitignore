@@ -11,3 +11,6 @@ test-results/
 .env.*
 !.env.example
 .dev.vars.*
+__pycache__/
+*.pyc
+target/

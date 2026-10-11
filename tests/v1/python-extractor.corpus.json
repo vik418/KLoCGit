@@ -1,0 +1,102 @@
+[
+  {
+    "name": "literal function declaration",
+    "source": "def answer():\n    return 42\n",
+    "status": "COMPLETE"
+  },
+  {
+    "name": "lexical closure and nonlocal binding",
+    "source": "def outer(value):\n    def inner():\n        nonlocal value\n        value = 42\n        return value\n    return inner()\n",
+    "status": "COMPLETE"
+  },
+  {
+    "name": "positional-only and keyword-only parameters",
+    "source": "def choose(first, /, *, second=42):\n    return first\n",
+    "status": "COMPLETE"
+  },
+  {
+    "name": "builtin immutable literal dispatch",
+    "source": "size = len((1, 2, 3))\n",
+    "status": "COMPLETE"
+  },
+  {
+    "name": "unknown operator protocol",
+    "source": "def add(left, right):\n    return left + right\n",
+    "status": "PARTIAL",
+    "reason": "dynamic-operator-dispatch"
+  },
+  {
+    "name": "unknown callback invocation",
+    "source": "def invoke(callback):\n    return callback()\n",
+    "status": "PARTIAL",
+    "reason": "unresolved-call"
+  },
+  {
+    "name": "external module boundary",
+    "source": "import service\nservice.call()\n",
+    "status": "PARTIAL",
+    "reason": "unresolved-import"
+  },
+  {
+    "name": "reflection is not executed",
+    "source": "exec('raise RuntimeError(\"must not run\")')\n",
+    "status": "PARTIAL",
+    "reason": "runtime-reflection"
+  },
+  {
+    "name": "runtime attribute model",
+    "source": "def access(value):\n    return value.attribute\n",
+    "status": "PARTIAL",
+    "reason": "dynamic-attribute"
+  },
+  {
+    "name": "comprehension compiler scope",
+    "source": "values = [item for item in (1, 2)]\n",
+    "status": "PARTIAL",
+    "reason": "comprehension-data-flow"
+  },
+  {
+    "name": "class descriptor model",
+    "source": "class Model:\n    value = 42\n",
+    "status": "PARTIAL",
+    "reason": "runtime-class-model"
+  },
+  {
+    "name": "Python 3.12 generic syntax",
+    "source": "def identity[T](value: T) -> T:\n    return value\n",
+    "status": "PARTIAL",
+    "reason": "generic-type-scope"
+  },
+  {
+    "name": "Python 3.12 type alias syntax",
+    "source": "type Pair[T] = tuple[T, T]\n",
+    "status": "PARTIAL",
+    "reason": "generic-type-scope"
+  },
+  {
+    "name": "Python 3.12 f-string syntax",
+    "source": "value = f'{\"inside\"}'\n",
+    "status": "PARTIAL",
+    "reason": "runtime-format-protocol"
+  },
+  {
+    "name": "parser syntax failure",
+    "source": "def broken(:\n    pass\n",
+    "status": "FAILED"
+  },
+  {
+    "name": "compiler rejects top-level return accepted by AST parser",
+    "source": "return 42\n",
+    "status": "FAILED"
+  },
+  {
+    "name": "compiler rejects invalid nonlocal",
+    "source": "def broken():\n    nonlocal missing\n    return missing\n",
+    "status": "FAILED"
+  },
+  {
+    "name": "compiler rejects duplicate arguments",
+    "source": "def broken(value, value):\n    return value\n",
+    "status": "FAILED"
+  }
+]

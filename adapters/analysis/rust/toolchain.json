@@ -1,0 +1,13 @@
+{
+  "schema_version": 1,
+  "version": "1.90.0",
+  "compiler_identity": "rustc 1.90.0 (1159e78c4 2025-09-14)",
+  "target": "x86_64-unknown-linux-gnu",
+  "source": "https://static.rust-lang.org/dist/",
+  "archive_sha256": {
+    "rustc": "48c2a42de9e92fcae8c24568f5fe40d5734696a6f80e83cc6d46eef1a78f13c9",
+    "rust-std": "663f4ab7945b392d5e5294dec1b050a66820a20e86f084ec37eeb0f2f7ff5569",
+    "cargo": "9853db03d68578a30972e2755c89c66aec035fec641cf8f3a7117c81eec2578d",
+    "rustfmt": "7f4d38b9d782e55832bf17969ef35477703c60781545bb098eb127cc8172d1c6"
+  }
+}

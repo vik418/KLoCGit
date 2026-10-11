@@ -1,0 +1,36 @@
+{
+  "schema_version": 1,
+  "toolchain_version": "1.90.0",
+  "compiler_identity": "rustc 1.90.0 (1159e78c4 2025-09-14)",
+  "capability": "SEMANTIC",
+  "successful_analysis_status": "PARTIAL",
+  "edition_matrix": {
+    "2021": "PARTIAL",
+    "2024": "PARTIAL",
+    "2018": "UNSUPPORTED"
+  },
+  "toolchain_matrix": {
+    "1.89.0": "UNSUPPORTED",
+    "1.90.0": "PARTIAL",
+    "1.91.0": "UNSUPPORTED",
+    "nightly": "UNSUPPORTED"
+  },
+  "fixtures": {
+    "base.rs": "typed arguments, return types, arithmetic and literal std call",
+    "revision.rs": "function addition/deletion, changed signature/body and changed callee",
+    "advanced.rs": "trait impl, generic function, closure and dynamic dispatch",
+    "module-root.rs": "hydrated local module and literal module call",
+    "nested.rs": "hydrated module function",
+    "type-error.rs": "real compiler semantic rejection; FAILED",
+    "syntax-error.rs": "real compiler syntax rejection; FAILED",
+    "layout-only.rs": "compiler success without function facts; layout/export coverage unavailable",
+    "environment.rs": "option_env! with cleared environment",
+    "required-environment.rs": "env! must reject inherited-credential canary"
+  },
+  "unavailable_semantics": [
+    "Public struct layout/export information is not included in MIR function facts.",
+    "Generic and dyn trait calls do not identify every concrete runtime callee.",
+    "Dependencies, build scripts, proc macros and Cargo feature configurations are not executed.",
+    "Other rustc versions are unsupported because textual MIR has no stable interchange guarantee."
+  ]
+}

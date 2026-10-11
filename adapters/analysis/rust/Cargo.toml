@@ -1,0 +1,11 @@
+[package]
+name = "klocgit-rust-mir"
+version = "0.1.0"
+edition = "2021"
+publish = false
+
+[[bin]]
+name = "klocgit-rust-mir"
+path = "src/main.rs"
+
+[dependencies]
