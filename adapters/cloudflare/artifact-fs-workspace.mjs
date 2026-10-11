@@ -5,7 +5,8 @@ import { mkdir, mkdtemp, open, readlink, rm } from 'node:fs/promises';
 import { isAbsolute, join } from 'node:path';
 import { V1Error } from '../../core/v1/conventions.mjs';
 import { copyJsonData, gitOid, gitRef } from '../../core/v1/domain.mjs';
-import { MemoryWorkspaceCache, WorkspaceSource } from '../../core/v1/workspace.mjs';
+import { WorkspaceSource } from '../../core/v1/workspace.mjs';
+import { NoWorkspaceCache } from '../../core/v1/workspace-cache.mjs';
 import { LocalGitObjectProvider } from '../local/workspace-source.mjs';
 import { protectedGitArguments } from '../../server/git.mjs';
 
@@ -98,7 +99,8 @@ export class ArtifactFSWorkspaceSource {
     prepare_timeout_ms,
     mount_timeout_ms,
     max_object_bytes,
-    cache = new MemoryWorkspaceCache(),
+    max_acquisitions,
+    cache = new NoWorkspaceCache(),
   }) {
     const descriptor = copyJsonData(repository);
     valid(isAbsolute(binary) && isAbsolute(root));
@@ -114,7 +116,7 @@ export class ArtifactFSWorkspaceSource {
         !remote.search &&
         !remote.hash,
     );
-    for (const value of [prepare_timeout_ms, mount_timeout_ms, max_object_bytes])
+    for (const value of [prepare_timeout_ms, mount_timeout_ms, max_object_bytes, max_acquisitions])
       valid(Number.isSafeInteger(value) && value > 0);
     this.binary = binary;
     this.root = root;
@@ -122,6 +124,7 @@ export class ArtifactFSWorkspaceSource {
     this.prepare_timeout_ms = prepare_timeout_ms;
     this.mount_timeout_ms = mount_timeout_ms;
     this.max_object_bytes = max_object_bytes;
+    this.max_acquisitions = max_acquisitions;
     this.cache = cache;
     Object.freeze(this);
   }
@@ -304,6 +307,9 @@ export class ArtifactFSWorkspaceSource {
     gitOid(revision.commit_oid);
     if (revision.ref && revision.ref !== this.repository.ref) throw new V1Error('FORBIDDEN');
     if (!this.#entries.has(revision.commit_oid)) {
+      // Do not evict a mounted snapshot while an evaluator may still use it.
+      // The job owner closes the source to release its bounded acquisitions.
+      if (this.#entries.size >= this.max_acquisitions) throw new V1Error('RATE_LIMITED');
       const preparing = this.#prepare(revision.commit_oid).catch((error) => {
         this.#entries.delete(revision.commit_oid);
         throw error;

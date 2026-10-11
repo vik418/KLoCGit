@@ -5,6 +5,7 @@
 import { V1Error, assertSchemaVersion } from './conventions.mjs';
 import { copyJsonData, gitOid } from './domain.mjs';
 import { gitSnapshot } from './git-store.mjs';
+import { NoWorkspaceCache } from './workspace-cache.mjs';
 
 const encoder = new TextEncoder();
 const decoder = new TextDecoder('utf-8', { fatal: true, ignoreBOM: true });
@@ -148,23 +149,6 @@ function selection(input) {
   return { paths: selected, blobs };
 }
 
-/** No retention policy: T063 can supply a persistent implementation separately. */
-export class MemoryWorkspaceCache {
-  #objects = new Map();
-
-  async get(key) {
-    return this.#objects.get(key)?.slice() ?? null;
-  }
-
-  async put(key, bytes) {
-    this.#objects.set(key, bytes.slice());
-  }
-
-  clear() {
-    this.#objects.clear();
-  }
-}
-
 /**
  * Provider contract: readObject({repo_id,oid,kind}) returns
  * {status:'AVAILABLE',bytes:Uint8Array,bytes_transferred:number}, or
@@ -173,7 +157,7 @@ export class MemoryWorkspaceCache {
  * excluding protocol overhead. A provider must document its transfer boundary.
  */
 export class WorkspaceSource {
-  constructor({ repo_id, provider, cache = new MemoryWorkspaceCache() }) {
+  constructor({ repo_id, provider, cache = new NoWorkspaceCache() }) {
     valid(typeof repo_id === 'string' && repo_id.trim());
     valid(typeof provider?.readObject === 'function');
     valid(typeof cache?.get === 'function' && typeof cache?.put === 'function');
@@ -203,6 +187,7 @@ export class WorkspaceSource {
     if (commit.status !== 'AVAILABLE')
       throw new V1Error(commit.status === 'MISSING' ? 'NOT_FOUND' : 'PROVIDER_UNAVAILABLE');
     workspace.identity = commitSnapshot(this.repo_id, revision.commit_oid, commit.bytes);
+    workspace.bindCommit(revision.commit_oid);
     if (
       (revision.tree_oid && revision.tree_oid !== workspace.identity.tree_oid) ||
       (revision.parent_oids &&
@@ -223,6 +208,8 @@ export class WorkspaceSource {
       metrics: workspace.metrics.bind(workspace),
       cacheHint: workspace.cacheHint.bind(workspace),
       status: workspace.status.bind(workspace),
+      readObject: workspace.readObject.bind(workspace),
+      objectInventory: workspace.objectInventory.bind(workspace),
     });
   }
 
@@ -237,6 +224,7 @@ export class WorkspaceSource {
 }
 
 class Workspace {
+  #reachable = new Map();
   #source;
   #metrics;
   #entries = new Map();
@@ -249,6 +237,25 @@ class Workspace {
   constructor({ source, metrics }) {
     this.#source = source;
     this.#metrics = metrics;
+  }
+
+  bindCommit(oid) {
+    this.#reachable.set(oid, 'commit');
+  }
+
+  objectInventory() {
+    return freeze(
+      [...this.#reachable.entries()]
+        .map(([oid, kind]) => ({ oid, kind }))
+        .sort((left, right) => (left.oid < right.oid ? -1 : 1)),
+    );
+  }
+
+  async readObject(oid, kind) {
+    gitOid(oid, this.identity.commit_oid.length);
+    if (this.#reachable.get(oid) !== kind) throw new V1Error('FORBIDDEN');
+    const object = await this.object(oid, kind);
+    return Object.freeze({ ...object, bytes: object.bytes?.slice() });
   }
 
   async object(oid, kind) {
@@ -302,6 +309,7 @@ class Workspace {
   }
 
   async readTree(oid, prefix) {
+    this.#reachable.set(oid, 'tree');
     const tree = await this.object(oid, 'tree');
     if (tree.status !== 'AVAILABLE') {
       this.#missingTrees = true;
@@ -309,6 +317,7 @@ class Workspace {
       return;
     }
     for (const entry of treeEntries(tree.bytes, oid.length)) {
+      if (entry.kind !== 'commit') this.#reachable.set(entry.oid, entry.kind);
       const path = prefix + entry.name;
       if (entry.kind === 'tree') await this.readTree(entry.oid, path + '/');
       else

@@ -7,7 +7,8 @@ import { LocalGit, git } from '../../server/git.mjs';
 import { GitStore } from '../../core/v1/git-store.mjs';
 import { FutureRevision } from '../../core/v1/domain.mjs';
 import { analysisProject } from '../../core/v1/extractors.mjs';
-import { MemoryWorkspaceCache, WorkspaceSource, gitObjectOid } from '../../core/v1/workspace.mjs';
+import { WorkspaceSource, gitObjectOid } from '../../core/v1/workspace.mjs';
+import { BoundedWorkspaceCache } from '../../core/v1/workspace-cache.mjs';
 import {
   LocalGitObjectProvider,
   LocalWorkspaceSource,
@@ -58,10 +59,32 @@ async function fixture(t, files, initOptions = []) {
     producer: { declared: 'untrusted' },
     observed_at: '2026-10-10T00:00:00Z',
   });
-  const cache = new MemoryWorkspaceCache();
+  const cache = new BoundedWorkspaceCache({
+    policy: { schema_version: 1, max_entries: 1000, max_bytes: 8 * 1024 * 1024, ttl_ms: 120000 },
+  });
   const source = new LocalWorkspaceSource({ adapter, repository, cache });
   return { root, adapter, repository, directory, revision, cache, source, entries };
 }
+
+test('raw object access is limited to the verified snapshot, including unhydrated blobs', async (t) => {
+  const f = await fixture(t, [{ path: 'source.txt', contents: 'exact source' }]);
+  const unrelated = await git(f.directory, ['hash-object', '-w', '--stdin'], 'unreachable object');
+  const workspace = await f.source.fetch(f.revision, { blobs: 'none' });
+  assert.deepEqual(
+    new Set(workspace.objectInventory().map(({ kind }) => kind)),
+    new Set(['commit', 'tree', 'blob']),
+  );
+  const blob = workspace.listFiles()[0].oid;
+  const first = await workspace.readObject(blob, 'blob');
+  assert.equal(new TextDecoder().decode(first.bytes), 'exact source');
+  first.bytes[0] = 0;
+  assert.equal(
+    new TextDecoder().decode((await workspace.readObject(blob, 'blob')).bytes),
+    'exact source',
+  );
+  await assert.rejects(workspace.readObject(unrelated, 'blob'), { code: 'FORBIDDEN' });
+  await assert.rejects(workspace.readObject(blob, 'commit'), { code: 'FORBIDDEN' });
+});
 
 test('real Git targeted hydration transfers exact selected bytes without a clone or source writes', async (t) => {
   const contents = '\nexport const value = 1;\n\n';

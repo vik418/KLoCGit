@@ -5,7 +5,7 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { LocalGit, git } from '../../server/git.mjs';
 import { ArtifactFSWorkspaceSource } from '../../adapters/cloudflare/artifact-fs-workspace.mjs';
-import { MemoryWorkspaceCache } from '../../core/v1/workspace.mjs';
+import { BoundedWorkspaceCache } from '../../core/v1/workspace-cache.mjs';
 
 async function fixture(t) {
   const root = await mkdtemp(join(tmpdir(), 'klocgit-artifact-fs-'));
@@ -39,7 +39,9 @@ async function fixture(t) {
     tree_oid: tree,
     parent_oids: [],
   };
-  const cache = new MemoryWorkspaceCache();
+  const cache = new BoundedWorkspaceCache({
+    policy: { schema_version: 1, max_entries: 1000, max_bytes: 8 * 1024 * 1024, ttl_ms: 120000 },
+  });
   const config = {
     binary: process.env.KLOCGIT_ARTIFACT_FS_BINARY || '/tmp/klocgit-artifactfs/bin/artifact-fs',
     root: join(root, 'hydration'),
@@ -47,6 +49,7 @@ async function fixture(t) {
     prepare_timeout_ms: 10000,
     mount_timeout_ms: 5000,
     max_object_bytes: 4 * 1024 * 1024,
+    max_acquisitions: 1,
     cache,
   };
   const sources = [];
@@ -113,6 +116,30 @@ test('native verified acquisition rejects a moved source and cannot silently ins
   });
   assert.equal(updated.identity.commit_oid, next);
   assert.equal((await updated.readFile('main.js')).contents, f.text);
+});
+
+test('native acquisition capacity preserves active snapshots and a fresh source recovers after cache loss', async (t) => {
+  const f = await fixture(t),
+    source = f.createSource();
+  const first = await source.fetch(f.revision, { paths: ['main.js'] });
+  const next = await git(f.directory, [
+    'commit-tree',
+    f.revision.tree_oid,
+    '-p',
+    f.revision.commit_oid,
+    '-m',
+    'next',
+  ]);
+  await git(f.directory, ['update-ref', f.repository.canonical_ref, next]);
+  const updated = { ...f.revision, commit_oid: next, parent_oids: [f.revision.commit_oid] };
+  await assert.rejects(source.fetch(updated), { code: 'RATE_LIMITED' });
+  assert.equal((await first.readFile('main.js')).contents, f.text);
+  await source.close();
+  f.cache.clear();
+  const restored = await f.createSource().fetch(updated, { paths: ['main.js'] });
+  assert.equal(restored.identity.commit_oid, next);
+  assert.equal((await restored.readFile('main.js')).contents, f.text);
+  assert.ok(restored.metrics().bytes_transferred > 0);
 });
 
 test('repository identity, ref and closed-source boundaries reject access before hydration', async (t) => {

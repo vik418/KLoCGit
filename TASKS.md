@@ -28,12 +28,14 @@ Complete in dependency order. Do not skip acceptance criteria.
 - T050: COMPLETE. Six reduction tests verify exact-tree sharing, preserved origins, separate targets/bases, explicit acyclic supersession, deterministic CandidateSpec identity and substituted-plan rejection. Distinct trees are never discarded on effect similarity.
 - T051: COMPLETE. Security override tests preserve dependency/build/CI/auth/IAM/schema/migration/secret effects regardless of non-critical hub thresholds. Hints cannot authorize mutation.
 - T052: COMPLETE. Four indexing tests cover dense hyperedges, security bypass, scope separation, deterministic ordering, incomplete analysis and substituted payload rejection. A 1,000-member shared effect requires no pairwise expansion.
-- T060: COMPLETE. Twelve real-Git workspace tests cover blobless/targeted hydration, exact object verification, source substitution, binary/missing objects, SHA-256 repositories, UTF-8 preservation and cache loss. Transfer counters describe their provider boundary.
+- T060: COMPLETE. Thirteen real-Git workspace tests cover blobless/targeted hydration, exact object verification, scoped raw-object access, source substitution, binary/missing objects, SHA-256 repositories, UTF-8 preservation and cache loss. Transfer counters describe their provider boundary.
 - T053: COMPLETE. Six dominance tests verify trusted measured dimensions, preserved distinct Git states, inferred-score rejection, ties, bounded comparisons and immutable verification records.
 - T054: COMPLETE. Seven reducer tests cover 1,000 distinct revisions, bounded CandidateSpecs, a lossless deferred frontier, security priority, target fairness, dependency closure/cycles, stale dependencies and verified checkable rejection. Deferred work remains unresolved.
 - T055: COMPLETE. Four ranking tests verify immediate deterministic scheduling, complete priority permutations, provider failure/timeout, immutable inputs and stale-batch rejection. Ranking output remains INFERRED and cannot delete plans or authorize promotion.
 - T061: COMPLETE. Four native FUSE tests verify pinned ArtifactFS acquisition without initial blobs, exact selected hydration, cold/warm payload counters, cache loss, source movement, scoped access and concurrent reads. Network framing/prefetch cost and live Cloudflare remain separate release measurements.
-- Next incomplete task: T062.
+- T062: COMPLETE. Eleven real-Git tests cover whole-Future and commit composition, reproducibility, source immutability, lazy unchanged-file hydration, explicit conflicts, source/plan substitution, dependency eligibility, SHA-256, bounded work, multi-repository states and disposable workspace recovery. Candidate objects remain local; materialization does not establish behavioral correctness.
+- T063: COMPLETE. Bounded byte/entry/TTL caching is optional and every hit is verified. Thirty-four focused tests cover cache loss, expiration, corruption, oversized objects, native acquisition limits, Candidate capacity and deterministic rematerialization. Active workspaces are not evicted; job owners explicitly release them. Production persistence/default policies remain open under D009.
+- Next incomplete task: T070.
 - All remaining tasks: INCOMPLETE.
 
 Existing v0 behavior does not establish v1 completion. Task completion requires the tests and acceptance criteria below.
