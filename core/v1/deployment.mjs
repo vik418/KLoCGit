@@ -6,6 +6,7 @@ import {
   objectId,
   operationId,
   parseDigest,
+  parseObjectId,
 } from './conventions.mjs';
 import { copyJsonData, DeploymentObservation, gitOid } from './domain.mjs';
 import { digestCanonical } from './encoding.mjs';
@@ -76,7 +77,7 @@ export function deploymentHandle(input) {
   parseDigest(handle.system_revision_digest, 'object-system-revision');
   parseDigest(handle.release_constraints_digest, 'release-constraints');
   // Operation IDs are scoped to the tenant, system, action and idempotency key.
-  valid(/^klocgit:operation:v1:sha256:[a-f0-9]{64}$/.test(handle.operation_id));
+  parseObjectId(handle.operation_id, 'operation');
   return freeze(handle);
 }
 

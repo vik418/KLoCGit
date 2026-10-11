@@ -49,7 +49,8 @@ Complete in dependency order. Do not skip acceptance criteria.
 - T092: COMPLETE. Five contract tests verify exact release bindings, current authorization/policy, scoped operation identity, immutable observations and UNKNOWN on unavailable observation. Deployment execution remains external; successful execution does not establish deployed state.
 - T093: COMPLETE. Six Argo HTTP contract tests verify exact Git source mapping, project/namespace isolation, resource-version guards, operation-marker recovery, external edits and contradictory observations. Native constraints require an explicitly registered translator; unsupported constraints block submission. Live Argo execution remains a release gate.
 - T094: COMPLETE. Four GitHub Actions HTTP tests verify full provider-neutral contract delivery, actual dispatch run identity, workflow/ref/operation binding and execution-state mapping. Three shared HTTP tests cover bounded payloads, authorization/rate failures, TLS/redirect handling and ambiguous effects. Timeout remains UNKNOWN; a green run alone does not verify deployed state. Live workflow enforcement remains a release gate.
-- Next incomplete task: T095.
+- T095: COMPLETE. Eight SQLite/restart tests verify one-time dispatch preparation, ambiguous crash recovery, authenticated/versioned events, webhook-first observation, bounded exponential jitter, persisted provider limits, delayed-poll races and contradictory outcomes. Provider calls run outside coordination transactions; deployment never waits on canonical-ref coordination. Live provider outage exercise remains a release gate.
+- Next incomplete task: T096.
 - All remaining tasks: INCOMPLETE.
 
 Existing v0 behavior does not establish v1 completion. Task completion requires the tests and acceptance criteria below.
