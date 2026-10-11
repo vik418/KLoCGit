@@ -47,4 +47,12 @@ node benchmarks/evidence-reuse.mjs 10
 
 The fixture loses a request's response. One Future adds retrying; another adds charging before the response is lost. Each passes the registered at-most-one-charge check alone; their clean textual composition fails it. A trusted host recipe observes actual process output and ignores the producer's passing verdict. Signing stays outside execution. Initial CI evaluation cost is recorded separately from additional scheduler work. Failed exact-state Evidence can be reused as an observation; it cannot authorize a choice. These are local measurements, not live external CI or billing results.
 
-The [ranking comparison harness](ranking.mjs) accepts a registered Ranker, exact-state evaluator and independent risk labels. Both arms use the same evaluation budget and Candidate pool. Deterministic work starts immediately; a late result can reorder only remaining work. Missing or failed models produce UNMEASURED results. Unit fixtures verify the protocol, not model quality. No live model comparison is recorded.
+Run the ranking baseline on actual local Git and sandbox execution:
+
+```sh
+node benchmarks/ranking-local.mjs 2 4 5000
+```
+
+Arguments are evaluation budget, repetitions and ranking timeout in milliseconds. A trusted module exporting `createRanker()` can be supplied as the fourth argument. The bundled `scripts/configured-ranker.mjs` requires `KLOCGIT_RANKER_URL`, `KLOCGIT_RANKER_TOKEN`, `KLOCGIT_RANKER_TIMEOUT_MS` and `KLOCGIT_RANKER_MAX_BYTES`. The service receives `{schema_version: 1, candidate_specs, evidence_summary}` and returns `{schema_version: 1, priorities}` containing every CandidateSpec ID exactly once.
+
+Both arms use the same seven local compositions and evaluation budget. Run order alternates across repetitions. Source snapshots come from verified Git objects; risk labels stay outside ranking input. Deterministic work starts immediately, and late priorities affect only remaining work. Reports retain failed runs, priority stability, observed risk recall and execution time. Source refs and objects must remain unchanged. Missing or failed ranking services produce UNMEASURED results. These checks establish the experiment protocol; no live model benefit is recorded.

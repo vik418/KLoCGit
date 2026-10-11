@@ -37,7 +37,7 @@ The v1 implementation follows [CODEX.md](CODEX.md), the frozen [architecture](AR
 
 The [v0 design document](docs/design.md) contains the system diagram, core contracts and safety boundaries. The authenticated capability registry distinguishes verified local behavior from partial, experimental and unsupported workflows.
 
-Cloudflare runs the API Worker, Durable Object, Artifacts repositories, Queue and private Git executor. The UI is React; the backend is JavaScript. Cloudflare integration remains experimental until the complete live path is verified.
+Cloudflare runs the API Worker, Durable Object, Artifacts repositories, Queue and private Git executor. The UI is React; the control plane is JavaScript. Analysis uses the TypeScript compiler and Python, Go and Rust helpers. Each analyzer publishes its capability limits. Cloudflare integration remains experimental until the complete live path is verified.
 
 Automatic push delivery requires `CLOUDFLARE_ACCOUNT_ID` and `ARTIFACTS_EVENTS_QUEUE_ID`
 on the API Worker, plus the `ARTIFACTS_SUBSCRIPTION_TOKEN` secret: an account-scoped

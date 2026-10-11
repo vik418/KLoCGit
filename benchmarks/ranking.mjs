@@ -16,6 +16,7 @@ export async function benchmarkRanking({
   ranker,
   max_evaluations,
   timeout_ms,
+  first_phase = 'deterministic',
   onProgress = () => {},
 }) {
   const specs = await Promise.all(copyJsonData(candidate_specs).map(verifyCandidateSpec));
@@ -31,7 +32,8 @@ export async function benchmarkRanking({
     typeof verifyProvenance !== 'function' ||
     !Number.isSafeInteger(max_evaluations) ||
     max_evaluations < 1 ||
-    max_evaluations > specs.length
+    max_evaluations > specs.length ||
+    !['deterministic', 'asynchronous-ranking'].includes(first_phase)
   )
     throw new TypeError(
       'An explicit workload, independent labels and evaluation budget are required.',
@@ -97,6 +99,10 @@ export async function benchmarkRanking({
         observed_at_ms: performance.now() - started,
         new_compute_ms: metrics.elapsed_ms,
         evidence_ids: observation.evidence.map(({ id }) => id),
+        evidence_results: observation.evidence.map(({ id, result }) => ({
+          id,
+          status: result.status,
+        })),
       };
       rows.push(row);
       await onProgress({ phase, ...row });
@@ -115,6 +121,7 @@ export async function benchmarkRanking({
       pool_digest,
       ranking_status: projection.status,
       ranking_elapsed_ms: ranked_at_ms,
+      priorities: projection.priorities,
       execution_elapsed_ms,
       high_risk_found: found.length,
       high_risk_recall: labels.size ? found.length / labels.size : null,
@@ -124,14 +131,22 @@ export async function benchmarkRanking({
       rows,
     };
   };
-  const deterministic = await run(null, 'deterministic');
-  const ranked = ranker === null ? null : await run(ranker, 'asynchronous-ranking');
+  let deterministic,
+    ranked = null;
+  if (ranker !== null && first_phase === 'asynchronous-ranking') {
+    ranked = await run(ranker, 'asynchronous-ranking');
+    deterministic = await run(null, 'deterministic');
+  } else {
+    deterministic = await run(null, 'deterministic');
+    if (ranker !== null) ranked = await run(ranker, 'asynchronous-ranking');
+  }
   return {
     schema_version: 1,
     measured_at: new Date().toISOString(),
     hypothesis: 'H5',
     status: ranked?.ranking_status === 'COMPLETE' ? 'MEASURED' : 'UNMEASURED',
     max_evaluations,
+    first_phase,
     total_candidates: specs.length,
     total_high_risk: labels.size,
     pool_digest,
@@ -143,5 +158,56 @@ export async function benchmarkRanking({
       ranked?.ranking_status === 'COMPLETE'
         ? deterministic.new_compute_ms - ranked.new_compute_ms
         : null,
+  };
+}
+
+/** Counterbalance run order; failures remain visible rather than being dropped. */
+export async function benchmarkRankingExperiment({ repetitions, ...options }) {
+  if (!Number.isSafeInteger(repetitions) || repetitions < 2)
+    throw new TypeError('At least two repetitions are required for a comparison.');
+  const runs = [];
+  for (let repeat = 0; repeat < repetitions; repeat++) {
+    const report = await benchmarkRanking({
+      ...options,
+      first_phase: repeat % 2 ? 'asynchronous-ranking' : 'deterministic',
+      onProgress: (row) => options.onProgress?.({ repeat, ...row }),
+    });
+    if (runs.length && runs[0].pool_digest !== report.pool_digest)
+      throw new Error('The experiment changed its Candidate pool.');
+    runs.push(report);
+  }
+  const measured = runs.every(({ status }) => status === 'MEASURED');
+  const summary = (phase) => {
+    const rows = runs.map((run) => run[phase]).filter(Boolean);
+    if (!rows.length) return null;
+    const observed = rows.filter((row) => row.first_high_risk_evidence_ms !== null);
+    const mean = (values) => values.reduce((sum, value) => sum + value, 0) / values.length;
+    const ranks = new Set(rows.map(({ priorities }) => JSON.stringify(priorities)));
+    return {
+      schema_version: 1,
+      runs: rows.length,
+      completed_rankings: rows.filter(({ ranking_status }) => ranking_status === 'COMPLETE').length,
+      mean_high_risk_recall:
+        rows[0].high_risk_recall === null ? null : mean(rows.map((row) => row.high_risk_recall)),
+      runs_with_high_risk_evidence: observed.length,
+      mean_first_high_risk_evidence_ms: observed.length
+        ? mean(observed.map((row) => row.first_high_risk_evidence_ms))
+        : null,
+      mean_new_compute_ms: mean(rows.map((row) => row.new_compute_ms)),
+      distinct_priority_orders: ranks.size,
+    };
+  };
+  return {
+    schema_version: 1,
+    measured_at: new Date().toISOString(),
+    hypothesis: 'H5',
+    status: measured ? 'MEASURED' : 'UNMEASURED',
+    repetitions,
+    pool_digest: runs[0].pool_digest,
+    deterministic: summary('deterministic'),
+    ranked: summary('ranked'),
+    runs,
+    scope:
+      'Counterbalanced local workload; execution time is observed, not provider billing. Risk labels are private. These measurements do not establish general model quality.',
   };
 }

@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
-import { benchmarkRanking } from '../../benchmarks/ranking.mjs';
+import { benchmarkRanking, benchmarkRankingExperiment } from '../../benchmarks/ranking.mjs';
 import { buildCandidateSpec } from '../../core/v1/reduction.mjs';
 import { materializedCandidate } from '../../core/v1/materialization.mjs';
 import { buildEvidence, candidateEvidenceSubject } from '../../core/v1/evidence.mjs';
@@ -134,4 +134,53 @@ test('substituted or unverified observations cannot count as useful Evidence', a
     }),
     /measured execution/,
   );
+});
+
+test('repeated comparisons alternate run order and retain failed ranking runs', async () => {
+  const f = await fixture();
+  let calls = 0;
+  const report = await benchmarkRankingExperiment({
+    ...f.options,
+    repetitions: 2,
+    ranker: {
+      rank: async (inputs) => {
+        if (calls++) throw new Error('provider unavailable');
+        return { schema_version: 1, priorities: inputs.map(({ id }) => id).reverse() };
+      },
+    },
+  });
+  assert.deepEqual(
+    report.runs.map((run) => run.first_phase),
+    ['deterministic', 'asynchronous-ranking'],
+  );
+  assert.equal(report.status, 'UNMEASURED');
+  assert.equal(report.ranked.completed_rankings, 1);
+  assert.equal(report.ranked.runs, 2);
+  assert.equal(report.ranked.mean_high_risk_recall, 0.5);
+  assert.equal(report.ranked.runs_with_high_risk_evidence, 1);
+  assert.equal(report.ranked.distinct_priority_orders, 2);
+  assert.equal(report.deterministic.distinct_priority_orders, 1);
+  assert.deepEqual(
+    f.calls.map(([phase]) => phase),
+    [
+      'deterministic',
+      'deterministic',
+      'asynchronous-ranking',
+      'asynchronous-ranking',
+      'asynchronous-ranking',
+      'asynchronous-ranking',
+      'deterministic',
+      'deterministic',
+    ],
+  );
+});
+
+test('repeated comparisons reject invalid counts without running an evaluator', async () => {
+  const f = await fixture();
+  for (const repetitions of [0, 1, 1.5, NaN])
+    await assert.rejects(
+      benchmarkRankingExperiment({ ...f.options, repetitions, ranker: null }),
+      /two repetitions/,
+    );
+  assert.deepEqual(f.calls, []);
 });
