@@ -41,7 +41,8 @@ Complete in dependency order. Do not skip acceptance criteria.
 - T073: COMPLETE. Seven scheduling tests verify exact-state reuse before evaluation, current policy/configuration/environment/provenance checks, composed-state evaluation, bounded deferral, missing results and preserved conflicting observations. Only policy-listed checks run; the scheduling report grants no resolution authority.
 - T074: COMPLETE. Nine SQLite/filesystem tests verify retention assignment, temporary/rebuildable expiration, protected decision/canonical records, reference pinning, monotonic retention upgrades, restart, authorization, corruption and ambiguous/delayed deletion recovery. Storage generations prevent old cleanup retries from deleting recreated payloads. Production periods and lifecycle scheduling remain explicit configuration work.
 - T080: COMPLETE. Nine formulation tests verify discovered components, separate unrelated work, exact-state isolated/composed observations, required-analysis uncertainty, whole-Future versus commit selection, stable identities, mixed-baseline rejection and bounded dense/security hubs. Fifty-two focused lifecycle/index tests pass. The result remains reviewable; it grants no resolution authority.
-- Next incomplete task: T081.
+- T081: COMPLETE. Eleven HTTP/Git/SQLite tests verify basis and canonical-ref conflicts, required PARTIAL blocking, authenticated scope, exact retained Evidence bindings, policy/authorization races, concurrent retries and restart. Thirty-eight focused resolution/retention/promotion tests pass. Resolution records the choice; Git promotion still requires its own current-policy CAS.
+- Next incomplete task: T082.
 - All remaining tasks: INCOMPLETE.
 
 Existing v0 behavior does not establish v1 completion. Task completion requires the tests and acceptance criteria below.
