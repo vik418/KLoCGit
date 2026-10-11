@@ -38,7 +38,8 @@ Complete in dependency order. Do not skip acceptance criteria.
 - T070: COMPLETE. Nine Evidence tests verify immutable content identity; exact repository trees/commits; configuration, environment and evaluator-version matching; authenticated provenance; current policy; bounded provider results; mutation resistance and sanitized outages. Thirteen materialization tests also verify preserving the original isolated commit for exact-state CI reuse. Eligibility alone does not authorize promotion.
 - T071: COMPLETE. Seven real-Git/Ed25519 tests verify exact-state CI reuse, composed-state rejection, immutable receipts, forged signatures, evaluator/recipe grants, tenant/actor/repository boundaries, cancelled/failed observations and historical Git reads. Publishers must use an independently controlled recipe and keep signing keys outside producer execution. Live CI publisher wiring remains a release gate.
 - T072: COMPLETE. Six native Git/Linux tests verify isolated candidate execution, denied host credentials/files/network, bounded input/output/time, scoped and audited broker access, exact workspace identity and independently evaluated producer output. Cloudflare execution remains a release gate.
-- Next incomplete task: T073.
+- T073: COMPLETE. Seven scheduling tests verify exact-state reuse before evaluation, current policy/configuration/environment/provenance checks, composed-state evaluation, bounded deferral, missing results and preserved conflicting observations. Only policy-listed checks run; the scheduling report grants no resolution authority.
+- Next incomplete task: T074.
 - All remaining tasks: INCOMPLETE.
 
 Existing v0 behavior does not establish v1 completion. Task completion requires the tests and acceptance criteria below.
