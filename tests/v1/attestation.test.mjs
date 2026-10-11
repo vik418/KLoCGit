@@ -9,6 +9,11 @@ import { buildDeploymentObservation } from '../../core/v1/deployment.mjs';
 import { buildSystemRevision } from '../../core/v1/releases.mjs';
 import { encodeCanonical } from '../../core/v1/encoding.mjs';
 import { releaseFixture, deploymentAdapter } from './support/deployment.mjs';
+import { SqliteCoordinationBackend } from '../../adapters/local/coordination.mjs';
+import { CoordinationStore } from '../../core/v1/coordination.mjs';
+import { AttestationService } from '../../core/v1/attestation-service.mjs';
+import { AuditStream } from '../../core/v1/audit.mjs';
+import { digestCanonical } from '../../core/v1/encoding.mjs';
 
 async function fixture() {
   const f = await releaseFixture();
@@ -199,4 +204,134 @@ test('current authorization and key retirement apply to historical proofs', asyn
   await assert.rejects(f.verifier.verify(f.attestation, f.revision, f.options), {
     code: 'FORBIDDEN',
   });
+});
+
+test('authoritative verification retains one audit record across retries and records forged proofs', async (t) => {
+  const f = await fixture();
+  const backend = new SqliteCoordinationBackend({ filename: ':memory:', busy_timeout_ms: 1000 });
+  t.after(() => backend.close());
+  const store = new CoordinationStore(backend);
+  const scope = {
+    schema_version: 1,
+    tenant_id: 'tenant',
+    system_id: 'group',
+    kind: 'OBJECTIVE',
+    resource_id: 'deployment:provider',
+  };
+  const state = {
+    schema_version: 1,
+    attestation: f.attestation,
+    revision: f.revision,
+    ...f.options,
+    verification_policy_digest: await digestCanonical('verification-policy', {
+      observer: 'registered',
+      version: 1,
+    }),
+  };
+  delete state.context;
+  const service = new AttestationService({
+    store,
+    verifier: f.verifier,
+    loadAuthorized: () => state,
+    authorize: () => true,
+    now: () => 100,
+  });
+  const request = {
+    schema_version: 1,
+    scope,
+    attestation_digest: f.attestation.digest,
+    idempotency_key: 'verify',
+    trace_id: 'trace',
+  };
+  const record = await service.verify(request, f.context.principal);
+  assert.equal(record.status, 'VERIFIED');
+  assert.deepEqual(await service.verify(request, f.context.principal), record);
+  f.setProof({ ...f.proof(), signature: '0'.repeat(128) });
+  const rejected = await service.verify(
+    { ...request, idempotency_key: 'forged' },
+    f.context.principal,
+  );
+  assert.equal(rejected.status, 'REJECTED');
+  assert.equal(rejected.failure_code, 'INTEGRITY_MISMATCH');
+  assert.equal(rejected.result, null);
+  const audit = await new AuditStream({ store, authorize: () => true, max_page_size: 10 }).read(
+    scope,
+    { schema_version: 1, after: 0, limit: 10, expected_digest: null },
+    f.context.principal,
+  );
+  assert.deepEqual(
+    audit.entries.map((entry) => entry.event.to_state),
+    ['VERIFIED', 'REJECTED'],
+  );
+  assert.equal(audit.entries[0].event.bindings.system_revision_digest, f.revision.digest);
+});
+
+test('proof I/O releases coordination and a changed observation or observer policy cannot commit verification', async (t) => {
+  const f = await fixture();
+  const backend = new SqliteCoordinationBackend({ filename: ':memory:', busy_timeout_ms: 1000 });
+  t.after(() => backend.close());
+  const store = new CoordinationStore(backend);
+  const scope = {
+    schema_version: 1,
+    tenant_id: 'tenant',
+    system_id: 'group',
+    kind: 'OBJECTIVE',
+    resource_id: 'deployment:provider',
+  };
+  const state = {
+    schema_version: 1,
+    attestation: f.attestation,
+    revision: f.revision,
+    handle: f.options.handle,
+    observation: f.options.observation,
+    constraints: f.constraints,
+    verification_policy_digest: await digestCanonical('verification-policy', { version: 1 }),
+  };
+  let canonicalRead = false;
+  const service = new AttestationService({
+    store,
+    authorize: () => true,
+    now: () => 100,
+    loadAuthorized: () => state,
+    verifier: {
+      verify: async (...args) => {
+        await store.transaction(
+          { ...scope, kind: 'REF', resource_id: { repo_id: 'app', ref: 'refs/heads/main' } },
+          async () => {
+            canonicalRead = true;
+          },
+        );
+        const result = await f.verifier.verify(...args);
+        state.verification_policy_digest = await digestCanonical('verification-policy', {
+          version: 2,
+          retired: true,
+        });
+        return result;
+      },
+    },
+  });
+  await assert.rejects(
+    service.verify(
+      {
+        schema_version: 1,
+        scope,
+        attestation_digest: f.attestation.digest,
+        idempotency_key: 'verify',
+        trace_id: 'trace',
+      },
+      f.context.principal,
+    ),
+    { code: 'STALE_BASIS' },
+  );
+  assert.equal(canonicalRead, true);
+  assert.equal(
+    (
+      await new AuditStream({ store, authorize: () => true, max_page_size: 10 }).read(
+        scope,
+        { schema_version: 1, after: 0, limit: 10, expected_digest: null },
+        f.context.principal,
+      )
+    ).entries.length,
+    0,
+  );
 });

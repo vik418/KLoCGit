@@ -19,6 +19,7 @@ import {
 } from '../../core/v1/evidence.mjs';
 import { digestCanonical } from '../../core/v1/encoding.mjs';
 import { digestBytes, objectId } from '../../core/v1/conventions.mjs';
+import { AuditStream } from '../../core/v1/audit.mjs';
 
 async function fixture(t) {
   const directory = await mkdtemp(join(tmpdir(), 'klocgit-resolution-'));
@@ -252,6 +253,14 @@ test('HTTP resolution persists the exact choice, pins evidence and survives rest
     { principal: f.principal },
   );
   assert.deepEqual(retried, decision);
+  const audit = await new AuditStream({
+    store: f.store,
+    authorize: f.options.authorize,
+    max_page_size: 10,
+  }).read(f.scope, { schema_version: 1, after: 0, limit: 10, expected_digest: null }, f.principal);
+  assert.equal(audit.entries.length, 1);
+  assert.equal(audit.entries[0].event.action, 'decision.resolve');
+  assert.equal(audit.entries[0].event.bindings.candidate_digest, f.candidate.digest);
 });
 
 test('obsolete reviewed basis and moved canonical Git heads return 409', async (t) => {

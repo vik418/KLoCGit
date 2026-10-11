@@ -8,6 +8,7 @@ import {
 } from './conventions.mjs';
 import { copyJsonData, gitOid } from './domain.mjs';
 import { digestCanonical } from './encoding.mjs';
+import { appendAudit } from './audit.mjs';
 import { verifySystemRevision, verifyReleaseConstraints } from './releases.mjs';
 import {
   deploymentContext,
@@ -127,17 +128,28 @@ export class DeploymentCoordinator {
 
   async #save(tx, record, context, previous, failure_class = null) {
     await tx.put('deployment:' + record.operation_id, record);
-    await tx.put('audit:' + record.operation_id + ':' + record.version, {
-      schema_version: 1,
-      trace_id: context.trace_id,
-      object_id: record.operation_id,
-      actor_id: context.principal.actor_id,
-      from_state: previous,
-      to_state: record.status,
-      version: record.version,
-      occurred_at_ms: this.now(),
-      failure_class,
-    });
+    await appendAudit(
+      tx,
+      this.#scope(context, record.provider_id),
+      {
+        schema_version: 1,
+        event_key: record.operation_id.split(':').at(-1) + '.' + record.version,
+        trace_id: context.trace_id,
+        subject_id: record.operation_id,
+        actor_id: context.principal.actor_id,
+        action: 'deployment.observe',
+        operation_id: record.operation_id,
+        from_state: previous,
+        to_state: record.status,
+        failure_class,
+        bindings: {
+          system_revision_digest: record.revision.digest,
+          release_constraints_digest: record.constraints.digest,
+          ...(record.observation ? { observation_digest: record.observation.digest } : {}),
+        },
+      },
+      this.now,
+    );
     return record;
   }
 

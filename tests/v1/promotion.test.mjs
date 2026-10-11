@@ -13,6 +13,7 @@ import { objectId } from '../../core/v1/conventions.mjs';
 import { digestCanonical } from '../../core/v1/encoding.mjs';
 import { buildDecisionBasis } from '../../core/v1/decisions.mjs';
 import { PromotionService } from '../../core/v1/promotion.mjs';
+import { AuditStream } from '../../core/v1/audit.mjs';
 
 const digest = (domain, hex = 'a') => 'sha256:' + domain + ':v1:' + hex.repeat(64);
 
@@ -254,6 +255,16 @@ test('promotion durably prepares authorization, performs CAS and resolves the ex
   assert.equal(decision.resolution.candidate_digest, f.candidate.digest);
   assert.deepEqual(await f.service.promote(f.request, { principal: f.principal }), outcome);
   assert.equal(f.counts().casCalls, 1);
+  const audit = await new AuditStream({
+    store: f.store,
+    authorize: () => true,
+    max_page_size: 10,
+  }).read(f.scope, { schema_version: 1, after: 0, limit: 10, expected_digest: null }, f.principal);
+  assert.deepEqual(
+    audit.entries.map((entry) => entry.event.to_state),
+    ['PREPARED', 'APPLIED'],
+  );
+  assert.equal(audit.entries[1].event.bindings.observed_oid, f.target.commit_oid);
 });
 
 test('stale basis, policy version and expected OID never authorize Git mutation', async (t) => {
@@ -416,6 +427,15 @@ test('a crash after Git update before metadata commit recovers from the prepared
     'OBSERVED_TARGET',
   );
   assert.equal(f.counts().casCalls, 1);
+  const audit = await new AuditStream({
+    store: resumed.store,
+    authorize: () => true,
+    max_page_size: 10,
+  }).read(f.scope, { schema_version: 1, after: 0, limit: 10, expected_digest: null }, f.principal);
+  assert.deepEqual(
+    audit.entries.map((entry) => entry.event.to_state),
+    ['PREPARED', 'OBSERVED_TARGET'],
+  );
 });
 
 test('recovery and replay preserve a later unrelated external push', async (t) => {

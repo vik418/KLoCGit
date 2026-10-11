@@ -12,6 +12,7 @@ import { coordinationScope } from './coordination.mjs';
 import { digestCanonical } from './encoding.mjs';
 import { resolveDecision, verifyDecisionBasis } from './decisions.mjs';
 import { gitSnapshot } from './git-store.mjs';
+import { appendAudit } from './audit.mjs';
 
 function valid(condition) {
   if (!condition) throw new V1Error('INVALID_ARGUMENT');
@@ -213,8 +214,15 @@ export class PromotionService {
   }
 
   async finish(tx, record, state, { observed_oid = null, failure_code = null } = {}) {
-    const next = { ...record, state, observed_oid, failure_code };
+    const next = {
+      ...record,
+      state,
+      observed_oid,
+      failure_code,
+      audit_version: (record.audit_version ?? 0) + 1,
+    };
     await tx.put('promotion:' + record.id, next);
+    await this.audit(tx, next, record.state);
     if (terminalStates.includes(state)) await tx.delete('canonical:active-promotion');
     if (['APPLIED', 'OBSERVED_TARGET'].includes(state)) {
       const current = Decision(await tx.get('decision:' + record.request.decision_id));
@@ -224,6 +232,35 @@ export class PromotionService {
         await tx.put('decision:' + current.id, record.authorized_decision);
     }
     return next;
+  }
+
+  async audit(tx, record, previous) {
+    const scope = coordinationScope({
+      schema_version: 1,
+      tenant_id: record.request.tenant_id,
+      system_id: record.request.system_id,
+      kind: 'REF',
+      resource_id: { repo_id: record.request.repo_id, ref: record.request.ref },
+    });
+    return appendAudit(tx, scope, {
+      schema_version: 1,
+      event_key: record.id.split(':').at(-1) + '.' + record.audit_version,
+      actor_id: record.actor_id,
+      trace_id: record.id,
+      action: 'canonical.promote',
+      subject_id: record.request.decision_id,
+      operation_id: record.id,
+      from_state: previous,
+      to_state: record.state,
+      failure_class: record.failure_code,
+      bindings: {
+        basis_digest: record.request.basis_digest,
+        candidate_digest: record.request.candidate_digest,
+        expected_oid: record.request.expected_oid,
+        target_oid: record.target_commit_oid,
+        ...(record.observed_oid ? { observed_oid: record.observed_oid } : {}),
+      },
+    });
   }
 
   async promote(input, options) {
@@ -240,12 +277,14 @@ export class PromotionService {
         request: context.request,
         actor_id: context.principal.actor_id,
         state: 'PREPARED',
+        audit_version: 1,
         observed_oid: null,
         failure_code: null,
         ...authorization,
       };
       await tx.put('promotion:' + context.id, record);
       await tx.put('canonical:active-promotion', { schema_version: 1, operation_id: context.id });
+      await this.audit(tx, record, null);
       return { owner: true, record };
     });
     if (!prepared.owner) return this.result(prepared.record);

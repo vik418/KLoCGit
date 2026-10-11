@@ -13,6 +13,7 @@ import { digestCanonical, encodeCanonical } from './encoding.mjs';
 import { makeResolvable, resolveDecision, verifyDecisionBasis } from './decisions.mjs';
 import { verifyCandidateContent } from './promotion.mjs';
 import { verifyEvidence } from './evidence.mjs';
+import { appendAudit } from './audit.mjs';
 
 function valid(condition) {
   if (!condition) throw new V1Error('INVALID_ARGUMENT');
@@ -286,6 +287,22 @@ export class ResolutionService {
         state: 'APPLIED',
         from_state: checked.from_state,
         decision: checked.decision,
+      });
+      await appendAudit(tx, context.request.scope, {
+        schema_version: 1,
+        event_key: context.id.split(':').at(-1),
+        actor_id: context.principal.actor_id,
+        trace_id: context.request.trace_id,
+        action: 'decision.resolve',
+        subject_id: checked.decision.id,
+        operation_id: context.id,
+        from_state: checked.from_state,
+        to_state: 'RESOLVED',
+        failure_class: null,
+        bindings: {
+          basis_digest: context.request.basis_digest,
+          candidate_digest: context.request.candidate_digest,
+        },
       });
       return checked.decision;
     });

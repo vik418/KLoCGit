@@ -54,7 +54,8 @@ Complete in dependency order. Do not skip acceptance criteria.
 - T100: COMPLETE. Adversarial boundary tests reject foreign and spoofed identities before Git, coordination, claim-check, CI registry, evidence payload or deployment access. Existing signed-attestation and scoped-store tests cover proof identity and tenant/system partitioning. No tested foreign request disclosed data or performed an effect. Application routing remains subject to the release integration suite.
 - T101: COMPLETE. Seven authorization tests verify exact agent capability scope, tenant/actor bindings, revocation/expiry, explicit system grants, authoritative identity mapping, bounded registry reads and sanitized failures. Conflicting scope aliases and wildcard permissions are rejected. Domain authorization remains independent of the OIDC provider.
 - T102: COMPLETE. Twelve broker/native-sandbox tests verify resource and Candidate scope, denied origins, host-only read credentials, secret-purpose rejection, common-encoding screening, exact resource digests and bounded responses. A native process receives approved bytes without inheriting broker credentials. Credential screening does not claim to detect arbitrary encodings; process isolation remains the primary boundary.
-- Next incomplete task: T103.
+- T103: COMPLETE. Forty-nine focused audit/decision/promotion/deployment tests pass. Policy and permission revisions, reviewed choices, prepared/final CAS outcomes and attestation verification commit with append-only scoped audit records. Tests cover restart, concurrent appenders, idempotency, tamper detection, bounded export, authorization and rollback on audit failure. Hash links detect changes against retained checkpoints; they do not provide an external signing anchor.
+- Next incomplete task: T104.
 - All remaining tasks: INCOMPLETE.
 
 Existing v0 behavior does not establish v1 completion. Task completion requires the tests and acceptance criteria below.
