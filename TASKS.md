@@ -36,7 +36,8 @@ Complete in dependency order. Do not skip acceptance criteria.
 - T062: COMPLETE. Eleven real-Git tests cover whole-Future and commit composition, reproducibility, source immutability, lazy unchanged-file hydration, explicit conflicts, source/plan substitution, dependency eligibility, SHA-256, bounded work, multi-repository states and disposable workspace recovery. Candidate objects remain local; materialization does not establish behavioral correctness.
 - T063: COMPLETE. Bounded byte/entry/TTL caching is optional and every hit is verified. Thirty-four focused tests cover cache loss, expiration, corruption, oversized objects, native acquisition limits, Candidate capacity and deterministic rematerialization. Active workspaces are not evicted; job owners explicitly release them. Production persistence/default policies remain open under D009.
 - T070: COMPLETE. Nine Evidence tests verify immutable content identity; exact repository trees/commits; configuration, environment and evaluator-version matching; authenticated provenance; current policy; bounded provider results; mutation resistance and sanitized outages. Thirteen materialization tests also verify preserving the original isolated commit for exact-state CI reuse. Eligibility alone does not authorize promotion.
-- Next incomplete task: T071.
+- T071: COMPLETE. Seven real-Git/Ed25519 tests verify exact-state CI reuse, composed-state rejection, immutable receipts, forged signatures, evaluator/recipe grants, tenant/actor/repository boundaries, cancelled/failed observations and historical Git reads. Publishers must use an independently controlled recipe and keep signing keys outside producer execution. Live CI publisher wiring remains a release gate.
+- Next incomplete task: T072.
 - All remaining tasks: INCOMPLETE.
 
 Existing v0 behavior does not establish v1 completion. Task completion requires the tests and acceptance criteria below.
