@@ -4,6 +4,7 @@ import { HttpRanker } from '../../adapters/ranking/http.mjs';
 import { buildCandidateSpec } from '../../core/v1/reduction.mjs';
 import { digestCanonical } from '../../core/v1/encoding.mjs';
 import { scheduleOptionalRanking } from '../../core/v1/ranking.mjs';
+import { createRanker } from '../../scripts/configured-ranker.mjs';
 
 async function spec() {
   return buildCandidateSpec({
@@ -108,4 +109,35 @@ test('invalid specs and unsafe endpoints never dispatch a ranking request', asyn
     assert.throws(() => new HttpRanker({ ...config, base_url }), { code: 'INVALID_ARGUMENT' });
   for (const path of ['//foreign.example.test/rank', 'rank'])
     assert.throws(() => new HttpRanker({ ...config, path }), { code: 'INVALID_ARGUMENT' });
+});
+
+test('operator configuration captures the endpoint and credential without exposing invalid values', () => {
+  const env = {
+    KLOCGIT_RANKER_URL: 'https://ranking.example.test/rank',
+    KLOCGIT_RANKER_TOKEN: 'private-ranking-credential',
+    KLOCGIT_RANKER_TIMEOUT_MS: '1000',
+    KLOCGIT_RANKER_MAX_BYTES: '16384',
+  };
+  const ranker = createRanker(env);
+  assert.equal(ranker.path, '/rank');
+  env.KLOCGIT_RANKER_TOKEN = 'changed-after-startup';
+  assert.equal(ranker.http.credential(), 'private-ranking-credential');
+  for (const [setting, value] of [
+    ['KLOCGIT_RANKER_URL', 'private-invalid-url'],
+    ['KLOCGIT_RANKER_URL', 'https://user:private-password@ranking.example.test'],
+    ['KLOCGIT_RANKER_URL', 'https://ranking.example.test?token=private-query'],
+    ['KLOCGIT_RANKER_URL', 'http://ranking.example.test'],
+    ['KLOCGIT_RANKER_TOKEN', 'private-token\n'],
+    ['KLOCGIT_RANKER_TOKEN', ''],
+    ['KLOCGIT_RANKER_TIMEOUT_MS', 'private-invalid-timeout'],
+    ['KLOCGIT_RANKER_MAX_BYTES', '0'],
+  ]) {
+    assert.throws(
+      () => createRanker({ ...env, [setting]: value }),
+      (error) =>
+        error instanceof TypeError &&
+        error.message.startsWith(setting) &&
+        !error.message.includes('private-'),
+    );
+  }
 });

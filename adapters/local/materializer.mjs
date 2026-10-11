@@ -247,6 +247,7 @@ class LocalComposition {
       await this.hydrate(oid);
       result = await this.git(['cat-file', '--batch'], oid + '\n');
     }
+    if (result.toString('ascii').trim() === oid + ' missing') throw new V1Error('NOT_FOUND');
     const newline = result.indexOf(10);
     const [actual, actualKind, sizeText] = result.subarray(0, newline).toString('ascii').split(' ');
     const size = Number(sizeText);
@@ -494,6 +495,68 @@ export class LocalMaterializer {
     if (!entry) return;
     this.#candidates.delete(digest);
     await rm(entry.directory, { recursive: true, force: true });
+  }
+
+  /**
+   * Trusted promotion reads use the same local objects as evaluation. Ancestor
+   * metadata is hydrated lazily from the already bound sources; canonical
+   * credentials and filesystem locations never enter this object reader.
+   */
+  async promotionSource(candidateInput, repo_id) {
+    const candidate = await verifyCandidateContent(candidateInput);
+    const entry = this.#candidates.get(candidate.digest);
+    if (!entry) throw new V1Error('NOT_FOUND');
+    const state = entry.states.get(repo_id);
+    if (!state) throw new V1Error('FORBIDDEN');
+    const reader = new LocalComposition({
+      binary: this.binary,
+      directory: state.directory,
+      oidLength: state.oidLength,
+      budget: new Budget(this.limits),
+      identity: state.identity,
+    });
+    reader.imported = state.imported;
+    reader.providers = state.providers;
+    const sourceRepos = [
+      ...new Set([...state.sourceWorkspaces].map((workspace) => workspace.identity.repo_id)),
+    ];
+    return new WorkspaceSource({
+      repo_id,
+      provider: {
+        readObject: async (request) => {
+          if (request.repo_id !== repo_id) throw new V1Error('FORBIDDEN');
+          if (!this.#candidates.has(candidate.digest)) throw new V1Error('NOT_FOUND');
+          try {
+            return await reader.readObject(request);
+          } catch (error) {
+            if (
+              !(error instanceof V1Error) ||
+              error.code !== 'NOT_FOUND' ||
+              request.kind !== 'commit'
+            )
+              throw error;
+          }
+          for (const sourceRepo of sourceRepos) {
+            const source = await reader.budget.wait(() => this.resolveSource(sourceRepo));
+            let workspace;
+            try {
+              workspace = await reader.budget.wait(() =>
+                source.fetch(
+                  { schema_version: 1, repo_id: sourceRepo, commit_oid: request.oid },
+                  { blobs: 'none' },
+                ),
+              );
+            } catch (error) {
+              if (error instanceof V1Error && error.code === 'NOT_FOUND') continue;
+              throw error;
+            }
+            await reader.importSnapshot(workspace);
+            return reader.readObject(request);
+          }
+          throw new V1Error('NOT_FOUND');
+        },
+      },
+    });
   }
 
   metrics(digest) {
