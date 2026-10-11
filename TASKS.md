@@ -35,7 +35,8 @@ Complete in dependency order. Do not skip acceptance criteria.
 - T061: COMPLETE. Four native FUSE tests verify pinned ArtifactFS acquisition without initial blobs, exact selected hydration, cold/warm payload counters, cache loss, source movement, scoped access and concurrent reads. Network framing/prefetch cost and live Cloudflare remain separate release measurements.
 - T062: COMPLETE. Eleven real-Git tests cover whole-Future and commit composition, reproducibility, source immutability, lazy unchanged-file hydration, explicit conflicts, source/plan substitution, dependency eligibility, SHA-256, bounded work, multi-repository states and disposable workspace recovery. Candidate objects remain local; materialization does not establish behavioral correctness.
 - T063: COMPLETE. Bounded byte/entry/TTL caching is optional and every hit is verified. Thirty-four focused tests cover cache loss, expiration, corruption, oversized objects, native acquisition limits, Candidate capacity and deterministic rematerialization. Active workspaces are not evicted; job owners explicitly release them. Production persistence/default policies remain open under D009.
-- Next incomplete task: T070.
+- T070: COMPLETE. Nine Evidence tests verify immutable content identity; exact repository trees/commits; configuration, environment and evaluator-version matching; authenticated provenance; current policy; bounded provider results; mutation resistance and sanitized outages. Thirteen materialization tests also verify preserving the original isolated commit for exact-state CI reuse. Eligibility alone does not authorize promotion.
+- Next incomplete task: T071.
 - All remaining tasks: INCOMPLETE.
 
 Existing v0 behavior does not establish v1 completion. Task completion requires the tests and acceptance criteria below.

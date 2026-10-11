@@ -345,6 +345,25 @@ export class LocalMaterializer {
         repoCommits[repoId] = oid;
       }
       const revisions = new Map(inputs.revisions.map((revision) => [revision.id, revision]));
+      const reachable = async (repoId, head, ancestor) => {
+        const pending = [head],
+          visited = new Set();
+        while (pending.length) {
+          const oid = pending.pop();
+          if (visited.has(oid)) continue;
+          visited.add(oid);
+          budget.visit();
+          if (oid === ancestor) return true;
+          try {
+            pending.push(...(await fetch(repoId, oid)).identity.parent_oids);
+          } catch (error) {
+            if (error instanceof V1Error && error.code === 'NOT_FOUND')
+              throw new V1Error('INCOMPLETE_ANALYSIS');
+            throw error;
+          }
+        }
+        return false;
+      };
       for (const selection of inputs.spec.selections) {
         const revision = revisions.get(selection.future_revision_id);
         const binding = inputs.bindings[revision.id];
@@ -359,27 +378,8 @@ export class LocalMaterializer {
           baseTree = base.identity.tree_oid;
           selectedTree = revision.tree_oid;
         } else {
-          const pending = [revision.commit_oid],
-            visited = new Set();
-          let reached = false;
-          while (pending.length) {
-            const oid = pending.pop();
-            if (visited.has(oid)) continue;
-            visited.add(oid);
-            budget.visit();
-            if (oid === selection.commit_oid) {
-              reached = true;
-              break;
-            }
-            try {
-              pending.push(...(await fetch(revision.repo_id, oid)).identity.parent_oids);
-            } catch (error) {
-              if (error instanceof V1Error && error.code === 'NOT_FOUND')
-                throw new V1Error('INCOMPLETE_ANALYSIS');
-              throw error;
-            }
-          }
-          if (!reached) throw new V1Error('FORBIDDEN');
+          if (!(await reachable(revision.repo_id, revision.commit_oid, selection.commit_oid)))
+            throw new V1Error('FORBIDDEN');
           const commit = await fetch(revision.repo_id, selection.commit_oid, {
             tree_oid: selection.tree_oid,
           });
@@ -407,7 +407,19 @@ export class LocalMaterializer {
       }
       for (const [repoId, state] of states) {
         const baseline = snapshots.get(JSON.stringify([repoId, repoCommits[repoId]]));
-        if (repoTrees[repoId] !== baseline.identity.tree_oid)
+        const selected = inputs.spec.selections.filter(
+          (selection) => selection.target_repo_id === repoId,
+        );
+        const whole = selected.length === 1 && selected[0].kind === 'future' ? selected[0] : null;
+        if (
+          whole &&
+          whole.base_commit_oid === repoCommits[repoId] &&
+          repoTrees[repoId] === whole.tree_oid &&
+          (await reachable(whole.source_repo_id, whole.head_commit_oid, repoCommits[repoId]))
+        ) {
+          // Preserve the original exact isolated state so its CI can be reused.
+          repoCommits[repoId] = whole.head_commit_oid;
+        } else if (repoTrees[repoId] !== baseline.identity.tree_oid)
           repoCommits[repoId] = await state.commit(
             repoTrees[repoId],
             [repoCommits[repoId]],

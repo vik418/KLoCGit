@@ -269,6 +269,16 @@ test('selected commits omit unrelated work and preserve explicit selection prove
   assert.deepEqual(candidate.materialization_record.selections, [selection]);
 });
 
+test('an isolated whole Future preserves its original commit for exact-state CI reuse', async (t) => {
+  const f = await fixture(t, { 'a.txt': 'baseline\n' });
+  const revision = await f.future('work', { 'a.txt': 'selected\n' });
+  const candidate = await f.materializer.materialize(await f.spec(), f.context);
+  assert.equal(candidate.materialization_record.repo_commit_oids.canonical, revision.commit_oid);
+  const workspace = await f.materializer.open(candidate, 'canonical');
+  assert.equal(workspace.identity.commit_oid, revision.commit_oid);
+  assert.equal(workspace.identity.tree_oid, revision.tree_oid);
+});
+
 test('textual conflicts are explicit failures and leave every source repository intact', async (t) => {
   const f = await fixture(t, { 'value.txt': 'baseline\n' });
   await f.future('a', { 'value.txt': 'first choice\n' });

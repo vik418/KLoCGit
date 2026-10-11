@@ -52,6 +52,7 @@ console.log(
 );
 
 const checks = [
+  ['account', ''],
   ['workers', '/workers/scripts'],
   ['queues', '/queues?per_page=1'],
 ];
@@ -67,7 +68,10 @@ for (const [resource, path] of checks) {
     );
     status = response.status;
     const body = await response.json();
-    success = response.ok && body.success === true;
+    success =
+      response.ok &&
+      body.success === true &&
+      (resource !== 'account' || body.result?.id === account);
     errorCodes = Array.isArray(body.errors)
       ? body.errors
           .map(({ code }) => code)

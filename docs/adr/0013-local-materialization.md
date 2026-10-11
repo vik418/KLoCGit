@@ -8,6 +8,8 @@ Whole-Future selections use their recorded baseline. Commit selections use an ex
 
 Git merges synthetic commits sharing the exact baseline tree. This avoids depending on producer ancestry after rebase or force-push. Textual conflicts fail explicitly. Changed submodules are unsupported until their referenced repository states can be evaluated.
 
+An isolated whole-Future selection preserves its original commit when the canonical baseline is a verified ancestor and the resulting tree is unchanged. This permits exact-state external CI reuse. A novel composition receives a new commit.
+
 Candidate identity includes exact repository trees, ordered selections, baseline digest, Git version and supplied commit identity. Local directories, timing and hydration counters are excluded. Materialization establishes an exact Git state, not semantic compatibility.
 
 Real-Git tests verify reproducibility, targeted hydration, source immutability, conflicts, commit ancestry, substitution rejection, SHA-256 repositories and multi-repository state. Git must support `merge-tree --write-tree`; unavailable capability fails explicitly.
