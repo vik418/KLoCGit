@@ -3,7 +3,7 @@ import { V1Error } from '../core/v1/conventions.mjs';
 import { coordinationScope } from '../core/v1/coordination.mjs';
 import { PRIVATE_JSON_HEADERS, errorResponse } from './http.mjs';
 
-async function boundedJson(request, maximum) {
+export async function readBoundedJson(request, maximum) {
   if (request.headers.get('content-type')?.split(';')[0].trim() !== 'application/json')
     throw new V1Error('INVALID_ARGUMENT');
   const reader = request.body?.getReader();
@@ -50,7 +50,7 @@ export function createResolveHandler({ scope, authenticate, service, max_request
     try {
       const principal = await authenticate(request);
       if (!principal) throw new V1Error('UNAUTHENTICATED');
-      const body = await boundedJson(request, max_request_bytes);
+      const body = await readBoundedJson(request, max_request_bytes);
       if (!body || typeof body !== 'object' || Array.isArray(body) || Object.hasOwn(body, 'scope'))
         throw new V1Error('INVALID_ARGUMENT');
       const decision = await service.resolve({ ...body, scope: target }, { principal });
