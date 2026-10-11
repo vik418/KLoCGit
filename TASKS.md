@@ -37,7 +37,8 @@ Complete in dependency order. Do not skip acceptance criteria.
 - T063: COMPLETE. Bounded byte/entry/TTL caching is optional and every hit is verified. Thirty-four focused tests cover cache loss, expiration, corruption, oversized objects, native acquisition limits, Candidate capacity and deterministic rematerialization. Active workspaces are not evicted; job owners explicitly release them. Production persistence/default policies remain open under D009.
 - T070: COMPLETE. Nine Evidence tests verify immutable content identity; exact repository trees/commits; configuration, environment and evaluator-version matching; authenticated provenance; current policy; bounded provider results; mutation resistance and sanitized outages. Thirteen materialization tests also verify preserving the original isolated commit for exact-state CI reuse. Eligibility alone does not authorize promotion.
 - T071: COMPLETE. Seven real-Git/Ed25519 tests verify exact-state CI reuse, composed-state rejection, immutable receipts, forged signatures, evaluator/recipe grants, tenant/actor/repository boundaries, cancelled/failed observations and historical Git reads. Publishers must use an independently controlled recipe and keep signing keys outside producer execution. Live CI publisher wiring remains a release gate.
-- Next incomplete task: T072.
+- T072: COMPLETE. Six native Git/Linux tests verify isolated candidate execution, denied host credentials/files/network, bounded input/output/time, scoped and audited broker access, exact workspace identity and independently evaluated producer output. Cloudflare execution remains a release gate.
+- Next incomplete task: T073.
 - All remaining tasks: INCOMPLETE.
 
 Existing v0 behavior does not establish v1 completion. Task completion requires the tests and acceptance criteria below.
