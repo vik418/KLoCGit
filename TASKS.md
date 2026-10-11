@@ -40,7 +40,8 @@ Complete in dependency order. Do not skip acceptance criteria.
 - T072: COMPLETE. Six native Git/Linux tests verify isolated candidate execution, denied host credentials/files/network, bounded input/output/time, scoped and audited broker access, exact workspace identity and independently evaluated producer output. Cloudflare execution remains a release gate.
 - T073: COMPLETE. Seven scheduling tests verify exact-state reuse before evaluation, current policy/configuration/environment/provenance checks, composed-state evaluation, bounded deferral, missing results and preserved conflicting observations. Only policy-listed checks run; the scheduling report grants no resolution authority.
 - T074: COMPLETE. Nine SQLite/filesystem tests verify retention assignment, temporary/rebuildable expiration, protected decision/canonical records, reference pinning, monotonic retention upgrades, restart, authorization, corruption and ambiguous/delayed deletion recovery. Storage generations prevent old cleanup retries from deleting recreated payloads. Production periods and lifecycle scheduling remain explicit configuration work.
-- Next incomplete task: T080.
+- T080: COMPLETE. Nine formulation tests verify discovered components, separate unrelated work, exact-state isolated/composed observations, required-analysis uncertainty, whole-Future versus commit selection, stable identities, mixed-baseline rejection and bounded dense/security hubs. Fifty-two focused lifecycle/index tests pass. The result remains reviewable; it grants no resolution authority.
+- Next incomplete task: T081.
 - All remaining tasks: INCOMPLETE.
 
 Existing v0 behavior does not establish v1 completion. Task completion requires the tests and acceptance criteria below.
