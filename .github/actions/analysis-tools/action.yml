@@ -34,3 +34,10 @@ runs:
         JS
     - shell: bash
       run: python3 -B adapters/analysis/rust/install-toolchain.py "$KLOCGIT_RUST_TOOLCHAIN"
+    - shell: bash
+      run: |
+        node scripts/install-artifact-fs.mjs "$RUNNER_TEMP/klocgit-artifactfs" "$KLOCGIT_GO_1_27_2"
+        node --input-type=module <<'JS'
+        import { appendFileSync } from 'node:fs';
+        appendFileSync(process.env.GITHUB_ENV, `KLOCGIT_ARTIFACT_FS_BINARY=${process.env.RUNNER_TEMP}/klocgit-artifactfs/bin/artifact-fs\n`);
+        JS

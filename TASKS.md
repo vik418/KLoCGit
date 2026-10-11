@@ -32,7 +32,8 @@ Complete in dependency order. Do not skip acceptance criteria.
 - T053: COMPLETE. Six dominance tests verify trusted measured dimensions, preserved distinct Git states, inferred-score rejection, ties, bounded comparisons and immutable verification records.
 - T054: COMPLETE. Seven reducer tests cover 1,000 distinct revisions, bounded CandidateSpecs, a lossless deferred frontier, security priority, target fairness, dependency closure/cycles, stale dependencies and verified checkable rejection. Deferred work remains unresolved.
 - T055: COMPLETE. Four ranking tests verify immediate deterministic scheduling, complete priority permutations, provider failure/timeout, immutable inputs and stale-batch rejection. Ranking output remains INFERRED and cannot delete plans or authorize promotion.
-- Next incomplete task: T061.
+- T061: COMPLETE. Four native FUSE tests verify pinned ArtifactFS acquisition without initial blobs, exact selected hydration, cold/warm payload counters, cache loss, source movement, scoped access and concurrent reads. Network framing/prefetch cost and live Cloudflare remain separate release measurements.
+- Next incomplete task: T062.
 - All remaining tasks: INCOMPLETE.
 
 Existing v0 behavior does not establish v1 completion. Task completion requires the tests and acceptance criteria below.

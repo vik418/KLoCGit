@@ -27,7 +27,9 @@ The sample application is optional. Stop the server, run `npm run demo:reset`, t
 npm run verify
 ```
 
-Verification requires Linux or WSL, Node.js 24, Git, bubblewrap, util-linux and Chromium system libraries. On a new host, install the system libraries with Playwright's `install-deps chromium` command. Verification installs locked npm dependencies and Chromium, then runs every local check, including browser smoke tests.
+Verification requires Linux or WSL, Node.js 24, Git, bubblewrap, util-linux, FUSE 3 and Chromium system libraries. Compiler fixtures use Python 3.12.14, Go 1.26.9/1.27.2 and Rust 1.90.0. CI installs these versions with the [analysis toolchain action](.github/actions/analysis-tools/action.yml). Local compiler paths can be configured with `KLOCGIT_GO_1_26_9`, `KLOCGIT_GO_1_27_2` and `KLOCGIT_RUST_TOOLCHAIN`.
+
+Build the pinned ArtifactFS tool with `node scripts/install-artifact-fs.mjs <absolute-install-directory> <absolute-go-binary>` and set `KLOCGIT_ARTIFACT_FS_BINARY` to its executable. On a new host, install Chromium system libraries with Playwright's `install-deps chromium` command. Verification installs locked npm dependencies and Chromium, then runs all local checks, including browser smoke tests.
 
 The v1 implementation follows [CODEX.md](CODEX.md), the frozen [architecture](ARCHITECTURE.md), the ordered [backlog](TASKS.md), [validation gates](VALIDATION.md) and [implementation decisions](DECISIONS.md). Existing v0 features do not establish v1 completion.
 

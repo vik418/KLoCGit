@@ -1,0 +1,6 @@
+{
+  "schema_version": 1,
+  "module": "github.com/cloudflare/artifact-fs/cmd/artifact-fs",
+  "version": "v0.0.0-20260812141827-2b87a48691ef",
+  "commit": "2b87a48691ef4ae82d391b7bbe4976c06c7fadf7"
+}

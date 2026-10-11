@@ -24,7 +24,7 @@ jobs:
           cache: npm
       - uses: ./.github/actions/analysis-tools
       - name: Install sandbox tools
-        run: sudo apt-get update && sudo apt-get install -y bubblewrap util-linux
+        run: sudo apt-get update && sudo apt-get install -y bubblewrap util-linux fuse3
       - name: Install browser system libraries
         run: |
           npm ci
