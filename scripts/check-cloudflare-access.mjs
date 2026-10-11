@@ -21,6 +21,36 @@ if (!token || !account) {
   );
   process.exit(1);
 }
+const tokenChecks = [
+  '/user/tokens/verify',
+  '/accounts/' + encodeURIComponent(account) + '/tokens/verify',
+];
+let active = false;
+for (const path of tokenChecks) {
+  try {
+    const response = await fetch('https://api.cloudflare.com/client/v4' + path, {
+      headers: { Authorization: 'Bearer ' + token },
+      signal: AbortSignal.timeout(30000),
+    });
+    const body = await response.json();
+    if (response.ok && body.success === true && body.result?.status === 'active') {
+      active = true;
+      break;
+    }
+  } catch {
+    /* Account and user tokens use different verification endpoints. */
+  }
+}
+console.log(
+  JSON.stringify({
+    schema_version: 1,
+    event: 'cloudflare.token.checked',
+    trace_id: traceId,
+    object_id: 'token',
+    state: active ? 'ACTIVE' : 'UNVERIFIED',
+  }),
+);
+
 const checks = [
   ['workers', '/workers/scripts'],
   ['queues', '/queues?per_page=1'],
@@ -28,7 +58,8 @@ const checks = [
 let failed = false;
 for (const [resource, path] of checks) {
   let status = null,
-    success = false;
+    success = false,
+    errorCodes = [];
   try {
     const response = await fetch(
       'https://api.cloudflare.com/client/v4/accounts/' + encodeURIComponent(account) + path,
@@ -37,6 +68,12 @@ for (const [resource, path] of checks) {
     status = response.status;
     const body = await response.json();
     success = response.ok && body.success === true;
+    errorCodes = Array.isArray(body.errors)
+      ? body.errors
+          .map(({ code }) => code)
+          .filter(Number.isSafeInteger)
+          .slice(0, 5)
+      : [];
   } catch {
     /* Provider diagnostics can contain private data; report only the class. */
   }
@@ -49,6 +86,7 @@ for (const [resource, path] of checks) {
       object_id: resource,
       state: success ? 'VERIFIED' : 'REJECTED',
       http_status: status,
+      provider_error_codes: errorCodes,
       failure_class: success
         ? null
         : [401, 403].includes(status)
