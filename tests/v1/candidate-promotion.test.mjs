@@ -4,6 +4,7 @@ import { join } from 'node:path';
 import { git } from '../../server/git.mjs';
 import { LocalCandidateGitStore } from '../../adapters/local/candidate-git-store.mjs';
 import { GitStore } from '../../core/v1/git-store.mjs';
+import { FutureRevision } from '../../core/v1/domain.mjs';
 import { CoordinationStore } from '../../core/v1/coordination.mjs';
 import { SqliteCoordinationBackend } from '../../adapters/local/coordination.mjs';
 import { PromotionService } from '../../core/v1/promotion.mjs';
@@ -13,10 +14,13 @@ import { digestCanonical } from '../../core/v1/encoding.mjs';
 import { objectId } from '../../core/v1/conventions.mjs';
 import { compositionFixture } from './support/composition.mjs';
 
-async function fixture(t, format = 'sha1', overrides = {}) {
+async function fixture(t, format = 'sha1', { prepare = null, ...overrides } = {}) {
   const f = await compositionFixture(t, { 'a.txt': 'a\n', 'b.txt': 'b\n' }, format);
-  await f.future('producer-a', { 'a.txt': 'updated a\n', 'b.txt': 'b\n' });
-  await f.future('producer-b', { 'a.txt': 'a\n', 'b.txt': 'updated b\n' });
+  if (prepare) await prepare(f);
+  else {
+    await f.future('producer-a', { 'a.txt': 'updated a\n', 'b.txt': 'b\n' });
+    await f.future('producer-b', { 'a.txt': 'a\n', 'b.txt': 'updated b\n' });
+  }
   const candidate = await f.materializer.materialize(await f.spec(), f.context);
   const target = candidate.materialization_record.repo_commit_oids.canonical;
   const directory = f.adapter.dir(f.repositories.get('canonical'));
@@ -191,4 +195,45 @@ test('transfer budgets and missing materializations leave canonical objects unch
   await f.materializer.release(f.candidate.digest);
   await assert.rejects(f.provider.snapshot(f.target), { code: 'NOT_FOUND' });
   assert.deepEqual(await f.sourceState(), before);
+});
+
+test('isolated promotion preserves original ancestry and remains cloneable', async (t) => {
+  let revision, intermediate;
+  const f = await fixture(t, 'sha1', {
+    prepare: async (source) => {
+      const first = await source.future('producer-a', { 'a.txt': 'first\n', 'b.txt': 'b\n' });
+      intermediate = await source.commit(
+        'producer-a',
+        { 'a.txt': 'second\n', 'b.txt': 'b\n' },
+        first.commit_oid,
+      );
+      const head = await source.commit(
+        'producer-a',
+        { 'a.txt': 'final\n', 'b.txt': 'b\n' },
+        intermediate.commit_oid,
+      );
+      const { id, ...body } = { ...first, ...head };
+      revision = FutureRevision({
+        ...body,
+        id: objectId('future-revision', await digestCanonical('object-future-revision', body)),
+      });
+      source.context.revisions = [revision];
+      source.context.bindings[revision.id] = source.context.bindings[id];
+      delete source.context.bindings[id];
+    },
+  });
+  assert.equal(f.target, revision.commit_oid);
+  await assert.rejects(git(f.directory, ['cat-file', '-e', intermediate.commit_oid]));
+  const before = await f.sourceState();
+  assert.equal((await f.promote()).state, 'APPLIED');
+  assert.equal(await git(f.directory, ['rev-parse', f.target + '^']), intermediate.commit_oid);
+  assert.deepEqual(
+    (await f.sourceState()).filter(({ id }) => id !== 'canonical'),
+    before.filter(({ id }) => id !== 'canonical'),
+  );
+  const clone = join(f.root, 'accepted-clone');
+  await git(f.root, ['clone', '--no-local', '--branch', 'main', f.directory, clone]);
+  assert.equal(await git(clone, ['rev-parse', 'HEAD']), revision.commit_oid);
+  assert.equal(await git(clone, ['show', 'HEAD:a.txt']), 'final');
+  await git(clone, ['fsck', '--strict', '--no-dangling']);
 });
