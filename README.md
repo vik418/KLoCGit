@@ -51,8 +51,4 @@ LOCAL_ACTOR_ID="$(git config user.email)" npm run dev
 
 Open <http://localhost:43187>. Create or import a repository, fork work, and browse its files. The Git email identifies local requests; production requires authenticated identities.
 
-## Status
-
-The v1 services pass integration tests. Production bindings, live Cloudflare and deployment verification, the human-review study, and the release review remain incomplete.
-
 See [CONTRIBUTING.md](CONTRIBUTING.md) for development and checks.
