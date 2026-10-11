@@ -14,6 +14,18 @@ function freeze(value) {
   return value;
 }
 
+/**
+ * A trusted provider may use this only when it can establish that no ref write
+ * was attempted. Ordinary errors and lost replies remain ambiguous. The public
+ * code stays in the existing taxonomy; this distinction is not producer data.
+ */
+export class GitRefRejection extends V1Error {
+  constructor(code) {
+    if (code === 'OUTCOME_UNKNOWN') throw new TypeError('An ambiguous write cannot be rejected.');
+    super(code);
+  }
+}
+
 export function gitSnapshot(input) {
   const value = copyJsonData(input);
   assertSchemaVersion(value);

@@ -3,7 +3,7 @@ import { git } from '../../server/git.mjs';
 import { LocalGitStore } from './git-store.mjs';
 import { V1Error, assertIdempotencyKey } from '../../core/v1/conventions.mjs';
 import { gitOid, gitRef, copyJsonData } from '../../core/v1/domain.mjs';
-import { gitSnapshot } from '../../core/v1/git-store.mjs';
+import { GitRefRejection, gitSnapshot } from '../../core/v1/git-store.mjs';
 import { gitObjectOid } from '../../core/v1/workspace.mjs';
 
 const immutableReads = ['--no-replace-objects', '--no-lazy-fetch'];
@@ -113,22 +113,23 @@ export class LocalCandidateGitStore extends LocalGitStore {
     gitOid(expected);
     gitOid(target, expected.length);
     assertIdempotencyKey(options?.idempotency_key);
-    if ((await this.observe_ref(this.repository.id, ref)) !== expected) return false;
-    const source = await this.resolvePromotionSource(this.repository.id, target);
-    const objects = source ? await this.#objects(source, target) : [];
-    if ((await this.observe_ref(this.repository.id, ref)) !== expected) return false;
-    for (const object of objects) {
-      let written;
-      try {
-        written = await git(
+    try {
+      if ((await this.observe_ref(this.repository.id, ref)) !== expected) return false;
+      const source = await this.resolvePromotionSource(this.repository.id, target);
+      const objects = source ? await this.#objects(source, target) : [];
+      if ((await this.observe_ref(this.repository.id, ref)) !== expected) return false;
+      for (const object of objects) {
+        const written = await git(
           this.adapter.dir(this.repository),
           [...immutableReads, 'hash-object', '-w', '-t', object.kind, '--stdin'],
           object.bytes,
         );
-      } catch {
-        throw new V1Error('PROVIDER_UNAVAILABLE');
+        if (written !== object.oid) throw new V1Error('INTEGRITY_MISMATCH');
       }
-      if (written !== object.oid) throw new V1Error('INTEGRITY_MISMATCH');
+    } catch (error) {
+      // Object hydration/import has not attempted the canonical ref write.
+      // This receipt lets the journal reject safely instead of blocking forever.
+      throw new GitRefRejection(error instanceof V1Error ? error.code : 'PROVIDER_UNAVAILABLE');
     }
     try {
       await git(this.adapter.dir(this.repository), [

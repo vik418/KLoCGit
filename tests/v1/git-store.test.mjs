@@ -4,7 +4,7 @@ import { mkdtemp, mkdir, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { LocalGit, git } from '../../server/git.mjs';
-import { GitStore } from '../../core/v1/git-store.mjs';
+import { GitRefRejection, GitStore } from '../../core/v1/git-store.mjs';
 import { LocalGitStore } from '../../adapters/local/git-store.mjs';
 import { gitStoreContract } from '../support/git-store-contract.mjs';
 
@@ -58,6 +58,13 @@ function fixtureProvider(overrides = {}) {
     ...overrides,
   };
 }
+
+test('a no-write rejection preserves the public taxonomy and cannot represent an ambiguous outcome', () => {
+  const rejected = new GitRefRejection('INCOMPLETE_ANALYSIS');
+  assert.equal(rejected.code, 'INCOMPLETE_ANALYSIS');
+  assert.ok(Object.isFrozen(rejected));
+  assert.throws(() => new GitRefRejection('OUTCOME_UNKNOWN'), TypeError);
+});
 
 test('provider substitution cannot alter the requested exact Git state', async () => {
   const oid = 'a'.repeat(40);

@@ -11,7 +11,7 @@ import { Candidate, Decision, copyJsonData, gitOid, gitRef } from './domain.mjs'
 import { coordinationScope } from './coordination.mjs';
 import { digestCanonical } from './encoding.mjs';
 import { resolveDecision, revalidateResolvedDecision, verifyDecisionBasis } from './decisions.mjs';
-import { gitSnapshot } from './git-store.mjs';
+import { GitRefRejection, gitSnapshot } from './git-store.mjs';
 import { appendAudit } from './audit.mjs';
 
 function valid(condition) {
@@ -340,7 +340,9 @@ export class PromotionService {
           if (updated !== true)
             return this.finish(tx, record, 'REJECTED', { failure_code: 'STALE_BASIS' });
           return this.finish(tx, record, 'APPLIED', { observed_oid: record.target_commit_oid });
-        } catch {
+        } catch (error) {
+          if (error instanceof GitRefRejection)
+            return this.finish(tx, record, 'REJECTED', { failure_code: error.code });
           return this.finish(tx, record, 'UNKNOWN', { failure_code: 'OUTCOME_UNKNOWN' });
         }
       });

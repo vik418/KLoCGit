@@ -7,7 +7,7 @@ import { LocalGit, git } from '../../server/git.mjs';
 import { LocalGitStore } from '../../adapters/local/git-store.mjs';
 import { SqliteCoordinationBackend } from '../../adapters/local/coordination.mjs';
 import { CoordinationStore, coordinationScope } from '../../core/v1/coordination.mjs';
-import { GitStore } from '../../core/v1/git-store.mjs';
+import { GitRefRejection, GitStore } from '../../core/v1/git-store.mjs';
 import { Candidate } from '../../core/v1/domain.mjs';
 import { objectId } from '../../core/v1/conventions.mjs';
 import { digestCanonical } from '../../core/v1/encoding.mjs';
@@ -277,6 +277,34 @@ test('promotion durably prepares authorization, performs CAS and resolves the ex
     ['PREPARED', 'APPLIED'],
   );
   assert.equal(audit.entries[1].event.bindings.observed_oid, f.target.commit_oid);
+});
+
+test('verified preflight rejection permits another promotion attempt', async (t) => {
+  const f = await fixture(t);
+  f.beforeCas(() => {
+    throw new GitRefRejection('INCOMPLETE_ANALYSIS');
+  });
+  await assert.rejects(f.service.promote(f.request, { principal: f.principal }), {
+    code: 'INCOMPLETE_ANALYSIS',
+  });
+  assert.equal(await f.head(), f.initial.commit_oid);
+  assert.equal((await f.decision()).state, 'RESOLVABLE');
+  const audit = await new AuditStream({
+    store: f.store,
+    authorize: () => true,
+    max_page_size: 10,
+  }).read(
+    f.scope,
+    { schema_version: 1, after: 0, limit: 10, expected_digest: null },
+    f.principal,
+  );
+  assert.equal(audit.entries.at(-1).event.to_state, 'REJECTED');
+  f.beforeCas(null);
+  const result = await f.service.promote(
+    { ...f.request, idempotency_key: 'retry-after-preflight' },
+    { principal: f.principal },
+  );
+  assert.equal(result.state, 'APPLIED');
 });
 
 test('stale basis, policy version and expected OID never authorize Git mutation', async (t) => {
