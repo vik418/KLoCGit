@@ -29,7 +29,8 @@ Complete in dependency order. Do not skip acceptance criteria.
 - T051: COMPLETE. Security override tests preserve dependency/build/CI/auth/IAM/schema/migration/secret effects regardless of non-critical hub thresholds. Hints cannot authorize mutation.
 - T052: COMPLETE. Four indexing tests cover dense hyperedges, security bypass, scope separation, deterministic ordering, incomplete analysis and substituted payload rejection. A 1,000-member shared effect requires no pairwise expansion.
 - T060: COMPLETE. Twelve real-Git workspace tests cover blobless/targeted hydration, exact object verification, source substitution, binary/missing objects, SHA-256 repositories, UTF-8 preservation and cache loss. Transfer counters describe their provider boundary.
-- Next incomplete task: T053.
+- T053: COMPLETE. Six dominance tests verify trusted measured dimensions, preserved distinct Git states, inferred-score rejection, ties, bounded comparisons and immutable verification records.
+- Next incomplete task: T054.
 - All remaining tasks: INCOMPLETE.
 
 Existing v0 behavior does not establish v1 completion. Task completion requires the tests and acceptance criteria below.
