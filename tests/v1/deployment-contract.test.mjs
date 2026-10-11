@@ -90,12 +90,10 @@ test('substitution, wrong tenant and current policy rejection fail before submis
     { code: 'INTEGRITY_MISMATCH' },
   );
   await assert.rejects(
-    f
-      .adapter()
-      .submit(f.revision, f.constraints, {
-        ...f.context,
-        principal: { tenant_id: 'other', actor_id: 'owner' },
-      }),
+    f.adapter().submit(f.revision, f.constraints, {
+      ...f.context,
+      principal: { tenant_id: 'other', actor_id: 'owner' },
+    }),
     { code: 'FORBIDDEN' },
   );
   await assert.rejects(
