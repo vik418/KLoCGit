@@ -42,7 +42,8 @@ Complete in dependency order. Do not skip acceptance criteria.
 - T074: COMPLETE. Nine SQLite/filesystem tests verify retention assignment, temporary/rebuildable expiration, protected decision/canonical records, reference pinning, monotonic retention upgrades, restart, authorization, corruption and ambiguous/delayed deletion recovery. Storage generations prevent old cleanup retries from deleting recreated payloads. Production periods and lifecycle scheduling remain explicit configuration work.
 - T080: COMPLETE. Nine formulation tests verify discovered components, separate unrelated work, exact-state isolated/composed observations, required-analysis uncertainty, whole-Future versus commit selection, stable identities, mixed-baseline rejection and bounded dense/security hubs. Fifty-two focused lifecycle/index tests pass. The result remains reviewable; it grants no resolution authority.
 - T081: COMPLETE. Eleven HTTP/Git/SQLite tests verify basis and canonical-ref conflicts, required PARTIAL blocking, authenticated scope, exact retained Evidence bindings, policy/authorization races, concurrent retries and restart. Thirty-eight focused resolution/retention/promotion tests pass. Resolution records the choice; Git promotion still requires its own current-policy CAS.
-- Next incomplete task: T082.
+- T082: COMPLETE. Five compiler-backed tests verify independent static footprints, resolved dependency intersections, incomplete/missing capability, security override, bounded analysis, cross-repository uncertainty and payload substitution. DISJOINT is explicitly limited to registered static scope; runtime compatibility remains subject to rematerialization and exact-state checks.
+- Next incomplete task: T083.
 - All remaining tasks: INCOMPLETE.
 
 Existing v0 behavior does not establish v1 completion. Task completion requires the tests and acceptance criteria below.
