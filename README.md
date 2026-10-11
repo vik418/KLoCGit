@@ -6,8 +6,13 @@ Git stores the code. KLoCGit records the evidence and reasons behind each accept
 
 ## System design (HLD)
 
+![System design (HLD)](docs/diagrams/system-design.png)
+
+<details>
+<summary>Mermaid source</summary>
+
 ```mermaid
-flowchart LR
+flowchart TD
     Users[People and agents] --> API[Workers API]
     Users --> Git[Artifacts Git repositories]
     Git -->|Push events| Queue[Analysis queue]
@@ -20,7 +25,14 @@ flowchart LR
     CD -->|Observed status| API
 ```
 
+</details>
+
 ## Convergence design (LLD)
+
+![Convergence design (LLD)](docs/diagrams/convergence-design.png)
+
+<details>
+<summary>Mermaid source</summary>
 
 ```mermaid
 flowchart TD
@@ -35,6 +47,8 @@ flowchart TD
     Check -->|No| Stale[Refresh and review again]
     CAS --> Accepted[Record accepted state and audit]
 ```
+
+</details>
 
 Candidate trees stay local until promotion. Incomplete required analysis blocks resolution. Deployment tools own rollout and recovery.
 
