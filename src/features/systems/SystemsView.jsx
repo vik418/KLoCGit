@@ -2,7 +2,7 @@ import { GitFork, Layers3, Plus, RefreshCw } from 'lucide-react';
 import { Button } from '../../ui/Button.jsx';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '../../ui/Card.jsx';
 import { useNativeMutation } from '../../hooks/useNativeMutation.js';
-import { RepositoryRemote } from './RepositoryRemote.jsx';
+import { RepositoryList } from './RepositoryList.jsx';
 
 export function SystemsView({
   nativeState,
@@ -10,6 +10,7 @@ export function SystemsView({
   onNewSystem,
   onNewObjective,
   onNewFuture,
+  onBrowseRepository,
   onContext,
   reload,
   message,
@@ -23,7 +24,7 @@ export function SystemsView({
   );
 
   return (
-    <div className="space-y-8 py-7">
+    <div className="space-y-10">
       {recoveryRequests.length > 0 && (
         <section aria-label="Recovery required" className="space-y-3 rounded-lg border bg-card p-5">
           <h2 className="text-base font-semibold text-primary">Recovery required</h2>
@@ -69,86 +70,15 @@ export function SystemsView({
           {error}
         </p>
       )}
-      <section aria-label="Repositories">
-        <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
-          <h2 className="text-base font-semibold">Repositories</h2>
-          <Button type="button" size="sm" onClick={onNewRepository}>
-            <Plus aria-hidden="true" />
-            Add repository
-          </Button>
-        </div>
-        {!nativeState.repositories.length && (
-          <p className="rounded-lg border bg-card p-5 text-sm leading-6 text-muted-foreground">
-            Create an empty Artifacts repository or import existing Git work.
-          </p>
-        )}
-        <div className="grid gap-4 md:grid-cols-2">
-          {nativeState.repositories.map((repository) => (
-            <Card key={repository.id} className="gap-4">
-              <CardHeader>
-                <div className="flex flex-wrap items-center justify-between gap-3">
-                  <CardTitle>
-                    <h3 className="break-all text-base">{repository.id}</h3>
-                  </CardTitle>
-                  <span className="rounded border px-2 py-1 text-xs text-muted-foreground">
-                    {repository.status === 'ready' ? 'Git state ready' : repository.status}
-                  </span>
-                </div>
-              </CardHeader>
-              <CardContent>
-                {repository.status === 'empty' && (
-                  <p className="text-sm leading-6 text-muted-foreground">
-                    Push a first commit, then refresh this repository.
-                  </p>
-                )}
-                {['importing', 'forking'].includes(repository.status) && (
-                  <p className="text-sm leading-6 text-muted-foreground">
-                    Refresh when the provider has finished preparing Git state.
-                  </p>
-                )}
-                {repository.status === 'ready' && (
-                  <p className="text-xs leading-6 text-muted-foreground">
-                    A commit and tree are available. This is not a validation result.
-                  </p>
-                )}
-                {repository.remote && <RepositoryRemote remote={repository.remote} />}
-                <div className="mt-4 flex flex-wrap items-center gap-2">
-                  {repository.status === 'ready' && repository.head && repository.tree && (
-                    <Button
-                      type="button"
-                      size="sm"
-                      variant="outline"
-                      onClick={() => onNewFuture({ repositoryId: repository.id })}
-                    >
-                      <GitFork aria-hidden="true" />
-                      Fork repository
-                    </Button>
-                  )}
-                  <Button
-                    type="button"
-                    size="sm"
-                    variant="ghost"
-                    disabled={busy}
-                    onClick={() =>
-                      mutate(
-                        '/repositories/' + encodeURIComponent(repository.id) + '/refresh',
-                        {},
-                        'Repository state refreshed.',
-                      )
-                    }
-                  >
-                    <RefreshCw aria-hidden="true" />
-                    {pendingPath ===
-                    '/repositories/' + encodeURIComponent(repository.id) + '/refresh'
-                      ? 'Refreshing…'
-                      : 'Refresh Git state'}
-                  </Button>
-                </div>
-              </CardContent>
-            </Card>
-          ))}
-        </div>
-      </section>
+      <RepositoryList
+        repositories={nativeState.repositories}
+        busy={busy}
+        pendingPath={pendingPath}
+        onCreate={onNewRepository}
+        onBrowse={onBrowseRepository}
+        onFork={onNewFuture}
+        onRefresh={(path) => mutate(path, {}, 'Repository state refreshed.')}
+      />
       <section aria-label="Groups">
         <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
           <h2 className="text-base font-semibold">Groups</h2>
@@ -193,7 +123,7 @@ export function SystemsView({
                 </Button>
                 <details>
                   <summary className="cursor-pointer text-xs text-muted-foreground">
-                    Objective without starting work
+                    More options
                   </summary>
                   <Button
                     type="button"

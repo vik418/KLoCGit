@@ -11,9 +11,8 @@ export function WorkspaceHeader({ workspace, onNewRepository }) {
         klocgit
       </a>
       <div className="breadcrumb">
-        <span>/</span>
+        <span aria-hidden="true">/</span>
         <b>{workspace.workspace.name}</b>
-        <span className="workspace-description">{workspace.workspace.description}</span>
       </div>
       <div className="topbar-actions">
         <Button type="button" variant="outline" size="sm" onClick={onNewRepository}>

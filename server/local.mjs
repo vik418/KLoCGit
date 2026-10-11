@@ -132,7 +132,10 @@ async function handleRequest(request, response) {
         { root, save },
       ),
     );
-    jsonResponse(response, 200, result);
+    if (result instanceof Response) {
+      response.writeHead(result.status, Object.fromEntries(result.headers));
+      response.end(await result.text());
+    } else jsonResponse(response, 200, result);
   } catch (error) {
     jsonResponse(response, error.status ?? 500, {
       error: error.code ?? 'INTERNAL_ERROR',

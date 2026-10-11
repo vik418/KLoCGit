@@ -1,0 +1,80 @@
+name: Extractor compatibility
+
+on:
+  pull_request:
+    paths:
+      - 'adapters/analysis/**'
+      - 'core/v1/extractors.mjs'
+      - 'tests/v1/*extractor*'
+      - '.github/workflows/extractors.yml'
+      - 'package-lock.json'
+  schedule:
+    - cron: '23 4 * * 1'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  corpus:
+    runs-on: ubuntu-22.04
+    timeout-minutes: 15
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - language: typescript
+            version: '6.0.3'
+            tests: 'tests/v1/typescript-extractor.test.mjs tests/v1/structural-extractor.test.mjs'
+          - language: python
+            version: '3.12.14'
+            tests: 'tests/v1/python-extractor.test.mjs'
+          - language: go
+            version: '1.26.9'
+            tests: 'tests/v1/go-extractor.test.mjs'
+          - language: go
+            version: '1.27.2'
+            tests: 'tests/v1/go-extractor.test.mjs'
+          - language: rust
+            version: '1.90.0'
+            tests: 'tests/v1/rust-extractor.test.mjs'
+    name: ${{ matrix.language }} ${{ matrix.version }}
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v7
+        with:
+          node-version-file: .nvmrc
+          cache: npm
+      - uses: actions/setup-python@v6
+        if: matrix.language == 'python' || matrix.language == 'rust'
+        with:
+          python-version: '3.12.14'
+      - uses: actions/setup-go@v6
+        if: matrix.language == 'go'
+        with:
+          go-version: ${{ matrix.version }}
+          cache: false
+      - name: Configure Go fixture compiler
+        if: matrix.language == 'go'
+        env:
+          KLOCGIT_GO_TEST_VERSION: ${{ matrix.version }}
+        run: |
+          node --input-type=module <<'JS'
+          import { appendFileSync } from 'node:fs';
+          import { execFileSync } from 'node:child_process';
+          const version = process.env.KLOCGIT_GO_TEST_VERSION;
+          const root = execFileSync('go', ['env', 'GOROOT'], { encoding: 'utf8' }).trim();
+          appendFileSync(process.env.GITHUB_ENV, `KLOCGIT_GO_TEST_VERSION=${version}\n`);
+          appendFileSync(process.env.GITHUB_ENV, `KLOCGIT_GO_${version.replaceAll('.', '_')}=${root}/bin/go\n`);
+          JS
+      - name: Install verified Rust fixture compiler
+        if: matrix.language == 'rust'
+        run: |
+          python3 -B adapters/analysis/rust/install-toolchain.py "$RUNNER_TEMP/klocgit-rust/${{ matrix.version }}"
+          node --input-type=module <<'JS'
+          import { appendFileSync } from 'node:fs';
+          appendFileSync(process.env.GITHUB_ENV, `KLOCGIT_RUST_TOOLCHAIN=${process.env.RUNNER_TEMP}/klocgit-rust/1.90.0\n`);
+          JS
+      - run: npm ci
+      - name: Run actual compiler fixtures
+        run: node --test ${{ matrix.tests }}

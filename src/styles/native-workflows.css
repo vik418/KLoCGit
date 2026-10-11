@@ -38,7 +38,7 @@ select:focus-visible {
   background: transparent;
   border-radius: 5px;
   color: var(--muted);
-  font-size: 0.8rem;
+  font-size: 0.8125rem;
 }
 
 .work-switch button.selected {
@@ -66,7 +66,7 @@ select:focus-visible {
   display: flex;
   align-items: center;
   gap: 8px;
-  font-size: 0.8rem;
+  font-size: 0.8125rem;
   color: var(--muted);
 }
 
@@ -141,7 +141,7 @@ select:focus-visible {
 }
 
 .mr-row-main p {
-  font-size: 0.8rem;
+  font-size: 0.8125rem;
   color: var(--muted);
   line-height: 1.6;
   margin-top: 5px;
@@ -150,14 +150,14 @@ select:focus-visible {
 
 .mr-row-main small {
   display: block;
-  font-size: 0.73rem;
+  font-size: 0.8125rem;
   color: var(--muted);
   line-height: 1.55;
   margin-top: 4px;
 }
 
 .mr-row-main code {
-  font-size: 0.75rem;
+  font-size: 0.8125rem;
 }
 
 .mr-row > .badge {
@@ -180,7 +180,7 @@ select:focus-visible {
   justify-content: flex-start;
   flex-wrap: wrap;
   color: var(--muted);
-  font-size: 0.8rem;
+  font-size: 0.8125rem;
 }
 
 .mr-meta > .button {
@@ -268,7 +268,7 @@ select:focus-visible {
 .checkbox-label small {
   display: block;
   color: var(--muted);
-  font-size: 0.74rem;
+  font-size: 0.8125rem;
 }
 
 .native-details {
@@ -287,7 +287,7 @@ select:focus-visible {
 
 .native-details > p,
 .compact-details > p {
-  font-size: 0.8rem;
+  font-size: 0.8125rem;
   line-height: 1.65;
   color: var(--muted);
   margin: 11px 0;
@@ -336,7 +336,7 @@ select:focus-visible {
 .history-row span,
 .history-row small {
   display: block;
-  font-size: 0.74rem;
+  font-size: 0.8125rem;
   color: var(--muted);
   margin-top: 4px;
 }
@@ -350,7 +350,7 @@ select:focus-visible {
 }
 
 .history-row > .badge {
-  font-size: 0.7rem;
+  font-size: 0.8125rem;
 }
 
 .history-row > .button {
@@ -382,7 +382,7 @@ select:focus-visible {
 }
 
 .comment-body small {
-  font-size: 0.75rem;
+  font-size: 0.8125rem;
   color: var(--muted);
 }
 
@@ -416,7 +416,7 @@ select:focus-visible {
 }
 
 .queue-row > p {
-  font-size: 0.8rem;
+  font-size: 0.8125rem;
   color: var(--muted);
   line-height: 1.7;
   margin: 8px 0;
@@ -432,7 +432,7 @@ select:focus-visible {
 
 .queue-blocker {
   color: var(--warning) !important;
-  font-size: 0.81rem;
+  font-size: 0.8125rem;
   line-height: 1.7;
   margin: 9px 0;
 }
@@ -452,13 +452,13 @@ select:focus-visible {
   }
   .work-toolbar > .button {
     padding: 8px 5px;
-    font-size: 0.7rem;
+    font-size: 0.8125rem;
   }
   .work-switch {
     gap: 0;
   }
   .work-switch button {
-    font-size: 0.74rem;
+    font-size: 0.8125rem;
     padding: 8px;
   }
   .work-actions {
@@ -477,10 +477,10 @@ select:focus-visible {
     font-size: 0.89rem;
   }
   .mr-row > .badge {
-    font-size: 0.65rem;
+    font-size: 0.8125rem;
   }
   .mr-row-main p {
-    font-size: 0.75rem;
+    font-size: 0.8125rem;
   }
   .row-checkbox {
     padding: 3px;
@@ -496,7 +496,7 @@ select:focus-visible {
     margin-left: 0;
   }
   .mr-meta {
-    font-size: 0.74rem;
+    font-size: 0.8125rem;
     gap: 10px;
   }
   .history-row {

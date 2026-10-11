@@ -5,6 +5,7 @@ import os from 'node:os';
 import path from 'node:path';
 import { DomainError } from '../core/hash.mjs';
 import { observationRef, pageRefs, gitObjectId } from '../core/git-refs.mjs';
+import { localSourceBrowser } from '../adapters/local/source-browser.mjs';
 import { createApplicationRunner, applicationValidationConfigHash } from './runner.mjs';
 import {
   localRepositoryCreate,
@@ -72,6 +73,9 @@ export class LocalGit {
   }
   runRepositoryGit(cwd, args) {
     return git(cwd, args);
+  }
+  sourceBrowser(repository) {
+    return localSourceBrowser(this, repository);
   }
   repositoryCreate(input) {
     return localRepositoryCreate(this, input);

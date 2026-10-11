@@ -22,8 +22,9 @@ jobs:
         with:
           node-version-file: .nvmrc
           cache: npm
+      - uses: ./.github/actions/analysis-tools
       - name: Install sandbox tools
-        run: sudo apt-get update && sudo apt-get install -y bubblewrap util-linux
+        run: sudo apt-get update && sudo apt-get install -y bubblewrap util-linux fuse3
       - name: Install browser system libraries
         run: |
           npm ci
@@ -33,25 +34,6 @@ jobs:
         run: npm run verify
       - name: Show formatting differences
         if: failure() && steps.verify.outcome == 'failure'
-        run: |
-          npx --no-install prettier . --write
-          git diff --exit-code
-
-  v1:
-    runs-on: ubuntu-22.04
-    timeout-minutes: 5
-    steps:
-      - uses: actions/checkout@v7
-      - uses: actions/setup-node@v7
-        with:
-          node-version-file: .nvmrc
-          cache: npm
-      - run: npm ci
-      - run: npm run format:check
-      - run: npm run lint
-      - run: npm run test:v1
-      - name: Show formatting differences
-        if: failure()
         run: |
           npx --no-install prettier . --write
           git diff --exit-code

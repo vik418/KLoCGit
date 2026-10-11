@@ -39,7 +39,7 @@
   border-radius: 5px;
   background: var(--surface);
   color: var(--muted);
-  font-size: 0.78rem;
+  font-size: 0.8125rem;
   text-transform: capitalize;
 }
 
@@ -64,7 +64,7 @@
 }
 
 .capability-count {
-  font-size: 0.74rem;
+  font-size: 0.8125rem;
   color: var(--muted);
   margin: 12px 0 25px;
 }
@@ -117,7 +117,7 @@
 .capability-description > b {
   display: block;
   font-weight: 500;
-  font-size: 0.74rem;
+  font-size: 0.8125rem;
   color: var(--text);
   margin-bottom: 4px;
 }
@@ -129,7 +129,7 @@
 .capability-tests {
   padding-left: 20px;
   margin: 12px 0;
-  font-size: 0.78rem;
+  font-size: 0.8125rem;
   line-height: 1.7;
   color: var(--muted);
 }
@@ -140,7 +140,7 @@
 }
 
 .capability-tests code {
-  font-size: 0.74rem;
+  font-size: 0.8125rem;
   overflow-wrap: anywhere;
   color: var(--muted);
 }
@@ -155,7 +155,7 @@
 }
 
 .capabilities-body .compact-details > summary {
-  font-size: 0.76rem;
+  font-size: 0.8125rem;
   color: var(--muted);
 }
 
@@ -174,14 +174,14 @@
     font-size: 0.92rem;
   }
   .capability-heading > .badge {
-    font-size: 0.7rem;
+    font-size: 0.8125rem;
   }
   .capability-filters button {
-    font-size: 0.73rem;
+    font-size: 0.8125rem;
     padding: 7px 9px;
   }
   .capability-scope {
     padding: 12px;
-    font-size: 0.78rem;
+    font-size: 0.8125rem;
   }
 }

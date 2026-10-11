@@ -1,0 +1,219 @@
+[
+  {
+    "id": "typescript-body-change",
+    "language": "typescript",
+    "before": {
+      "entry.ts": "export function read():number {return 1;}"
+    },
+    "after": {
+      "entry.ts": "export function read():number {return 2;}"
+    },
+    "status": "COMPLETE",
+    "signals": ["source:entry.ts"]
+  },
+  {
+    "id": "typescript-signature-change",
+    "language": "typescript",
+    "before": {
+      "entry.ts": "export function read():number {return 1;}"
+    },
+    "after": {
+      "entry.ts": "export function read():string {return 'ready';}"
+    },
+    "status": "COMPLETE",
+    "signals": ["source:entry.ts", "symbol:entry.ts#export:read"]
+  },
+  {
+    "id": "typescript-format-only",
+    "language": "typescript",
+    "before": {
+      "entry.ts": "export function read():number {return 1;}"
+    },
+    "after": {
+      "entry.ts": "// explanation\nexport function read(): number { return 1; }\n"
+    },
+    "status": "COMPLETE",
+    "signals": []
+  },
+  {
+    "id": "typescript-unresolved-import",
+    "language": "typescript",
+    "before": {
+      "entry.ts": "export const value=1;"
+    },
+    "after": {
+      "entry.ts": "export {value} from 'unavailable';"
+    },
+    "status": "PARTIAL",
+    "signals": null
+  },
+  {
+    "id": "javascript-body-change",
+    "language": "javascript",
+    "before": {
+      "entry.js": "/** @returns {number} */ export function read(){return 1;}"
+    },
+    "after": {
+      "entry.js": "/** @returns {number} */ export function read(){return 2;}"
+    },
+    "status": "COMPLETE",
+    "signals": ["source:entry.js"]
+  },
+  {
+    "id": "javascript-format-only",
+    "language": "javascript",
+    "before": {
+      "entry.js": "/** @returns {number} */ export function read(){return 1;}"
+    },
+    "after": {
+      "entry.js": "/** @returns {number} */\nexport function read() { return 1; }\n"
+    },
+    "status": "COMPLETE",
+    "signals": []
+  },
+  {
+    "id": "python-body-change",
+    "language": "python",
+    "before": {
+      "module.py": "def read():\n    return 1\n"
+    },
+    "after": {
+      "module.py": "def read():\n    return 2\n"
+    },
+    "status": "COMPLETE",
+    "signals": ["source:module.py"]
+  },
+  {
+    "id": "python-format-only",
+    "language": "python",
+    "before": {
+      "module.py": "def read():\n    return 1\n"
+    },
+    "after": {
+      "module.py": "# explanation\ndef read():\n    return 1\n"
+    },
+    "status": "COMPLETE",
+    "signals": []
+  },
+  {
+    "id": "python-dynamic-dispatch",
+    "language": "python",
+    "before": {
+      "module.py": "def read():\n    return 1\n"
+    },
+    "after": {
+      "module.py": "def read(callback):\n    return callback()\n"
+    },
+    "status": "PARTIAL",
+    "signals": null
+  },
+  {
+    "id": "python-syntax-error",
+    "language": "python",
+    "before": {
+      "module.py": "def read():\n    return 1\n"
+    },
+    "after": {
+      "module.py": "def read(:\n    return 1\n"
+    },
+    "status": "FAILED",
+    "signals": null
+  },
+  {
+    "id": "go-body-change",
+    "language": "go",
+    "before": {
+      "main.go": "package fixture\nfunc Read() int {return 1}\n"
+    },
+    "after": {
+      "main.go": "package fixture\nfunc Read() int {return 2}\n"
+    },
+    "status": "COMPLETE",
+    "signals": ["symbol:example.test/benchmark.Read"]
+  },
+  {
+    "id": "go-format-only",
+    "language": "go",
+    "before": {
+      "main.go": "package fixture\nfunc Read() int {return 1}\n"
+    },
+    "after": {
+      "main.go": "package fixture\n// explanation\nfunc Read() int { return 1 }\n"
+    },
+    "status": "COMPLETE",
+    "signals": []
+  },
+  {
+    "id": "go-static-interface-observation",
+    "language": "go",
+    "before": {
+      "main.go": "package fixture\nfunc Read() int {return 1}\n"
+    },
+    "after": {
+      "main.go": "package fixture\ntype Reader interface {Read() int}\nfunc Read(value Reader) int {return value.Read()}\n"
+    },
+    "status": "COMPLETE",
+    "signals": null,
+    "scope": "Static interface binding only; runtime target remains unresolved."
+  },
+  {
+    "id": "go-syntax-error",
+    "language": "go",
+    "before": {
+      "main.go": "package fixture\nfunc Read() int {return 1}\n"
+    },
+    "after": {
+      "main.go": "package fixture\nfunc Read( {return 1}\n"
+    },
+    "status": "FAILED",
+    "signals": null
+  },
+  {
+    "id": "rust-body-change",
+    "language": "rust",
+    "before": {
+      "src/lib.rs": "pub fn read() -> i32 {1}\n"
+    },
+    "after": {
+      "src/lib.rs": "pub fn read() -> i32 {2}\n"
+    },
+    "status": "PARTIAL",
+    "signals": ["source:rust:src/lib.rs", "symbol:rust:src/lib.rs#read"]
+  },
+  {
+    "id": "rust-format-only-conservative-source",
+    "language": "rust",
+    "before": {
+      "src/lib.rs": "pub fn read() -> i32 {1}\n"
+    },
+    "after": {
+      "src/lib.rs": "// explanation\npub fn read() -> i32 { 1 }\n"
+    },
+    "status": "PARTIAL",
+    "signals": ["source:rust:src/lib.rs"]
+  },
+  {
+    "id": "rust-layout-only-outside-coverage",
+    "language": "rust",
+    "before": {
+      "src/lib.rs": "pub struct Value {pub count:i32}\n"
+    },
+    "after": {
+      "src/lib.rs": "pub struct Value {pub count:i64}\n"
+    },
+    "status": "PARTIAL",
+    "signals": ["source:rust:src/lib.rs"]
+  },
+  {
+    "id": "rust-syntax-error",
+    "language": "rust",
+    "before": {
+      "src/lib.rs": "pub fn read() -> i32 {1}\n"
+    },
+    "after": {
+      "src/lib.rs": "pub fn read( {1}\n"
+    },
+    "status": "FAILED",
+    "signals": null
+  }
+]

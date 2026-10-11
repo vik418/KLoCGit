@@ -89,7 +89,10 @@ async function authenticate(page, url) {
   await page.goto(url);
   await page.getByLabel('Owner credential', { exact: true }).fill(credential);
   await page.getByRole('button', { name: 'Connect to workspace', exact: true }).click();
-  await page.getByRole('button', { name: 'Repositories', exact: true }).waitFor();
+  const sourceRepository = new URL(url).searchParams.get('repo');
+  if (sourceRepository)
+    await page.getByRole('dialog', { name: sourceRepository + ' · source', exact: true }).waitFor();
+  else await page.getByRole('button', { name: 'Repositories', exact: true }).waitFor();
 }
 
 async function waitForFocus(page, control) {
@@ -98,6 +101,27 @@ async function waitForFocus(page, control) {
   await page.waitForFunction((node) => node === document.activeElement, element, {
     timeout: 5000,
   });
+}
+
+async function assertTextContrast(control) {
+  const ratio = await control.evaluate((element) => {
+    const style = getComputedStyle(element);
+    const luminance = (color) => {
+      const channels = color
+        .match(/[\d.]+/g)
+        .slice(0, 3)
+        .map(Number)
+        .map((value) => {
+          const channel = value / 255;
+          return channel <= 0.04045 ? channel / 12.92 : ((channel + 0.055) / 1.055) ** 2.4;
+        });
+      return channels[0] * 0.2126 + channels[1] * 0.7152 + channels[2] * 0.0722;
+    };
+    const foreground = luminance(style.color);
+    const background = luminance(style.backgroundColor);
+    return (Math.max(foreground, background) + 0.05) / (Math.min(foreground, background) + 0.05);
+  });
+  assert.ok(ratio >= 4.5, 'Primary action text must meet normal-text contrast');
 }
 
 async function assertFitsViewport(page) {
@@ -158,14 +182,20 @@ try {
   assert.equal(empty.futures.length, 0);
   assert.equal(
     await page.evaluate(() => getComputedStyle(document.documentElement).backgroundColor),
-    'rgb(11, 13, 16)',
+    'rgb(0, 0, 0)',
   );
   await assertFitsViewport(page);
+  for (const view of ['Evidence', 'History', 'Git workflows', 'Futures', 'Attention']) {
+    await page.getByRole('button', { name: view, exact: true }).click();
+    await page.getByRole('heading', { name: view, exact: true, level: 1 }).waitFor();
+    await assertFitsViewport(page);
+  }
 
   await page.getByRole('button', { name: 'Repositories', exact: true }).click();
   const addRepository = page
     .getByRole('button', { name: /^(Add|Create) (a )?repository$/i })
     .first();
+  await assertTextContrast(addRepository);
   await addRepository.click();
   let dialog = page.getByRole('dialog', { name: 'Add a repository', exact: true });
   await dialog.waitFor();
@@ -223,6 +253,93 @@ try {
   assert.equal(ready.tree, baselineTree);
   assert.equal(ready.status, 'ready');
 
+  const repositorySearch = page.getByRole('textbox', { name: 'Find a repository', exact: true });
+  await repositorySearch.fill('no matching repository');
+  await page
+    .getByText('No repositories match “no matching repository”.', { exact: true })
+    .waitFor();
+  assert.equal(await page.getByRole('button', { name: 'Browse code', exact: true }).count(), 0);
+  await repositorySearch.fill('APP');
+  await page.getByRole('button', { name: 'Browse code', exact: true }).waitFor();
+  await repositorySearch.fill('');
+  await capture('repositories-desktop');
+
+  await page.setViewportSize({ width: 390, height: 844 });
+  const moreViews = page.getByRole('button', { name: 'More workspace views', exact: true });
+  await moreViews.focus();
+  await page.keyboard.press('Enter');
+  assert.equal(await moreViews.getAttribute('aria-expanded'), 'true');
+  await page.getByRole('button', { name: 'Evidence', exact: true }).click();
+  await page.getByRole('heading', { name: 'Evidence', exact: true, level: 1 }).waitFor();
+  assert.equal(await moreViews.getAttribute('aria-expanded'), 'false');
+  await page.getByRole('button', { name: 'Repositories', exact: true }).click();
+  const browseTouch = await page
+    .getByRole('button', { name: 'Browse code', exact: true })
+    .boundingBox();
+  assert.ok(browseTouch.height >= 44, 'Mobile actions must have a usable touch target');
+  await assertFitsViewport(page);
+  await capture('repositories-mobile');
+  await page.setViewportSize({ width: 320, height: 740 });
+  await assertFitsViewport(page);
+  await page.setViewportSize({ width: 1440, height: 1000 });
+  await page.evaluate(() => {
+    document.documentElement.style.fontSize = '32px';
+  });
+  await assertFitsViewport(page);
+  await page.evaluate(() => {
+    document.documentElement.style.fontSize = '';
+  });
+  await page.getByRole('link', { name: 'Skip to content', exact: true }).focus();
+  await page.keyboard.press('Enter');
+  assert.equal(
+    await page.getByRole('main').evaluate((element) => element === document.activeElement),
+    true,
+  );
+
+  const browse = page.getByRole('button', { name: 'Browse code', exact: true });
+  await browse.click();
+  let sourceDialog = page.getByRole('dialog', { name: 'app · source', exact: true });
+  await sourceDialog.waitFor();
+  await sourceDialog.getByText('1 files · 0 directories · 0 submodules', { exact: true }).waitFor();
+  await capture('source-desktop');
+  await sourceDialog.getByRole('button', { name: /^app\.mjs/ }).click();
+  await sourceDialog
+    .getByRole('region', { name: 'File contents' })
+    .getByText('export const value = 0;', { exact: true })
+    .waitFor();
+  await capture('file-desktop');
+  await sourceDialog.getByRole('button', { name: 'Raw view', exact: true }).click();
+  assert.equal(
+    await sourceDialog.getByLabel('Raw file contents', { exact: true }).inputValue(),
+    'export const value = 0;\n',
+  );
+  await sourceDialog.getByRole('button', { name: 'Commits', exact: true }).click();
+  await sourceDialog
+    .getByRole('region', { name: 'Commit history' })
+    .getByRole('heading', { name: 'Add baseline application', exact: true })
+    .waitFor();
+  await assertFitsViewport(page);
+  await page.keyboard.press('Escape');
+  await sourceDialog.waitFor({ state: 'hidden' });
+  await waitForFocus(page, browse);
+
+  // Permalinks bind to immutable Git state and reopen after authentication.
+  await authenticate(
+    page,
+    url + '/?' + new URLSearchParams({ repo: 'app', commit: baselineCommit, path: 'app.mjs' }),
+  );
+  sourceDialog = page.getByRole('dialog', { name: 'app · source', exact: true });
+  await sourceDialog
+    .getByRole('region', { name: 'File contents' })
+    .getByText('export const value = 0;', { exact: true })
+    .waitFor();
+  await page.setViewportSize({ width: 390, height: 844 });
+  await assertFitsViewport(page);
+  await page.keyboard.press('Escape');
+  await sourceDialog.waitFor({ state: 'hidden' });
+  await page.setViewportSize({ width: 1440, height: 1000 });
+  await page.getByRole('button', { name: 'Repositories', exact: true }).click();
+
   await page.getByRole('button', { name: 'Fork repository', exact: true }).click();
   dialog = page.getByRole('dialog', { name: 'Fork repositories', exact: true });
   await dialog.waitFor();
@@ -252,6 +369,7 @@ try {
   assert.equal(firstRevision.provenance_state, 'unknown');
   assert.equal(firstRevision.repository_heads[0].commit, baselineCommit);
 
+  await page.getByText('Clone repository', { exact: true }).click();
   const forkRemote = page.getByLabel('Git remote', { exact: true });
   await forkRemote.waitFor();
   assert.equal(await forkRemote.inputValue(), future.repositories[0].remote);
@@ -770,7 +888,7 @@ try {
   await capture('context-desktop');
 
   console.log(
-    'Browser workflow passed: authenticated repository creation, ordinary Git push, isolated Future, immutable revision history, selected-commit composition, untrusted validation blocking, admitted CI and reviewed Git promotion, rewind, branch/tag selection, structured provenance, historical object retention, cross-repo context and one declared answer before forking, keyboard focus, mobile layout.',
+    'Browser workflow passed: authenticated repository creation, exact-state source/raw/history browsing and permalinks, ordinary Git push, isolated Future, immutable revision history, selected-commit composition, untrusted validation blocking, admitted CI and reviewed Git promotion, rewind, branch/tag selection, structured provenance, historical object retention, cross-repo context and one declared answer before forking, keyboard focus, mobile layout.',
   );
 } catch (error) {
   console.error(serverOutput);

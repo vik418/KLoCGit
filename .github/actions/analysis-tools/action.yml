@@ -1,0 +1,43 @@
+name: Analysis toolchains
+description: Install the exact compilers used by the semantic fixture corpus.
+
+runs:
+  using: composite
+  steps:
+    - uses: actions/setup-python@v6
+      with:
+        python-version: '3.12.14'
+    - uses: actions/setup-go@v6
+      with:
+        go-version: '1.26.9'
+        cache: false
+    - shell: bash
+      run: |
+        node --input-type=module <<'JS'
+        import { appendFileSync } from 'node:fs';
+        import { execFileSync } from 'node:child_process';
+        const root = execFileSync('go', ['env', 'GOROOT'], { encoding: 'utf8' }).trim();
+        appendFileSync(process.env.GITHUB_ENV, `KLOCGIT_GO_1_26_9=${root}/bin/go\n`);
+        JS
+    - uses: actions/setup-go@v6
+      with:
+        go-version: '1.27.2'
+        cache: false
+    - shell: bash
+      run: |
+        node --input-type=module <<'JS'
+        import { appendFileSync } from 'node:fs';
+        import { execFileSync } from 'node:child_process';
+        const root = execFileSync('go', ['env', 'GOROOT'], { encoding: 'utf8' }).trim();
+        appendFileSync(process.env.GITHUB_ENV, `KLOCGIT_GO_1_27_2=${root}/bin/go\n`);
+        appendFileSync(process.env.GITHUB_ENV, `KLOCGIT_RUST_TOOLCHAIN=${process.env.RUNNER_TEMP}/klocgit-rust/1.90.0\n`);
+        JS
+    - shell: bash
+      run: python3 -B adapters/analysis/rust/install-toolchain.py "$KLOCGIT_RUST_TOOLCHAIN"
+    - shell: bash
+      run: |
+        node scripts/install-artifact-fs.mjs "$RUNNER_TEMP/klocgit-artifactfs" "$KLOCGIT_GO_1_27_2"
+        node --input-type=module <<'JS'
+        import { appendFileSync } from 'node:fs';
+        appendFileSync(process.env.GITHUB_ENV, `KLOCGIT_ARTIFACT_FS_BINARY=${process.env.RUNNER_TEMP}/klocgit-artifactfs/bin/artifact-fs\n`);
+        JS

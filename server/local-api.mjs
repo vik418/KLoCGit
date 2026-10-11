@@ -11,6 +11,7 @@ import {
 import { createDemo, produceWork } from '../scripts/demo.mjs';
 import { handleWorkflowRequest } from './workflow-api.mjs';
 import { handleNativeRequest, ownsNativePath } from './native-api.mjs';
+import { handleSourceRequest, ownsSourcePath } from '../api/source.mjs';
 
 async function resetDemo(engine, actor, { root, save }) {
   const prior = engine.state;
@@ -90,6 +91,7 @@ export async function handleLocalRequest(
   const actor = principal.actor_id;
   if (bytes !== undefined) engine.access.assertQuota('request_bytes', 0, bytes);
   const path = url.pathname;
+  if (ownsSourcePath(path)) return handleSourceRequest(engine, { method, url, principal });
   if (path === '/api/session' && method === 'GET') return engine.access.session(principal);
   if (path === '/api/access') {
     if (method === 'GET') return engine.access.policy(principal);

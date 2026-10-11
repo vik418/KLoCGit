@@ -137,6 +137,27 @@ export async function resolveDecision(input, basis, options) {
   return Decision({ ...decision, state: 'RESOLVED', basis: current, resolution });
 }
 
+/** Promotion rechecks an accepted choice; it must not replace its actor or selection. */
+export async function revalidateResolvedDecision(input, basis, options) {
+  const dependencies = policyContext(options);
+  const [decision, current] = await Promise.all([
+    verifiedDecision(input),
+    verifyDecisionBasis(basis),
+  ]);
+  requireState(decision, ['RESOLVED']);
+  requireCurrentBasis(decision, current);
+  parseDigest(options.expectedBasisDigest, 'decision-basis');
+  parseDigest(options.candidateDigest, 'object-candidate');
+  if (options.expectedBasisDigest !== current.digest) throw new V1Error('STALE_BASIS');
+  if (
+    decision.resolution.candidate_digest !== options.candidateDigest ||
+    !current.candidate_digests.includes(options.candidateDigest)
+  )
+    throw new V1Error('INTEGRITY_MISMATCH');
+  await requirePolicy(current, dependencies);
+  return decision;
+}
+
 export async function markStale(input) {
   const decision = await verifiedDecision(input);
   requireState(decision, ['REVIEWABLE', 'RESOLVABLE']);

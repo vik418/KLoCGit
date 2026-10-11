@@ -79,45 +79,6 @@
 }
 
 @media (max-width: 760px) {
-  .topbar {
-    height: 64px;
-    padding: 0 18px;
-    gap: 14px;
-  }
-  .brand {
-    font-size: 1.19rem;
-  }
-  .brand svg {
-    width: 19px;
-  }
-  .breadcrumb {
-    font-size: 0.75rem;
-    gap: 6px;
-  }
-  .breadcrumb > span,
-  .breadcrumb > b {
-    display: none;
-  }
-  .topbar > .menu-anchor > .button {
-    font-size: 0.69rem;
-    padding: 8px 0;
-  }
-  .dropdown {
-    width: 275px;
-  }
-  main {
-    padding: 31px 18px 0;
-  }
-  .page-heading h1 {
-    font-size: 1.69rem;
-  }
-  .page-heading > p {
-    font-size: 0.875rem;
-  }
-  .content-tabs {
-    gap: 27px;
-    margin-top: 22px;
-  }
   .decision-list {
     padding-top: 20px;
   }
@@ -136,7 +97,7 @@
     flex-wrap: wrap;
   }
   .card-scope {
-    font-size: 0.69rem;
+    font-size: 0.8125rem;
   }
   .card-footer {
     gap: 12px;
@@ -144,11 +105,11 @@
     flex-direction: column;
   }
   .card-footer > .button {
-    font-size: 0.81rem;
+    font-size: 0.8125rem;
     margin-left: auto;
   }
   .card-evidence {
-    font-size: 0.75rem;
+    font-size: 0.8125rem;
     flex-wrap: wrap;
   }
   .resolved-card {
@@ -170,7 +131,7 @@
     align-items: flex-start;
   }
   .evidence-explainer p {
-    font-size: 0.81rem;
+    font-size: 0.8125rem;
   }
   .table-head {
     display: none;
@@ -191,13 +152,13 @@
     display: none;
   }
   .evidence-row summary b {
-    font-size: 0.81rem;
+    font-size: 0.8125rem;
   }
   .evidence-row summary small {
-    font-size: 0.75rem;
+    font-size: 0.8125rem;
   }
   .evidence-row summary .badge {
-    font-size: 0.69rem;
+    font-size: 0.8125rem;
   }
   .evidence-detail {
     padding: 16px;
@@ -212,7 +173,7 @@
     display: none;
   }
   footer {
-    font-size: 0.69rem;
+    font-size: 0.8125rem;
     gap: 10px;
   }
   .dialog-header {
@@ -266,7 +227,7 @@
   .toast {
     width: calc(100% - 35px);
     bottom: 16px;
-    font-size: 0.81rem;
+    font-size: 0.8125rem;
   }
 }
 

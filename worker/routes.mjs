@@ -6,6 +6,7 @@ import { jsonResponse } from './http.mjs';
 import { scheduleAnalysis } from './events.mjs';
 import { registerRepository, forkRepository } from './repositories.mjs';
 import { internalPrincipal } from './identity.mjs';
+import { handleSourceRequest, ownsSourcePath } from '../api/source.mjs';
 
 export function requestPrincipal(engine, principal, actor) {
   if (principal) return principal;
@@ -115,6 +116,7 @@ export async function handleCoordinatorRequest(
     );
   principal = requestPrincipal(engine, principal, suppliedActor ?? env.ACTOR_ID);
   const actor = principal.actor_id;
+  if (ownsSourcePath(path)) return handleSourceRequest(engine, { method, url, principal });
   if (path === '/api/session' && method === 'GET')
     return jsonResponse(engine.access.session(principal));
   if (path === '/api/access') {

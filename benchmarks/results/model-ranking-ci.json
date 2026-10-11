@@ -1,0 +1,72 @@
+{
+  "schema_version": 1,
+  "status": "MEASURED",
+  "repetitions": 4,
+  "pool_digest": "sha256:ranking-experiment-pool:v1:8415570a274fa137d0fbb755a1ca81de12e5dfd444dcc4a577d3691725ce84dd",
+  "ranker_metadata": {
+    "schema_version": 1,
+    "repository": "sentence-transformers/all-MiniLM-L6-v2",
+    "revision": "1110a243fdf4706b3f48f1d95db1a4f5529b4d41",
+    "license": "Apache-2.0",
+    "max_tokens": 256,
+    "files": [
+      {
+        "path": "model.onnx",
+        "source": "onnx/model_quint8_avx2.onnx",
+        "sha256": "b941bf19f1f1283680f449fa6a7336bb5600bdcd5f84d10ddc5cd72218a0fd21",
+        "bytes": 23046789
+      },
+      {
+        "path": "tokenizer.json",
+        "source": "tokenizer.json",
+        "sha256": "be50c3628f2bf5bb5e3a7f17b1f74611b2561a3a27eeab05e5aa30f411572037",
+        "bytes": 466247
+      }
+    ],
+    "basis": "INFERRED",
+    "runtime": "onnxruntime-cpu",
+    "scope": "General review-query relevance; source text is truncated to the pinned token budget."
+  },
+  "deterministic": {
+    "schema_version": 1,
+    "runs": 4,
+    "completed_rankings": 0,
+    "mean_high_risk_recall": 0,
+    "runs_with_high_risk_evidence": 0,
+    "mean_first_high_risk_evidence_ms": null,
+    "mean_new_compute_ms": 1332.4510362499989,
+    "distinct_priority_orders": 1
+  },
+  "ranked": {
+    "schema_version": 1,
+    "runs": 4,
+    "completed_rankings": 4,
+    "mean_high_risk_recall": 0,
+    "runs_with_high_risk_evidence": 0,
+    "mean_first_high_risk_evidence_ms": null,
+    "mean_new_compute_ms": 1469.4472192499995,
+    "distinct_priority_orders": 1
+  },
+  "workload": {
+    "schema_version": 1,
+    "kind": "retry-response-loss",
+    "runtime_digest": "sha256:sandbox-runtime:v1:1f87c6c280354d780637ebad1f3bb03fe98672bb294142e8f43d8df2b6c692ff",
+    "config_digest": "sha256:evaluation-config:v1:8f80ec1cd8da47a1366fd6a9bd75603b660d4ae8f9cc0d92ab267ecc0daa564a",
+    "environment_digest": "sha256:evaluation-environment:v1:8fb63dfcb8ab2218bf67cbb816902e3f737f3c268607aa38a81e51d48406c7dc",
+    "high_risk_spec_ids": [
+      "klocgit:candidate-spec:v1:sha256:5ee6f24894bce4f8d9352b4dc961114222bc38b304910da5f1d4119d434857a5",
+      "klocgit:candidate-spec:v1:sha256:79bf61152a164f504082da8ffbf1d7b894e2d5f51f1b196ab9efd6c738ed77a8"
+    ],
+    "materialization": "local-git",
+    "execution": "linux-bubblewrap-denied-network",
+    "source_git_unchanged": true
+  },
+  "measurement_source": {
+    "schema_version": 1,
+    "commit_sha": "04eca4024b5433a096db5d99486f4632091885da",
+    "workflow_run_id": 38169538040,
+    "workflow_job_id": 114559046839,
+    "url": "https://github.com/vik418/KLoCGit/actions/runs/38169538040"
+  },
+  "conclusion": "No scheduling benefit observed at the two-evaluation budget in this workload. Keep optional ranking disabled. This experiment does not establish general model quality."
+}
