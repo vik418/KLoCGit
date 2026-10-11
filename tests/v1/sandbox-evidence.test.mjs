@@ -9,6 +9,7 @@ import { LocalWorkspaceSource } from '../../adapters/local/workspace-source.mjs'
 import { LinuxSandbox } from '../../adapters/local/sandbox.mjs';
 import { SandboxEvidenceProvider } from '../../adapters/local/sandbox-evidence.mjs';
 import { V1Error, digestBytes } from '../../core/v1/conventions.mjs';
+import { SecretNetworkBroker, containsSecret } from '../../core/v1/execution-broker.mjs';
 import { digestCanonical } from '../../core/v1/encoding.mjs';
 import { materializedCandidate } from '../../core/v1/materialization.mjs';
 
@@ -31,7 +32,7 @@ const scope = Object.freeze({
   trace_id: 'trace-1',
 });
 
-async function fixture(t, script) {
+async function fixture(t, script, broker) {
   const root = await mkdtemp(join(tmpdir(), 'klocgit-sandbox-'));
   t.after(() => rm(root, { recursive: true, force: true }));
   const adapter = new LocalGit(root);
@@ -63,7 +64,7 @@ async function fixture(t, script) {
     limits,
     secretGuard: async (bytes) =>
       !Buffer.from(bytes).includes(Buffer.from('private-object-canary')),
-    broker: {
+    broker: broker ?? {
       read: async (id) => {
         if (id !== 'dependency') throw new V1Error('FORBIDDEN');
         return resource;
@@ -102,6 +103,85 @@ test('native isolation evaluates selected exact files without writing source Git
   assert.equal(result.exit_code, 0);
   assert.equal(new TextDecoder().decode(result.stdout), 'observed answer');
   assert.equal(await git(f.directory, ['count-objects', '-v']), before);
+});
+
+test('host-side broker credentials remain outside a native producer process', async (t) => {
+  const resource = new TextEncoder().encode('approved dependency bytes');
+  const secret = new TextEncoder().encode('private-broker-credential');
+  const digest = await digestBytes('broker-resource', resource);
+  const requests = [],
+    audit = [];
+  const broker = new SecretNetworkBroker({
+    tenant_id: scope.tenant_id,
+    system_id: scope.system_id,
+    principal: {
+      schema_version: 1,
+      tenant_id: scope.tenant_id,
+      actor_id: 'evaluator',
+      kind: 'service',
+      capability_id: null,
+    },
+    authorize: (principal, request) =>
+      principal.actor_id === 'evaluator' &&
+      request.resource_id === 'dependency' &&
+      request.candidate_digest === scope.candidate_digest,
+    resolveResource: () => ({
+      schema_version: 1,
+      id: 'dependency',
+      tenant_id: scope.tenant_id,
+      system_id: scope.system_id,
+      candidate_digest: scope.candidate_digest,
+      digest,
+      kind: 'HTTP_READ',
+      url: 'https://resources.example/dependency',
+      credential_id: 'resource-reader',
+    }),
+    resolveSecret: () => ({
+      schema_version: 1,
+      purpose: 'sandbox-resource-read',
+      resource_id: 'dependency',
+      bytes: secret,
+      expires_ms: 1000,
+    }),
+    readObject: () => {
+      throw new Error('Unexpected object read');
+    },
+    secretGuard: (bytes) => !containsSecret(bytes, [secret]),
+    audit: (record) => audit.push(record),
+    allowed_origins: ['https://resources.example'],
+    max_bytes: 1024,
+    timeout_ms: 1000,
+    now: () => 0,
+    fetch: (_url, options) => {
+      requests.push({ ...options.headers });
+      return new Response(resource);
+    },
+  });
+  const f = await fixture(
+    t,
+    `import fs from 'node:fs';
+process.stdout.write(JSON.stringify({ input: fs.readFileSync(0, 'utf8'), credential: process.env.KLOCGIT_CANONICAL_CANARY ?? null }));`,
+    broker,
+  );
+  const bytes = await f.sandbox.readBrokeredResource(
+    { schema_version: 1, resource_id: 'dependency', digest },
+    scope,
+  );
+  const observed = await f.sandbox.run(
+    { ...f.request, stdin: new TextDecoder().decode(bytes) },
+    { workspaces: f.workspaces, scope },
+  );
+  assert.equal(observed.exit_code, 0);
+  assert.deepEqual(JSON.parse(new TextDecoder().decode(observed.stdout)), {
+    input: 'approved dependency bytes',
+    credential: null,
+  });
+  assert.equal(containsSecret(observed.stdout, [secret]), false);
+  assert.equal(requests[0].authorization, 'Bearer private-broker-credential');
+  assert.deepEqual(
+    audit.map((record) => record.to_state),
+    ['REQUESTED', 'VERIFIED'],
+  );
 });
 
 test('inherited credentials, host files, host networking and writes to selected files are unavailable', async (t) => {
