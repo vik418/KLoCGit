@@ -12,40 +12,55 @@ Git stores the code. KLoCGit records the evidence and reasons behind each accept
 <summary>Mermaid source</summary>
 
 ```mermaid
-flowchart TD
-    Users[People and agents] --> API[Workers API]
-    Users --> Git[Artifacts Git repositories]
-    Git -->|Push events| Queue[Analysis queue]
-    Queue --> Executor[Isolated executor]
-    API --> Coordinator[Durable Object coordinator]
-    Executor -->|Candidates and evidence| Coordinator
-    Coordinator -->|Decisions| Users
-    Coordinator -->|Reviewed Git update| Git
-    Coordinator -->|Accepted state| CD[External deployment tools]
-    CD -->|Observed status| API
+flowchart TB
+    Client["Humans, agents, Git clients"]
+    Git["Artifacts<br/>Code and refs"]
+    API["Worker API<br/>Authentication and ingress"]
+    State["Durable Object<br/>Decisions and operation journal"]
+    Executor["Git executor<br/>Local composition and checks"]
+    Evidence["Evidence storage<br/>Payloads and retention"]
+    CD["External CD<br/>Rollout and recovery"]
+    Client -->|Git| Git
+    Client -->|Tasks and review| API
+    Git -->|Push events| API
+    API --> State
+    State -->|Queued analysis| Executor
+    Executor -->|Exact-state evidence| State
+    State -->|Authorized promotion| Executor
+    Executor -->|Ref CAS| Git
+    Executor --> Evidence
+    State -->|Accepted state| CD
 ```
 
 </details>
 
-## Convergence design (LLD)
-
-![Convergence design (LLD)](docs/diagrams/convergence-design.png)
-
 <details>
-<summary>Mermaid source</summary>
+<summary>Promotion sequence (LLD)</summary>
+
+![Promotion sequence (LLD)](docs/diagrams/convergence-design.png)
 
 ```mermaid
-flowchart TD
-    Revision[Exact Git revisions and effects] --> Reduce[Reduce duplicate and superseded work]
-    Reduce --> Spec[Candidate composition plan]
-    Spec --> Materialize[Compose locally in the executor]
-    Materialize --> Evidence[Evaluate the exact candidate state]
-    Evidence --> Decision[Decision with evidence and policy basis]
-    Decision --> Review[Human resolution]
-    Review --> Check{Basis and Git head still current?}
-    Check -->|Yes| CAS[Compare-and-swap Git update]
-    Check -->|No| Stale[Refresh and review again]
-    CAS --> Accepted[Record accepted state and audit]
+sequenceDiagram
+    actor Client
+    participant P as PromotionService
+    participant S as CoordinationStore
+    participant G as GitStore
+    Client->>P: Decision, reviewed basis, expected OID
+    P->>S: Check resolved Decision, current basis and policy
+    S-->>P: Authorized exact Candidate
+    P->>S: Persist PREPARED operation
+    P->>G: CAS(expected OID, target commit)
+    alt Ref updated
+        G-->>P: Confirmed success
+        P->>S: Record APPLIED, SystemRevision and audit
+        P-->>Client: Accepted
+    else Ref changed
+        G-->>P: CAS rejected
+        P-->>Client: Refresh and review
+    else Reply lost or executor crashed
+        P->>G: Observe authoritative ref
+        P->>S: Reconcile PREPARED journal
+    end
 ```
 
 </details>
