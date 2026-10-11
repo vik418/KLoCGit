@@ -74,14 +74,16 @@ export function reduceExactImplementations(inputs, options) {
     valid(bindings[before.id].repo_id === bindings[after.id].repo_id);
     successors.set(before.id, after.id);
   }
+  const checked = new Set();
   for (const id of successors.keys()) {
     const visited = new Set();
     let current = id;
-    while (successors.has(current)) {
+    while (successors.has(current) && !checked.has(current)) {
       valid(!visited.has(current));
       visited.add(current);
       current = successors.get(current);
     }
+    for (const revision of visited) checked.add(revision);
   }
   const groups = new Map();
   for (const revision of revisions) {
