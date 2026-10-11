@@ -11,6 +11,7 @@ import { FutureRevision } from '../../core/v1/domain.mjs';
 import { digestCanonical, encodeCanonical } from '../../core/v1/encoding.mjs';
 import { buildEffectSet } from '../../core/v1/extractors.mjs';
 import { objectId, V1Error } from '../../core/v1/conventions.mjs';
+import { verifySystemRevision } from '../../core/v1/releases.mjs';
 import { createBehaviorExperiment } from '../../benchmarks/support/behavior.mjs';
 import { git } from '../../server/git.mjs';
 
@@ -27,8 +28,7 @@ async function fixture(t) {
     resource_id: { repo_id: 'canonical', ref },
   };
   const principal = { actor_id: 'owner', tenant_id: scope.tenant_id };
-  const effects = [];
-  for (const revision of [a, b, c]) {
+  async function analyze(revision) {
     const provider = new LocalGitStore({
       adapter: f.adapter,
       repository: f.repositories.get(revision.repo_id),
@@ -53,8 +53,9 @@ async function fixture(t) {
           filter,
         ),
     });
-    effects.push(await extractor.analyze(base, revision));
+    return extractor.analyze(base, revision);
   }
+  const effects = await Promise.all([a, b, c].map(analyze));
   const composition = await experiment.compose([a, b]);
   const work = {
     schema_version: 1,
@@ -121,6 +122,8 @@ async function fixture(t) {
     authenticate: (request) =>
       request.headers.get('authorization') === 'Bearer test-owner' ? principal : null,
     workProvider: {
+      evidence: (_tx, _context, subjects) =>
+        [...stored.values()].filter((record) => subjects.includes(record.subject_digest)),
       current: (tx) => {
         workReads += 1;
         return tx.get('work');
@@ -219,6 +222,7 @@ async function fixture(t) {
     ...f,
     experiment,
     effects,
+    analyze,
     provider,
     work,
     principal,
@@ -239,6 +243,10 @@ async function fixture(t) {
       acceptedEvidence = false;
     },
     counters: () => ({ evaluations, observations, workReads }),
+    repeatEvidence: (candidate_digest) => {
+      const candidate = [...materialized.values()].find((item) => item.digest === candidate_digest);
+      return native.evaluate(candidate, requirements);
+    },
   };
 }
 
@@ -289,6 +297,14 @@ test('ordinary Git work discovers decisions, resolves exact Evidence and promote
   const accepted = await f.call('decisions/' + interaction.decision.id + '/promote', promotion);
   assert.equal(accepted.status, 200);
   assert.equal(accepted.body.state, 'APPLIED');
+  const revision = await f.app().store.transaction(f.scope, async (tx) => {
+    const pointer = await tx.get('accepted-system-revision');
+    return tx.get('system-revision:' + pointer.id);
+  });
+  await verifySystemRevision(revision);
+  assert.equal(revision.digest, accepted.body.system_revision_digest);
+  assert.deepEqual(revision.repositories, { canonical: accepted.body.target_oid });
+  assert.deepEqual(revision.accepted_decisions, [interaction.decision.id]);
   assert.equal(
     await git(f.adapter.dir(f.repositories.get('canonical')), ['rev-parse', 'refs/heads/main']),
     accepted.body.target_oid,
@@ -389,7 +405,7 @@ test('authentication, scoped identity and current provenance cannot be overridde
     trace_id: 'revocation-test',
   });
   assert.equal(result.status, 409);
-  assert.equal(result.body.error.code, 'POLICY_REJECTED');
+  assert.equal(result.body.error.code, 'STALE_BASIS');
   f.revoke();
   const reads = f.counters().workReads;
   assert.equal((await f.discover('denied')).status, 403);
@@ -420,4 +436,119 @@ test('external pushes make a reviewed decision stale and preserve the external h
     await git(f.adapter.dir(f.repositories.get('canonical')), ['rev-parse', 'refs/heads/main']),
     moved.commit_oid,
   );
+});
+
+test('new exact-state Evidence requires a new reviewed basis', async (t) => {
+  const f = await fixture(t);
+  const discovery = await f.discover();
+  assert.equal(discovery.status, 200);
+  const component = discovery.body.decisions.find((entry) => entry.alternatives.length === 1);
+  await f.repeatEvidence(component.alternatives[0].candidate_digest);
+  const result = await f.call('decisions/' + component.decision.id + '/resolve', {
+    schema_version: 1,
+    basis_digest: component.decision.basis.digest,
+    candidate_digest: component.alternatives[0].candidate_digest,
+    canonical_ref_oids: component.decision.basis.canonical_ref_oids,
+    idempotency_key: 'late-evidence',
+    trace_id: 'late-evidence-test',
+  });
+  assert.equal(result.status, 409);
+  assert.equal(result.body.error.code, 'STALE_BASIS');
+  assert.equal(f.pins.size, 0);
+});
+
+test('Git success followed by acceptance failure reconciles without another write', async (t) => {
+  const f = await fixture(t);
+  const discovery = await f.discover();
+  assert.equal(discovery.status, 200);
+  const component = discovery.body.decisions.find((entry) => entry.alternatives.length === 1);
+  const basis = component.decision.basis;
+  const candidate_digest = component.alternatives[0].candidate_digest;
+  const resolved = await f.call('decisions/' + component.decision.id + '/resolve', {
+    schema_version: 1,
+    basis_digest: basis.digest,
+    candidate_digest,
+    canonical_ref_oids: basis.canonical_ref_oids,
+    idempotency_key: 'resolve-before-crash',
+    trace_id: 'crash-test',
+  });
+  assert.equal(resolved.status, 200);
+  let writes = 0;
+  const original = f.provider.compare_and_swap_ref.bind(f.provider);
+  f.provider.compare_and_swap_ref = (...args) => {
+    writes += 1;
+    return original(...args);
+  };
+  f.app().promotion.recordAcceptance = async () => {
+    throw new Error('injected storage failure');
+  };
+  const request = {
+    schema_version: 1,
+    basis_digest: basis.digest,
+    candidate_digest,
+    expected_oid: f.baseline.commit_oid,
+    idempotency_key: 'crash-after-git',
+  };
+  const result = await f.call('decisions/' + component.decision.id + '/promote', request);
+  assert.equal(result.status, 503);
+  assert.equal(result.body.error.code, 'OUTCOME_UNKNOWN');
+  assert.equal(
+    await f.app().store.transaction(f.scope, (tx) => tx.get('accepted-system-revision')),
+    undefined,
+  );
+  f.restart();
+  const recovered = await f.call('decisions/' + component.decision.id + '/reconcile', request);
+  assert.equal(recovered.status, 200);
+  assert.equal(recovered.body.state, 'OBSERVED_TARGET');
+  assert.equal(writes, 1);
+  const revision = await f.app().store.transaction(f.scope, async (tx) => {
+    const pointer = await tx.get('accepted-system-revision');
+    return tx.get('system-revision:' + pointer.id);
+  });
+  await verifySystemRevision(revision);
+  assert.equal(revision.digest, recovered.body.system_revision_digest);
+  assert.deepEqual(revision.repositories, { canonical: recovered.body.target_oid });
+});
+
+test('a deferred security interaction remains reviewable and cannot be resolved', async (t) => {
+  const f = await fixture(t);
+  const workspace = await f.sources.get('canonical').fetch(f.baseline, { blobs: 'none' });
+  const baseline = Object.fromEntries(
+    (await workspace.loadProject()).files.map((file) => [file.path, file.contents]),
+  );
+  const revisions = [];
+  for (const version of ['1', '2']) {
+    revisions.push(
+      await f.future('dependency-' + version, {
+        ...baseline,
+        'package.json': JSON.stringify({ dependencies: { library: version } }),
+      }),
+    );
+  }
+  const added = await Promise.all(revisions.map(f.analyze));
+  await f.update((work) => ({
+    ...work,
+    context: f.context,
+    effects: [...work.effects, ...added],
+    reduction_policy: { ...work.reduction_policy, bindings: f.context.bindings },
+    budget: { ...work.budget, max_candidate_specs: 1 },
+  }));
+  const discovery = await f.discover();
+  assert.equal(discovery.status, 200);
+  assert.equal(discovery.body.reduction.complete, false);
+  const component = discovery.body.decisions.find((entry) =>
+    entry.uncertainty.some((item) => item.requirement === 'decision-frontier'),
+  );
+  assert.ok(component);
+  assert.equal(component.decision.state, 'REVIEWABLE');
+  const result = await f.call('decisions/' + component.decision.id + '/resolve', {
+    schema_version: 1,
+    basis_digest: component.decision.basis.digest,
+    candidate_digest: passingAlternative(component).candidate_digest,
+    canonical_ref_oids: component.decision.basis.canonical_ref_oids,
+    idempotency_key: 'deferred-interaction',
+    trace_id: 'deferred-test',
+  });
+  assert.equal(result.status, 409);
+  assert.equal(result.body.error.code, 'INCOMPLETE_ANALYSIS');
 });

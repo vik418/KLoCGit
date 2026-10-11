@@ -9,6 +9,7 @@ import { PromotionService } from '../core/v1/promotion.mjs';
 import { createCandidatePolicy } from '../core/v1/decision-policy.mjs';
 import { createConvergenceHandler } from './convergence.mjs';
 import { copyJsonData } from '../core/v1/domain.mjs';
+import { buildSystemRevision } from '../core/v1/releases.mjs';
 
 export function createV1Application({
   scope: scopeInput,
@@ -38,6 +39,8 @@ export function createV1Application({
     materializer,
     observeRef,
     authorize,
+    verifyProvenance,
+    canReuse,
     reducer: new CandidateReducer({ verifyRejection }),
     scheduler: new EvidenceScheduler({
       provider: evidenceProvider,
@@ -78,6 +81,21 @@ export function createV1Application({
     basisProvider: convergence,
     policyEvaluator: policy,
     authorize,
+    recordAcceptance: async (tx, record) => {
+      const revision = await buildSystemRevision({
+        schema_version: 1,
+        repositories: { [record.request.repo_id]: record.target_commit_oid },
+        configuration_digests: { policy: record.authorized_decision.basis.policy_digest },
+        accepted_decisions: [record.request.decision_id],
+      });
+      await tx.put('system-revision:' + revision.id, revision);
+      await tx.put('accepted-system-revision', {
+        schema_version: 1,
+        id: revision.id,
+        digest: revision.digest,
+      });
+      return revision.digest;
+    },
   });
   return Object.freeze({
     store,

@@ -11,8 +11,9 @@ import { copyJsonData, Decision, FutureRevision } from './domain.mjs';
 import { coordinationScope, coordinationKey } from './coordination.mjs';
 import { digestCanonical, encodeCanonical } from './encoding.mjs';
 import { verifyCandidateSpec } from './reduction.mjs';
-import { verifyEvidence } from './evidence.mjs';
+import { verifyEvidence, evidenceEligibility } from './evidence.mjs';
 import { appendAudit } from './audit.mjs';
+import { buildDecisionBasis } from './decisions.mjs';
 
 function valid(condition) {
   if (!condition) throw new V1Error('INVALID_ARGUMENT');
@@ -45,6 +46,8 @@ export class ConvergenceService {
     formulator,
     observeRef,
     authorize,
+    verifyProvenance,
+    canReuse,
     limits,
   }) {
     for (const [provider, method] of [
@@ -56,7 +59,11 @@ export class ConvergenceService {
       [formulator, 'formulate'],
     ])
       valid(typeof provider?.[method] === 'function');
-    valid(typeof workProvider.payloadDigest === 'function');
+    valid(
+      typeof workProvider.payloadDigest === 'function' &&
+        typeof workProvider.evidence === 'function',
+    );
+    valid(typeof verifyProvenance === 'function' && typeof canReuse === 'function');
     valid(typeof observeRef === 'function' && typeof authorize === 'function');
     const budget = copyJsonData(limits);
     assertSchemaVersion(budget);
@@ -73,6 +80,10 @@ export class ConvergenceService {
       observeRef,
       authorize,
       limits: freeze(budget),
+      evidenceOptions: Object.freeze({
+        verifyProvenance,
+        policyEvaluator: { can_reuse: canReuse },
+      }),
     });
   }
 
@@ -158,6 +169,31 @@ export class ConvergenceService {
     }
   }
 
+  async checkEvidence(tx, context, component, requirements) {
+    const subjects = new Set(
+      component.alternatives.map((alternative) => alternative.subject_digest),
+    );
+    const records = copyJsonData(
+      await trustedCall(() => this.workProvider.evidence(tx, context, [...subjects].sort())),
+    );
+    valid(Array.isArray(records));
+    if (records.length > this.limits.max_evidence) throw new V1Error('INCOMPLETE_ANALYSIS');
+    const current = new Set();
+    for (const record of records) {
+      if (!subjects.has(record.subject_digest)) continue;
+      const report = await evidenceEligibility(
+        record,
+        record.subject_digest,
+        requirements,
+        this.evidenceOptions,
+      );
+      if (report.eligible_for.length) current.add(report.evidence_digest);
+    }
+    const expected = component.decision.basis.evidence_digests;
+    if (current.size !== expected.length || expected.some((digest) => !current.has(digest)))
+      throw new V1Error('STALE_BASIS');
+  }
+
   async review(scopeInput, decision_id, options) {
     parseObjectId(decision_id, 'decision');
     const context = await this.context(
@@ -178,6 +214,7 @@ export class ConvergenceService {
       const work = await this.work(tx, context);
       if (work.digest !== record.work_digest) throw new V1Error('STALE_BASIS');
       await this.checkRefs(work.input, context);
+      await this.checkEvidence(tx, context, record.component, record.requirements);
       return { ...record.component, decision: Decision(decision) };
     });
   }
@@ -252,7 +289,40 @@ export class ConvergenceService {
     if (formulated.decisions.length > this.limits.max_decisions)
       throw new V1Error('INCOMPLETE_ANALYSIS');
     const components = [];
-    for (const component of formulated.decisions) {
+    // A compute budget cannot certify interactions with work it deferred.
+    const deferred = new Set(
+      reduction.effect_index.interactions.flatMap((edge) =>
+        edge.member_revision_ids.some((id) => selected.has(id)) &&
+        edge.member_revision_ids.some((id) => !selected.has(id))
+          ? edge.member_revision_ids.filter((id) => selected.has(id))
+          : [],
+      ),
+    );
+    for (const discovered of formulated.decisions) {
+      let component = discovered;
+      if (
+        component.alternatives.some((alternative) =>
+          alternative.selected_future_revisions.some((id) => deferred.has(id)),
+        )
+      ) {
+        const basis = await buildDecisionBasis({
+          ...Object.fromEntries(
+            Object.entries(component.decision.basis).filter(([key]) => key !== 'digest'),
+          ),
+          required_analysis_status: {
+            ...component.decision.basis.required_analysis_status,
+            'decision-frontier': 'PARTIAL',
+          },
+        });
+        component = {
+          ...component,
+          decision: Decision({ ...component.decision, basis }),
+          uncertainty: [
+            ...component.uncertainty,
+            { schema_version: 1, requirement: 'decision-frontier', status: 'PARTIAL' },
+          ],
+        };
+      }
       // Each reviewed basis gets its own durable Decision. A policy/evidence refresh
       // cannot overwrite the history of a previously accepted choice.
       const decision_id = objectId(
@@ -286,6 +356,7 @@ export class ConvergenceService {
       if ((await this.work(tx, context)).digest !== prior.digest) throw new V1Error('STALE_BASIS');
       await this.checkRefs(work, context);
       for (const component of components) {
+        await this.checkEvidence(tx, context, component, work.requirements);
         const decision = component.decision;
         const previous = await tx.get('decision:' + decision.id);
         if (!previous) await tx.put('decision:' + decision.id, decision);
@@ -331,6 +402,7 @@ export class ConvergenceService {
     if (!record) throw new V1Error('NOT_FOUND');
     if ((await this.work(tx, checked)).digest !== record.work_digest)
       throw new V1Error('STALE_BASIS');
+    await this.checkEvidence(tx, checked, record.component, record.requirements);
     const candidate = record.candidates.find(
       (entry) => entry.digest === context.request.candidate_digest,
     );

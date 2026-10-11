@@ -78,6 +78,9 @@ function receipt(record) {
     observed_oid: record.observed_oid,
     write_acknowledged: record.state === 'APPLIED',
     failure_code: record.failure_code,
+    ...(record.system_revision_digest
+      ? { system_revision_digest: record.system_revision_digest }
+      : {}),
   });
 }
 
@@ -88,7 +91,15 @@ function receipt(record) {
  * observeSnapshot reads exact Git commit/tree identity outside untrusted execution.
  */
 export class PromotionService {
-  constructor({ store, gitStore, observeSnapshot, basisProvider, policyEvaluator, authorize }) {
+  constructor({
+    store,
+    gitStore,
+    observeSnapshot,
+    basisProvider,
+    policyEvaluator,
+    authorize,
+    recordAcceptance = null,
+  }) {
     valid(typeof store?.transaction === 'function');
     valid(
       typeof gitStore?.observe_ref === 'function' &&
@@ -96,6 +107,7 @@ export class PromotionService {
     );
     valid(typeof observeSnapshot === 'function' && typeof basisProvider?.current === 'function');
     valid(typeof authorize === 'function');
+    valid(recordAcceptance === null || typeof recordAcceptance === 'function');
     valid(
       typeof policyEvaluator === 'function' ||
         (typeof policyEvaluator?.required_analysis === 'function' &&
@@ -113,6 +125,7 @@ export class PromotionService {
             can_resolve: policyEvaluator.can_resolve.bind(policyEvaluator),
           });
     this.authorize = authorize;
+    this.recordAcceptance = recordAcceptance;
   }
 
   async context(input, options, action) {
@@ -238,16 +251,21 @@ export class PromotionService {
       failure_code,
       audit_version: (record.audit_version ?? 0) + 1,
     };
-    await tx.put('promotion:' + record.id, next);
-    await this.audit(tx, next, record.state);
-    if (terminalStates.includes(state)) await tx.delete('canonical:active-promotion');
     if (['APPLIED', 'OBSERVED_TARGET'].includes(state)) {
+      if (this.recordAcceptance) {
+        const digest = await this.recordAcceptance(tx, next);
+        parseDigest(digest, 'object-system-revision');
+        next.system_revision_digest = digest;
+      }
       const current = Decision(await tx.get('decision:' + record.request.decision_id));
       // Recovery restores a prepared transition only while its source snapshot
       // remains current; it never overwrites a later review or stale transition.
       if (current.state === 'RESOLVABLE' && current.basis.digest === record.request.basis_digest)
         await tx.put('decision:' + current.id, record.authorized_decision);
     }
+    await tx.put('promotion:' + record.id, next);
+    await this.audit(tx, next, record.state);
+    if (terminalStates.includes(state)) await tx.delete('canonical:active-promotion');
     return next;
   }
 
