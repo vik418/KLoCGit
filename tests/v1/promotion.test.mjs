@@ -293,11 +293,7 @@ test('verified preflight rejection permits another promotion attempt', async (t)
     store: f.store,
     authorize: () => true,
     max_page_size: 10,
-  }).read(
-    f.scope,
-    { schema_version: 1, after: 0, limit: 10, expected_digest: null },
-    f.principal,
-  );
+  }).read(f.scope, { schema_version: 1, after: 0, limit: 10, expected_digest: null }, f.principal);
   assert.equal(audit.entries.at(-1).event.to_state, 'REJECTED');
   f.beforeCas(null);
   const result = await f.service.promote(
