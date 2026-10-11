@@ -27,6 +27,8 @@ Authoritative state remains elsewhere. Choose only for read/query projections.
 
 ## D004 - Authorization provider
 
+Status: RESOLVED by [ADR 0021](docs/adr/0021-tenant-and-capability-authorization.md).
+
 Must support tenant/resource/action authorization and service/agent identities. Domain authorization model must not depend on vendor-specific primitives.
 
 ## D005 - GitStore for repositories unsupported by Artifacts

@@ -52,7 +52,8 @@ Complete in dependency order. Do not skip acceptance criteria.
 - T095: COMPLETE. Eight SQLite/restart tests verify one-time dispatch preparation, ambiguous crash recovery, authenticated/versioned events, webhook-first observation, bounded exponential jitter, persisted provider limits, delayed-poll races and contradictory outcomes. Provider calls run outside coordination transactions; deployment never waits on canonical-ref coordination. Live provider outage exercise remains a release gate.
 - T096: COMPLETE. Five Ed25519 tests verify registered exact-state observations, domain-separated signatures, object integrity, tenant/system/run/contract/OID bindings, required successful observation, current authorization and key retirement. A valid signature alone cannot establish that the observed state matches the authorized SystemRevision.
 - T100: COMPLETE. Adversarial boundary tests reject foreign and spoofed identities before Git, coordination, claim-check, CI registry, evidence payload or deployment access. Existing signed-attestation and scoped-store tests cover proof identity and tenant/system partitioning. No tested foreign request disclosed data or performed an effect. Application routing remains subject to the release integration suite.
-- Next incomplete task: T101.
+- T101: COMPLETE. Seven authorization tests verify exact agent capability scope, tenant/actor bindings, revocation/expiry, explicit system grants, authoritative identity mapping, bounded registry reads and sanitized failures. Conflicting scope aliases and wildcard permissions are rejected. Domain authorization remains independent of the OIDC provider.
+- Next incomplete task: T102.
 - All remaining tasks: INCOMPLETE.
 
 Existing v0 behavior does not establish v1 completion. Task completion requires the tests and acceptance criteria below.
