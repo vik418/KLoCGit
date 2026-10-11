@@ -46,7 +46,8 @@ Complete in dependency order. Do not skip acceptance criteria.
 - T083: COMPLETE. Six forward-port tests and thirteen real-Git materialization tests verify rematerialization on a moved base, unchanged reviewed delta, material-observation checks, exact-state Evidence scheduling, source integrity, policy/predicate changes and conservative staleness. Grouped alternatives require rediscovery. Preserved review retains its historical basis; the new Candidate/basis must still pass current resolution and CAS checks.
 - T090: COMPLETE. Accepted-state builder tests verify deterministic multi-repository OIDs, canonical ordering of accepted decisions, immutable snapshots, invalid/symbolic OID rejection and substituted-state detection. Authorization and current Git observation remain service responsibilities.
 - T091: COMPLETE. Release-contract tests retain provider-neutral ordering, compatibility, pre/postconditions and forward-only operations. Sequence order remains significant; constraints cannot be substituted or rebound to another SystemRevision. Five combined builder/verification tests pass.
-- Next incomplete task: T092.
+- T092: COMPLETE. Five contract tests verify exact release bindings, current authorization/policy, scoped operation identity, immutable observations and UNKNOWN on unavailable observation. Deployment execution remains external; successful execution does not establish deployed state.
+- Next incomplete task: T093.
 - All remaining tasks: INCOMPLETE.
 
 Existing v0 behavior does not establish v1 completion. Task completion requires the tests and acceptance criteria below.

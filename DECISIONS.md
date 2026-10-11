@@ -54,6 +54,8 @@ Requirements:
 
 ## D007 - External CD adapter protocol
 
+Status: RESOLVED by [ADR 0020](docs/adr/0020-external-deployment-contract.md).
+
 Keep ReleaseConstraints provider-neutral. Provider adapters translate at the boundary.
 
 ## D008 - Claim-check inline threshold
