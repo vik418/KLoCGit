@@ -1,6 +1,5 @@
 import { useState } from 'react';
-import { CircleHelp, GitFork, Layers3 } from 'lucide-react';
-import { Button } from '../ui/Button.jsx';
+import { GitFork } from 'lucide-react';
 import { useNotifications } from '../hooks/useNotifications.js';
 import { useWorkspace } from '../hooks/useWorkspace.js';
 import { CapabilitiesDialog } from '../features/capabilities/CapabilitiesDialog.jsx';
@@ -30,32 +29,8 @@ import { ActivityList } from '../features/activity/ActivityList.jsx';
 import { Notification } from './Notification.jsx';
 import { OwnerConnection } from './OwnerConnection.jsx';
 import { WorkspaceHeader } from './WorkspaceHeader.jsx';
+import { WorkspaceNavigation, workspaceViews } from './WorkspaceNavigation.jsx';
 import { RepositoryBrowser } from '../features/repositories/RepositoryBrowser.jsx';
-
-const tabs = [
-  ['attention', 'Attention', CircleHelp],
-  ['futures', 'Futures', GitFork],
-  ['systems', 'Repositories', Layers3],
-];
-const secondaryViews = [
-  ['work', 'Git workflows'],
-  ['evidence', 'Evidence'],
-  ['activity', 'History'],
-];
-
-function pageTitle(activeTab) {
-  if (activeTab === 'attention') return 'What needs your attention?';
-  return [...tabs, ...secondaryViews].find(([key]) => key === activeTab)[1];
-}
-
-function pageDescription(activeTab) {
-  if (activeTab === 'attention') return 'Questions, choices and operations requiring judgment.';
-  if (activeTab === 'futures') return 'Isolated repositories derived from exact Git baselines.';
-  if (activeTab === 'systems') return 'Repositories and optional groups.';
-  if (activeTab === 'work') return 'Compatibility workflows for merge requests and branch changes.';
-  if (activeTab === 'evidence') return 'Checks tied to exact code and configuration.';
-  return 'Recorded decisions and Git updates.';
-}
 
 export function App() {
   const { notification, notify, dismissNotification } = useNotifications();
@@ -110,118 +85,91 @@ export function App() {
       </div>
     );
 
+  const currentView = workspaceViews.find((view) => view.key === activeTab);
+
   return (
     <div className="app dark">
+      <a className="skip-link" href="#workspace-content">
+        Skip to content
+      </a>
       <div className="shell">
         <WorkspaceHeader
           workspace={workspace}
           onNewRepository={() => setNativeDialog({ type: 'repository' })}
         />
-        <main>
-          <div className="page-heading">
-            <h1>{pageTitle(activeTab)}</h1>
-            <p>{pageDescription(activeTab)}</p>
-          </div>
-          <nav className="content-tabs" aria-label="Workspace views">
-            {tabs.map(([key, label, Icon]) => (
-              <Button
-                key={key}
-                type="button"
-                variant="ghost"
-                className={activeTab === key ? 'selected' : ''}
-                aria-current={activeTab === key ? 'page' : undefined}
-                onClick={() => setActiveTab(key)}
-              >
-                <Icon size={16} aria-hidden="true" />
-                {label}
-              </Button>
-            ))}
-          </nav>
-          {activeTab === 'attention' && (
-            <AttentionView
-              workspace={workspace}
-              onNewRepository={() => setNativeDialog({ type: 'repository' })}
-              onSystems={() => setActiveTab('systems')}
-              onFutures={() => setActiveTab('futures')}
-              onCandidate={setCandidateId}
-              onSettlement={setSettlementId}
-              onContinue={setContinuationId}
-              onOpenDecisionGroup={setDecisionGroup}
-              onDecision={setSelectedDecisionId}
-              onProposal={setSelectedProposalId}
-              reload={reload}
-              message={notify}
-            />
-          )}
-          {activeTab === 'systems' && (
-            <SystemsView
-              nativeState={workspace.nativeState}
-              onNewRepository={() => setNativeDialog({ type: 'repository' })}
-              onNewSystem={() => setNativeDialog({ type: 'system' })}
-              onNewObjective={(systemId) => setNativeDialog({ type: 'objective', systemId })}
-              onNewFuture={openNewFuture}
-              onBrowseRepository={(id) => setSourceSelection({ repo_id: id })}
-              onContext={setContextObjective}
-              reload={reload}
-              message={notify}
-            />
-          )}
-          {activeTab === 'futures' && (
-            <FuturesView
-              nativeState={workspace.nativeState}
-              onNewFuture={openNewFuture}
-              onCompose={() => setNativeDialog({ type: 'candidate' })}
-              onSourceRefs={(future) => setSourceFuture(future.id)}
-              onInspectProvenance={setProvenanceSubject}
-              reload={reload}
-              message={notify}
-            />
-          )}
-          {activeTab === 'work' && (
-            <WorkView
-              workspace={workspace}
-              onMR={setSelectedMergeRequestId}
-              onCreate={() => setShowNewMergeRequest(true)}
-              onProposal={setSelectedProposalId}
-              onDecision={openDecision}
-              reload={reload}
-              message={notify}
-            />
-          )}
-          {activeTab === 'evidence' && <EvidenceList workspace={workspace} />}
-          {activeTab === 'activity' && <ActivityList workspace={workspace} />}
-          <footer>
-            <span>
-              Git remains authoritative ·{' '}
-              {workspace.workspace.mode === 'local' ? 'Local Git' : 'Cloudflare Artifacts'}
-            </span>
-            <nav className="footer-actions" aria-label="Supporting views">
-              {secondaryViews.map(([key, label]) => (
-                <Button
-                  key={key}
-                  type="button"
-                  variant="ghost"
-                  size="sm"
-                  aria-current={activeTab === key ? 'page' : undefined}
-                  onClick={() => setActiveTab(key)}
-                >
-                  {label}
-                </Button>
-              ))}
-              <Button
-                type="button"
-                variant="ghost"
-                size="sm"
-                onClick={() => setShowCapabilities(true)}
-              >
-                Capabilities
-              </Button>
-              <Button type="button" variant="ghost" size="sm" onClick={() => setShowAccess(true)}>
-                Access
-              </Button>
-            </nav>
-          </footer>
-        </main>
+        <div className="workspace-layout">
+          <WorkspaceNavigation
+            activeView={activeTab}
+            onNavigate={setActiveTab}
+            onCapabilities={() => setShowCapabilities(true)}
+            onAccess={() => setShowAccess(true)}
+          />
+          <main id="workspace-content" tabIndex={-1}>
+            <div className="page-heading">
+              <h1>{currentView.label}</h1>
+              <p>{currentView.description}</p>
+            </div>
+            {activeTab === 'attention' && (
+              <AttentionView
+                workspace={workspace}
+                onNewRepository={() => setNativeDialog({ type: 'repository' })}
+                onSystems={() => setActiveTab('systems')}
+                onFutures={() => setActiveTab('futures')}
+                onCandidate={setCandidateId}
+                onSettlement={setSettlementId}
+                onContinue={setContinuationId}
+                onOpenDecisionGroup={setDecisionGroup}
+                onDecision={setSelectedDecisionId}
+                onProposal={setSelectedProposalId}
+                reload={reload}
+                message={notify}
+              />
+            )}
+            {activeTab === 'systems' && (
+              <SystemsView
+                nativeState={workspace.nativeState}
+                onNewRepository={() => setNativeDialog({ type: 'repository' })}
+                onNewSystem={() => setNativeDialog({ type: 'system' })}
+                onNewObjective={(systemId) => setNativeDialog({ type: 'objective', systemId })}
+                onNewFuture={openNewFuture}
+                onBrowseRepository={(id) => setSourceSelection({ repo_id: id })}
+                onContext={setContextObjective}
+                reload={reload}
+                message={notify}
+              />
+            )}
+            {activeTab === 'futures' && (
+              <FuturesView
+                nativeState={workspace.nativeState}
+                onNewFuture={openNewFuture}
+                onCompose={() => setNativeDialog({ type: 'candidate' })}
+                onSourceRefs={(future) => setSourceFuture(future.id)}
+                onInspectProvenance={setProvenanceSubject}
+                reload={reload}
+                message={notify}
+              />
+            )}
+            {activeTab === 'work' && (
+              <WorkView
+                workspace={workspace}
+                onMR={setSelectedMergeRequestId}
+                onCreate={() => setShowNewMergeRequest(true)}
+                onProposal={setSelectedProposalId}
+                onDecision={openDecision}
+                reload={reload}
+                message={notify}
+              />
+            )}
+            {activeTab === 'evidence' && <EvidenceList workspace={workspace} />}
+            {activeTab === 'activity' && <ActivityList workspace={workspace} />}
+            <footer className="workspace-footer">
+              <span>
+                {workspace.workspace.mode === 'local' ? 'Local Git' : 'Cloudflare Artifacts'}
+              </span>
+              <span>Git remains authoritative</span>
+            </footer>
+          </main>
+        </div>
       </div>
       {nativeDialog?.type === 'candidate' && (
         <NewCandidate

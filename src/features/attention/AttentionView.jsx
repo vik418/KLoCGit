@@ -44,11 +44,11 @@ export function AttentionView({
   const hasFutures = native.futures.some((future) => future.status !== 'abandoned');
 
   return (
-    <div className="space-y-6 py-7">
+    <div className="space-y-5">
       {hasFutures && (
         <Card className="gap-4">
           <CardHeader>
-            <CardTitle>Understand the work</CardTitle>
+            <CardTitle>Work ready to compare</CardTitle>
             <CardDescription>
               {groups.length} grouped {groups.length === 1 ? 'decision' : 'decisions'}.{' '}
               {conventional} {conventional === 1 ? 'change still needs' : 'changes still need'}{' '}
@@ -245,13 +245,13 @@ export function AttentionView({
               <CardTitle>
                 <h2 className="flex items-center gap-2 text-base">
                   <CircleHelp className="size-4 text-primary" aria-hidden="true" />
-                  No decisions ready
+                  No decisions waiting
                 </h2>
               </CardTitle>
               <CardDescription>
                 {hasFutures
                   ? 'Your work is recorded. It has not been evaluated.'
-                  : 'Start with a repository. Open independent work when its first commit is available.'}
+                  : 'Add a repository to start independent work.'}
               </CardDescription>
             </CardHeader>
             <CardContent className="flex flex-wrap gap-2">

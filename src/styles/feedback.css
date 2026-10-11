@@ -54,7 +54,7 @@
 
 .loading h2 {
   font:
-    600 1.5rem 'Manrope',
+    600 1.5rem var(--font-sans),
     sans-serif;
 }
 

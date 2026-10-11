@@ -113,7 +113,7 @@ function SnapshotBrowser({ repository, snapshot, initialPath, onCommit, onFork }
           Fork repository
         </Button>
       </div>
-      <nav className="flex flex-wrap gap-2 border-b pb-3" aria-label="Repository views">
+      <nav className="source-tabs flex flex-wrap gap-3 border-b pb-3" aria-label="Repository views">
         {[
           ['code', 'Code', Code2],
           ['commits', 'Commits', GitCommitHorizontal],
@@ -121,7 +121,7 @@ function SnapshotBrowser({ repository, snapshot, initialPath, onCommit, onFork }
           <Button
             key={key}
             type="button"
-            variant={view === key ? 'secondary' : 'ghost'}
+            variant="ghost"
             size="sm"
             aria-current={view === key ? 'page' : undefined}
             onClick={() => {
@@ -319,8 +319,8 @@ export function RepositoryBrowser({ repository, initialCommit, initialPath, onCl
   const [refresh, setRefresh] = useState(0);
 
   return (
-    <Dialog onClose={onClose} hasDescription className="max-w-5xl">
-      <div className="flex items-start justify-between gap-3 border-b p-5">
+    <Dialog onClose={onClose} hasDescription className="source-browser">
+      <div className="flex items-start justify-between gap-3 border-b p-6">
         <div>
           <DialogTitle>{repository.id} · source</DialogTitle>
           <DialogDescription className="mt-2">Browse immutable Git state.</DialogDescription>
@@ -335,7 +335,7 @@ export function RepositoryBrowser({ repository, initialCommit, initialPath, onCl
           <X aria-hidden="true" />
         </Button>
       </div>
-      <div className="min-w-0 space-y-5 p-5">
+      <div className="min-w-0 space-y-5 p-6">
         <div className="flex flex-wrap items-end gap-3">
           <div className="min-w-0 flex-1">
             <label htmlFor="source-ref" className="mb-2 block text-xs text-muted-foreground">

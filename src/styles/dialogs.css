@@ -9,7 +9,7 @@
 }
 
 .eyebrow {
-  font-size: 0.69rem;
+  font-size: 0.8125rem;
   letter-spacing: 0.7px;
   font-weight: 500;
   color: var(--muted);
@@ -17,7 +17,7 @@
 
 .dialog-header h2 {
   font:
-    600 1.375rem 'Manrope',
+    600 1.375rem var(--font-sans),
     sans-serif;
   letter-spacing: -0.5px;
   color: var(--text);
@@ -102,7 +102,7 @@
 }
 
 .alternative > div > span {
-  font-size: 0.75rem;
+  font-size: 0.8125rem;
   color: var(--muted);
   display: block;
   line-height: 1.7;
@@ -161,14 +161,14 @@
 
 .assumption small {
   display: block;
-  font-size: 0.75rem;
+  font-size: 0.8125rem;
   color: var(--warning);
   line-height: 1.7;
   margin-top: 8px;
 }
 
 .assumption .badge {
-  font-size: 0.69rem;
+  font-size: 0.8125rem;
   margin-left: 4px;
 }
 
@@ -200,7 +200,7 @@
 
 .decision-snapshot > summary {
   cursor: pointer;
-  font-size: 0.81rem;
+  font-size: 0.8125rem;
   color: var(--muted);
   list-style-position: inside;
 }
@@ -212,7 +212,7 @@
 .decision-snapshot > div > span {
   display: block;
   color: var(--muted);
-  font-size: 0.75rem;
+  font-size: 0.8125rem;
   margin-bottom: 8px;
 }
 
@@ -232,7 +232,7 @@
 }
 
 .decision-snapshot p {
-  font-size: 0.75rem;
+  font-size: 0.8125rem;
   color: var(--muted);
   line-height: 1.7;
   display: flex;
@@ -248,7 +248,7 @@
 
 .decision-snapshot > small {
   display: block;
-  font-size: 0.75rem;
+  font-size: 0.8125rem;
   color: var(--muted);
   line-height: 1.7;
   margin-top: 18px;
@@ -269,7 +269,7 @@
 .dialog-footer > div,
 .dialog-footer > span {
   color: var(--muted);
-  font-size: 0.75rem;
+  font-size: 0.8125rem;
   line-height: 1.6;
 }
 
@@ -295,7 +295,7 @@
 }
 
 .stale-banner p {
-  font-size: 0.75rem;
+  font-size: 0.8125rem;
   line-height: 1.7;
   margin-top: 5px;
   color: var(--warning);
@@ -343,13 +343,13 @@
 .hash-row {
   display: flex;
   gap: 10px;
-  font-size: 0.75rem;
+  font-size: 0.8125rem;
   color: var(--muted);
   margin-top: 10px;
 }
 
 .hash-row code {
-  font-size: 0.75rem;
+  font-size: 0.8125rem;
   word-break: break-all;
   color: var(--muted);
 }
@@ -375,7 +375,7 @@
 }
 
 .detail-proposal p {
-  font-size: 0.75rem;
+  font-size: 0.8125rem;
   color: var(--muted);
   margin-top: 6px;
 }
@@ -393,7 +393,7 @@
 }
 
 .proposal-info span {
-  font-size: 0.75rem;
+  font-size: 0.8125rem;
   color: var(--muted);
   display: block;
   margin-bottom: 8px;
@@ -417,7 +417,7 @@
 }
 
 .proposal-info code {
-  font-size: 0.75rem;
+  font-size: 0.8125rem;
   color: var(--muted);
 }
 
@@ -427,7 +427,7 @@
   gap: 9px;
   padding: 14px 30px;
   border-block: 1px solid var(--line);
-  font-size: 0.75rem;
+  font-size: 0.8125rem;
   color: var(--muted);
   background: var(--surface-soft);
 }
@@ -456,4 +456,23 @@
 
 .diff .removed {
   color: var(--danger);
+}
+
+.dialog-tabs button {
+  display: flex;
+  align-items: center;
+  padding: 0;
+  border-bottom: 2px solid transparent;
+  margin-bottom: -1px;
+  background: transparent;
+  color: var(--muted);
+  font-size: 0.875rem;
+}
+.dialog-tabs button.selected {
+  border-color: var(--accent);
+  color: var(--accent);
+  font-weight: 500;
+}
+.dialog-tabs button:hover {
+  color: var(--accent);
 }

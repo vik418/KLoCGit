@@ -65,10 +65,10 @@ export function FuturesView({
   const retentions = nativeState.retentions ?? [];
 
   return (
-    <section aria-label="Isolated futures" className="space-y-5 py-7">
+    <section aria-label="Isolated futures" className="space-y-5">
       <div className="flex flex-wrap items-center justify-between gap-3">
         <p className="text-sm leading-6 text-muted-foreground">
-          Independent Git work recorded as immutable revisions.
+          {nativeState.futures.length} {nativeState.futures.length === 1 ? 'future' : 'futures'}
         </p>
         <div className="flex flex-wrap gap-2">
           <Button
@@ -140,22 +140,27 @@ export function FuturesView({
               {future.repositories.map((repository) => (
                 <div key={repository.repo_id} className="rounded-md border p-4">
                   <div className="flex flex-wrap items-center justify-between gap-3">
-                    <p className="break-all text-sm font-medium">{repository.repo_id}</p>
+                    <p className="break-all text-sm font-medium">{repository.canonical_repo_id}</p>
                     <span className="text-xs text-muted-foreground">{repository.status}</span>
                   </div>
                   <p className="mt-1 break-all text-xs text-muted-foreground">
-                    Derived from {repository.canonical_repo_id}
+                    Fork · {repository.repo_id}
                   </p>
                   <p className="mt-1 break-all font-mono text-xs text-muted-foreground">
                     {repository.ref}
                   </p>
-                  {repository.remote && <RepositoryRemote remote={repository.remote} />}
+                  {repository.remote && (
+                    <details className="mt-3 text-sm text-muted-foreground">
+                      <summary>Clone repository</summary>
+                      <RepositoryRemote remote={repository.remote} />
+                    </details>
+                  )}
                 </div>
               ))}
               <div className="flex flex-wrap items-center justify-between gap-3">
                 <p className="text-xs leading-6 text-muted-foreground">
                   {revision
-                    ? 'An immutable Git revision is recorded. No validation result is implied.'
+                    ? 'Source revision recorded'
                     : 'Waiting for an observed commit and tree.'}
                 </p>
                 <div className="flex flex-wrap gap-2">

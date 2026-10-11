@@ -38,7 +38,7 @@
 }
 
 .activity-item p {
-  font-size: 0.75rem;
+  font-size: 0.8125rem;
   color: var(--muted);
   margin-top: 5px;
 }
@@ -48,7 +48,7 @@
 }
 
 .activity-item code {
-  font-size: 0.75rem;
+  font-size: 0.8125rem;
   color: var(--muted);
   display: block;
   margin-top: 7px;

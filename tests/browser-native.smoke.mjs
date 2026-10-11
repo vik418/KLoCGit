@@ -103,6 +103,27 @@ async function waitForFocus(page, control) {
   });
 }
 
+async function assertTextContrast(control) {
+  const ratio = await control.evaluate((element) => {
+    const style = getComputedStyle(element);
+    const luminance = (color) => {
+      const channels = color
+        .match(/[\d.]+/g)
+        .slice(0, 3)
+        .map(Number)
+        .map((value) => {
+          const channel = value / 255;
+          return channel <= 0.04045 ? channel / 12.92 : ((channel + 0.055) / 1.055) ** 2.4;
+        });
+      return channels[0] * 0.2126 + channels[1] * 0.7152 + channels[2] * 0.0722;
+    };
+    const foreground = luminance(style.color);
+    const background = luminance(style.backgroundColor);
+    return (Math.max(foreground, background) + 0.05) / (Math.min(foreground, background) + 0.05);
+  });
+  assert.ok(ratio >= 4.5, 'Primary action text must meet normal-text contrast');
+}
+
 async function assertFitsViewport(page) {
   const dimensions = await page.evaluate(() => ({
     width: window.innerWidth,
@@ -161,14 +182,20 @@ try {
   assert.equal(empty.futures.length, 0);
   assert.equal(
     await page.evaluate(() => getComputedStyle(document.documentElement).backgroundColor),
-    'rgb(13, 10, 11)',
+    'rgb(0, 0, 0)',
   );
   await assertFitsViewport(page);
+  for (const view of ['Evidence', 'History', 'Git workflows', 'Futures', 'Attention']) {
+    await page.getByRole('button', { name: view, exact: true }).click();
+    await page.getByRole('heading', { name: view, exact: true, level: 1 }).waitFor();
+    await assertFitsViewport(page);
+  }
 
   await page.getByRole('button', { name: 'Repositories', exact: true }).click();
   const addRepository = page
     .getByRole('button', { name: /^(Add|Create) (a )?repository$/i })
     .first();
+  await assertTextContrast(addRepository);
   await addRepository.click();
   let dialog = page.getByRole('dialog', { name: 'Add a repository', exact: true });
   await dialog.waitFor();
@@ -226,16 +253,61 @@ try {
   assert.equal(ready.tree, baselineTree);
   assert.equal(ready.status, 'ready');
 
+  const repositorySearch = page.getByRole('textbox', { name: 'Find a repository', exact: true });
+  await repositorySearch.fill('no matching repository');
+  await page
+    .getByText('No repositories match “no matching repository”.', { exact: true })
+    .waitFor();
+  assert.equal(await page.getByRole('button', { name: 'Browse code', exact: true }).count(), 0);
+  await repositorySearch.fill('APP');
+  await page.getByRole('button', { name: 'Browse code', exact: true }).waitFor();
+  await repositorySearch.fill('');
+  await capture('repositories-desktop');
+
+  await page.setViewportSize({ width: 390, height: 844 });
+  const moreViews = page.getByRole('button', { name: 'More workspace views', exact: true });
+  await moreViews.focus();
+  await page.keyboard.press('Enter');
+  assert.equal(await moreViews.getAttribute('aria-expanded'), 'true');
+  await page.getByRole('button', { name: 'Evidence', exact: true }).click();
+  await page.getByRole('heading', { name: 'Evidence', exact: true, level: 1 }).waitFor();
+  assert.equal(await moreViews.getAttribute('aria-expanded'), 'false');
+  await page.getByRole('button', { name: 'Repositories', exact: true }).click();
+  const browseTouch = await page
+    .getByRole('button', { name: 'Browse code', exact: true })
+    .boundingBox();
+  assert.ok(browseTouch.height >= 44, 'Mobile actions must have a usable touch target');
+  await assertFitsViewport(page);
+  await capture('repositories-mobile');
+  await page.setViewportSize({ width: 320, height: 740 });
+  await assertFitsViewport(page);
+  await page.setViewportSize({ width: 1440, height: 1000 });
+  await page.evaluate(() => {
+    document.documentElement.style.fontSize = '32px';
+  });
+  await assertFitsViewport(page);
+  await page.evaluate(() => {
+    document.documentElement.style.fontSize = '';
+  });
+  await page.getByRole('link', { name: 'Skip to content', exact: true }).focus();
+  await page.keyboard.press('Enter');
+  assert.equal(
+    await page.getByRole('main').evaluate((element) => element === document.activeElement),
+    true,
+  );
+
   const browse = page.getByRole('button', { name: 'Browse code', exact: true });
   await browse.click();
   let sourceDialog = page.getByRole('dialog', { name: 'app · source', exact: true });
   await sourceDialog.waitFor();
   await sourceDialog.getByText('1 files · 0 directories · 0 submodules', { exact: true }).waitFor();
+  await capture('source-desktop');
   await sourceDialog.getByRole('button', { name: /^app\.mjs/ }).click();
   await sourceDialog
     .getByRole('region', { name: 'File contents' })
     .getByText('export const value = 0;', { exact: true })
     .waitFor();
+  await capture('file-desktop');
   await sourceDialog.getByRole('button', { name: 'Raw view', exact: true }).click();
   assert.equal(
     await sourceDialog.getByLabel('Raw file contents', { exact: true }).inputValue(),
@@ -297,6 +369,7 @@ try {
   assert.equal(firstRevision.provenance_state, 'unknown');
   assert.equal(firstRevision.repository_heads[0].commit, baselineCommit);
 
+  await page.getByText('Clone repository', { exact: true }).click();
   const forkRemote = page.getByLabel('Git remote', { exact: true });
   await forkRemote.waitFor();
   assert.equal(await forkRemote.inputValue(), future.repositories[0].remote);
