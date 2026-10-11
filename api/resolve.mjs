@@ -1,20 +1,7 @@
 /** Fetch handler. Scope and authenticated identity come from trusted routing. */
-import { V1Error, publicError } from '../core/v1/conventions.mjs';
+import { V1Error } from '../core/v1/conventions.mjs';
 import { coordinationScope } from '../core/v1/coordination.mjs';
-
-const status = {
-  AUTHORIZATION: 403,
-  NOT_FOUND: 404,
-  CONFLICT: 409,
-  INCOMPLETE: 409,
-  POLICY: 409,
-  VALIDATION: 400,
-  UNSUPPORTED: 422,
-  INTEGRITY: 422,
-  TRANSIENT: 503,
-  AMBIGUOUS: 503,
-  INTERNAL: 500,
-};
+import { PRIVATE_JSON_HEADERS, errorResponse } from './http.mjs';
 
 async function boundedJson(request, maximum) {
   if (request.headers.get('content-type')?.split(';')[0].trim() !== 'application/json')
@@ -57,7 +44,7 @@ export function createResolveHandler({ scope, authenticate, service, max_request
   )
     throw new V1Error('INVALID_ARGUMENT');
   return async (request) => {
-    const headers = { 'cache-control': 'no-store', 'content-type': 'application/json' };
+    const headers = PRIVATE_JSON_HEADERS;
     if (request.method !== 'POST')
       return new Response(null, { status: 405, headers: { ...headers, allow: 'POST' } });
     try {
@@ -69,14 +56,7 @@ export function createResolveHandler({ scope, authenticate, service, max_request
       const decision = await service.resolve({ ...body, scope: target }, { principal });
       return Response.json({ schema_version: 1, decision }, { headers });
     } catch (error) {
-      const failure = publicError(error);
-      return Response.json(
-        { schema_version: 1, error: failure },
-        {
-          status: failure.code === 'UNAUTHENTICATED' ? 401 : status[failure.failure_class],
-          headers,
-        },
-      );
+      return errorResponse(error, headers);
     }
   };
 }
