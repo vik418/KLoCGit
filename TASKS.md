@@ -43,7 +43,8 @@ Complete in dependency order. Do not skip acceptance criteria.
 - T080: COMPLETE. Nine formulation tests verify discovered components, separate unrelated work, exact-state isolated/composed observations, required-analysis uncertainty, whole-Future versus commit selection, stable identities, mixed-baseline rejection and bounded dense/security hubs. Fifty-two focused lifecycle/index tests pass. The result remains reviewable; it grants no resolution authority.
 - T081: COMPLETE. Eleven HTTP/Git/SQLite tests verify basis and canonical-ref conflicts, required PARTIAL blocking, authenticated scope, exact retained Evidence bindings, policy/authorization races, concurrent retries and restart. Thirty-eight focused resolution/retention/promotion tests pass. Resolution records the choice; Git promotion still requires its own current-policy CAS.
 - T082: COMPLETE. Five compiler-backed tests verify independent static footprints, resolved dependency intersections, incomplete/missing capability, security override, bounded analysis, cross-repository uncertainty and payload substitution. DISJOINT is explicitly limited to registered static scope; runtime compatibility remains subject to rematerialization and exact-state checks.
-- Next incomplete task: T083.
+- T083: COMPLETE. Six forward-port tests and thirteen real-Git materialization tests verify rematerialization on a moved base, unchanged reviewed delta, material-observation checks, exact-state Evidence scheduling, source integrity, policy/predicate changes and conservative staleness. Grouped alternatives require rediscovery. Preserved review retains its historical basis; the new Candidate/basis must still pass current resolution and CAS checks.
+- Next incomplete task: T090.
 - All remaining tasks: INCOMPLETE.
 
 Existing v0 behavior does not establish v1 completion. Task completion requires the tests and acceptance criteria below.
