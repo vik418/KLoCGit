@@ -46,3 +46,5 @@ node benchmarks/evidence-reuse.mjs 10
 ```
 
 The fixture loses a request's response. One Future adds retrying; another adds charging before the response is lost. Each passes the registered at-most-one-charge check alone; their clean textual composition fails it. A trusted host recipe observes actual process output and ignores the producer's passing verdict. Signing stays outside execution. Initial CI evaluation cost is recorded separately from additional scheduler work. Failed exact-state Evidence can be reused as an observation; it cannot authorize a choice. These are local measurements, not live external CI or billing results.
+
+The [ranking comparison harness](ranking.mjs) accepts a registered Ranker, exact-state evaluator and independent risk labels. Both arms use the same evaluation budget and Candidate pool. Deterministic work starts immediately; a late result can reorder only remaining work. Missing or failed models produce UNMEASURED results. Unit fixtures verify the protocol, not model quality. No live model comparison is recorded.
