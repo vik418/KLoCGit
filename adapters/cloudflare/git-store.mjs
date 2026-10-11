@@ -37,6 +37,25 @@ function sha1Oid(value) {
   return value;
 }
 
+export async function readArtifactsTree(adapter, repository, tree_oid) {
+  sha1Oid(tree_oid);
+  try {
+    return await adapter.withRepo(repository, async (repo) => {
+      const children = await repo.readTree(tree_oid);
+      if (!children) throw new V1Error('NOT_FOUND');
+      const entries = children.map((entry) => {
+        const mode = entry.mode === '40000' ? '040000' : entry.mode;
+        if (!Object.hasOwn(treeKinds, entry.type) || treeModes[entry.type] !== mode)
+          throw new V1Error('INTEGRITY_MISMATCH');
+        return { name: entry.name, mode, oid: entry.hash, kind: treeKinds[entry.type] };
+      });
+      return { schema_version: 1, tree_oid, entries };
+    });
+  } catch (error) {
+    throw readFailure(error);
+  }
+}
+
 export class ArtifactsGitStore {
   constructor({ adapter, repository, workspaceSource }) {
     if (
@@ -109,22 +128,7 @@ export class ArtifactsGitStore {
   }
 
   async read_tree(tree_oid) {
-    sha1Oid(tree_oid);
-    try {
-      return await this.adapter.withRepo(this.repository, async (repo) => {
-        const children = await repo.readTree(tree_oid);
-        if (!children) throw new V1Error('NOT_FOUND');
-        const entries = children.map((entry) => {
-          const mode = entry.mode === '40000' ? '040000' : entry.mode;
-          if (!Object.hasOwn(treeKinds, entry.type) || treeModes[entry.type] !== mode)
-            throw new V1Error('INTEGRITY_MISMATCH');
-          return { name: entry.name, mode, oid: entry.hash, kind: treeKinds[entry.type] };
-        });
-        return { schema_version: 1, tree_oid, entries };
-      });
-    } catch (error) {
-      throw readFailure(error);
-    }
+    return readArtifactsTree(this.adapter, this.repository, tree_oid);
   }
 
   async compare_and_swap_ref(ref, expected_oid, target_oid, options) {

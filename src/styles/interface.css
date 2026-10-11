@@ -376,6 +376,19 @@
 .footer-actions [aria-current='page'] {
   color: var(--accent);
 }
+.source-line {
+  display: flex;
+  min-width: max-content;
+  padding-right: 1rem;
+}
+.source-line-number {
+  width: 4rem;
+  flex-shrink: 0;
+  padding-right: 1rem;
+  text-align: right;
+  color: var(--muted);
+  user-select: none;
+}
 @media (max-width: 480px) {
   .topbar .breadcrumb {
     display: none;

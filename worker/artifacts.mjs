@@ -1,6 +1,7 @@
 import { ArtifactSubscriptions } from './artifact-subscriptions.mjs';
 import { DomainError } from '../core/hash.mjs';
 import { observationRef } from '../core/git-refs.mjs';
+import { artifactsSourceBrowser } from '../adapters/cloudflare/source-browser.mjs';
 import {
   artifactRemote,
   requestSourceBindings,
@@ -29,6 +30,9 @@ export class ArtifactsGit {
   }
   repositorySubscriptionPreflight() {
     return new ArtifactSubscriptions(this.env).preflight();
+  }
+  sourceBrowser(repository) {
+    return artifactsSourceBrowser(this, repository);
   }
   repositorySubscribe(input) {
     return new ArtifactSubscriptions(this.env).ensure(input);

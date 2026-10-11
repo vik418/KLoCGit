@@ -30,6 +30,7 @@ import { ActivityList } from '../features/activity/ActivityList.jsx';
 import { Notification } from './Notification.jsx';
 import { OwnerConnection } from './OwnerConnection.jsx';
 import { WorkspaceHeader } from './WorkspaceHeader.jsx';
+import { RepositoryBrowser } from '../features/repositories/RepositoryBrowser.jsx';
 
 const tabs = [
   ['attention', 'Attention', CircleHelp],
@@ -74,6 +75,12 @@ export function App() {
   const [sourceFuture, setSourceFuture] = useState(null);
   const [continuationId, setContinuationId] = useState(null);
   const [showAccess, setShowAccess] = useState(false);
+  const [sourceSelection, setSourceSelection] = useState(() => {
+    const params = new URLSearchParams(window.location.search);
+    return params.get('repo')
+      ? { repo_id: params.get('repo'), commit: params.get('commit'), path: params.get('path') }
+      : null;
+  });
 
   function openDecision(decisionId) {
     setSelectedMergeRequestId(null);
@@ -153,6 +160,7 @@ export function App() {
               onNewSystem={() => setNativeDialog({ type: 'system' })}
               onNewObjective={(systemId) => setNativeDialog({ type: 'objective', systemId })}
               onNewFuture={openNewFuture}
+              onBrowseRepository={(id) => setSourceSelection({ repo_id: id })}
               onContext={setContextObjective}
               reload={reload}
               message={notify}
@@ -228,6 +236,23 @@ export function App() {
           }}
         />
       )}
+      {sourceSelection &&
+        workspace.nativeState.repositories.some(
+          (repository) => repository.id === sourceSelection.repo_id,
+        ) && (
+          <RepositoryBrowser
+            repository={workspace.nativeState.repositories.find(
+              (repository) => repository.id === sourceSelection.repo_id,
+            )}
+            initialCommit={sourceSelection.commit}
+            initialPath={sourceSelection.path}
+            onClose={() => setSourceSelection(null)}
+            onFork={() => {
+              setSourceSelection(null);
+              openNewFuture({ repositoryId: sourceSelection.repo_id });
+            }}
+          />
+        )}
       {settlementId &&
         workspace.nativeState.promotions.some((operation) => operation.id === settlementId) && (
           <SettlementDialog

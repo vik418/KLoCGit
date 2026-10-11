@@ -17,6 +17,8 @@ LOCAL_ACTOR_ID="$(git config user.email)" npm run dev
 
 Open <http://localhost:43187>. The server starts with an empty workspace. Create or import a repository, then choose **Fork repository** to create a Future from its current commit. The interface shows its Git remote and observed revisions.
 
+Use **Repositories → Browse code** to inspect directories, files, raw text and first-parent commit history. Branch/tag selection and file permalinks bind reads to an exact commit. Binary files and submodules are identified; signatures remain unverified unless a verifier establishes their validity.
+
 The command uses your configured Git email as the local identity. `PORT` changes the port. This local identity is not organizational authentication.
 
 The sample application is optional. Stop the server, run `npm run demo:reset`, then start it again. This replaces the default disposable `.klocgit-workspace/` directory with the two-repository demo. Executable demo checks require Linux or WSL with bubblewrap and util-linux.

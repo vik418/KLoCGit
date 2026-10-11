@@ -69,6 +69,10 @@ Complete in dependency order. Do not skip acceptance criteria.
 
 Existing v0 behavior does not establish v1 completion. Task completion requires the tests and acceptance criteria below.
 
+## Repository browser integration
+
+Status: PARTIAL. Read-only source APIs and the shadcn browser expose exact-commit directories, text/raw views, branch/tag selection, first-parent history, parent commits, bounded counts and permalinks. Local Git tests cover SHA-1/SHA-256, access denial, provider substitution, ref movement and unchanged source objects. Browser verification covers authentication, keyboard focus and mobile layout. Artifacts binding behavior is contract-tested; live provider verification remains open. Editing, blame, syntax/symbol navigation, comparisons, archives and release management are incomplete. This surface does not establish enterprise GA or change the core task count.
+
 ## M0 - Repository and engineering contract
 
 ### T000 - Initialize repository

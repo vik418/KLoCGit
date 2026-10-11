@@ -89,7 +89,10 @@ async function authenticate(page, url) {
   await page.goto(url);
   await page.getByLabel('Owner credential', { exact: true }).fill(credential);
   await page.getByRole('button', { name: 'Connect to workspace', exact: true }).click();
-  await page.getByRole('button', { name: 'Repositories', exact: true }).waitFor();
+  const sourceRepository = new URL(url).searchParams.get('repo');
+  if (sourceRepository)
+    await page.getByRole('dialog', { name: sourceRepository + ' · source', exact: true }).waitFor();
+  else await page.getByRole('button', { name: 'Repositories', exact: true }).waitFor();
 }
 
 async function waitForFocus(page, control) {
@@ -158,7 +161,7 @@ try {
   assert.equal(empty.futures.length, 0);
   assert.equal(
     await page.evaluate(() => getComputedStyle(document.documentElement).backgroundColor),
-    'rgb(11, 13, 16)',
+    'rgb(13, 10, 11)',
   );
   await assertFitsViewport(page);
 
@@ -222,6 +225,48 @@ try {
   assert.equal(ready.head, baselineCommit);
   assert.equal(ready.tree, baselineTree);
   assert.equal(ready.status, 'ready');
+
+  const browse = page.getByRole('button', { name: 'Browse code', exact: true });
+  await browse.click();
+  let sourceDialog = page.getByRole('dialog', { name: 'app · source', exact: true });
+  await sourceDialog.waitFor();
+  await sourceDialog.getByText('1 files · 0 directories · 0 submodules', { exact: true }).waitFor();
+  await sourceDialog.getByRole('button', { name: /^app\.mjs/ }).click();
+  await sourceDialog
+    .getByRole('region', { name: 'File contents' })
+    .getByText('export const value = 0;', { exact: true })
+    .waitFor();
+  await sourceDialog.getByRole('button', { name: 'Raw view', exact: true }).click();
+  assert.equal(
+    await sourceDialog.getByLabel('Raw file contents', { exact: true }).inputValue(),
+    'export const value = 0;\n',
+  );
+  await sourceDialog.getByRole('button', { name: 'Commits', exact: true }).click();
+  await sourceDialog
+    .getByRole('region', { name: 'Commit history' })
+    .getByRole('heading', { name: 'Add baseline application', exact: true })
+    .waitFor();
+  await assertFitsViewport(page);
+  await page.keyboard.press('Escape');
+  await sourceDialog.waitFor({ state: 'hidden' });
+  await waitForFocus(page, browse);
+
+  // Permalinks bind to immutable Git state and reopen after authentication.
+  await authenticate(
+    page,
+    url + '/?' + new URLSearchParams({ repo: 'app', commit: baselineCommit, path: 'app.mjs' }),
+  );
+  sourceDialog = page.getByRole('dialog', { name: 'app · source', exact: true });
+  await sourceDialog
+    .getByRole('region', { name: 'File contents' })
+    .getByText('export const value = 0;', { exact: true })
+    .waitFor();
+  await page.setViewportSize({ width: 390, height: 844 });
+  await assertFitsViewport(page);
+  await page.keyboard.press('Escape');
+  await sourceDialog.waitFor({ state: 'hidden' });
+  await page.setViewportSize({ width: 1440, height: 1000 });
+  await page.getByRole('button', { name: 'Repositories', exact: true }).click();
 
   await page.getByRole('button', { name: 'Fork repository', exact: true }).click();
   dialog = page.getByRole('dialog', { name: 'Fork repositories', exact: true });
@@ -770,7 +815,7 @@ try {
   await capture('context-desktop');
 
   console.log(
-    'Browser workflow passed: authenticated repository creation, ordinary Git push, isolated Future, immutable revision history, selected-commit composition, untrusted validation blocking, admitted CI and reviewed Git promotion, rewind, branch/tag selection, structured provenance, historical object retention, cross-repo context and one declared answer before forking, keyboard focus, mobile layout.',
+    'Browser workflow passed: authenticated repository creation, exact-state source/raw/history browsing and permalinks, ordinary Git push, isolated Future, immutable revision history, selected-commit composition, untrusted validation blocking, admitted CI and reviewed Git promotion, rewind, branch/tag selection, structured provenance, historical object retention, cross-repo context and one declared answer before forking, keyboard focus, mobile layout.',
   );
 } catch (error) {
   console.error(serverOutput);

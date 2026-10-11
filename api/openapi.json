@@ -2844,6 +2844,376 @@
           }
         ]
       }
+    },
+    "/api/source/repositories/{repo_id}/refs": {
+      "get": {
+        "operationId": "readSourceRefs",
+        "summary": "Read immutable repository refs",
+        "description": "List ordinary branches and tags with repository authorization. Coordinator-internal refs remain private.",
+        "parameters": [
+          {
+            "name": "repo_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "$ref": "#/components/schemas/RepositoryId"
+            }
+          },
+          {
+            "name": "cursor",
+            "in": "query",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "limit",
+            "in": "query",
+            "schema": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 200
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Exact Git observation.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SourceRefs"
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "Closed, sanitized source read error. Git remains unchanged.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SourceError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/source/repositories/{repo_id}/tree": {
+      "get": {
+        "operationId": "readSourceTree",
+        "summary": "Read immutable repository tree",
+        "description": "Repository read authorization is required. Supply either an exact commit_oid or a full branch/tag ref; omission uses the registered canonical ref. Returned reads bind to snapshot.commit_oid. These reads never write Git. Read budgets are application limits, not GitStore capacity claims.",
+        "parameters": [
+          {
+            "name": "repo_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "$ref": "#/components/schemas/RepositoryId"
+            }
+          },
+          {
+            "name": "commit_oid",
+            "in": "query",
+            "schema": {
+              "$ref": "#/components/schemas/GitObjectId"
+            }
+          },
+          {
+            "name": "ref",
+            "in": "query",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "path",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "offset",
+            "in": "query",
+            "schema": {
+              "type": "integer",
+              "minimum": 0
+            }
+          },
+          {
+            "name": "limit",
+            "in": "query",
+            "schema": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 200
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Exact Git observation.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SourceDirectory"
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "Closed, sanitized source read error. Git remains unchanged.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SourceError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/source/repositories/{repo_id}/file": {
+      "get": {
+        "operationId": "readSourceFile",
+        "summary": "Read immutable repository file",
+        "description": "Repository read authorization is required. Supply either an exact commit_oid or a full branch/tag ref; omission uses the registered canonical ref. Returned reads bind to snapshot.commit_oid. These reads never write Git. Read budgets are application limits, not GitStore capacity claims.",
+        "parameters": [
+          {
+            "name": "repo_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "$ref": "#/components/schemas/RepositoryId"
+            }
+          },
+          {
+            "name": "commit_oid",
+            "in": "query",
+            "schema": {
+              "$ref": "#/components/schemas/GitObjectId"
+            }
+          },
+          {
+            "name": "ref",
+            "in": "query",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "path",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Exact Git observation.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SourceFile"
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "Closed, sanitized source read error. Git remains unchanged.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SourceError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/source/repositories/{repo_id}/history": {
+      "get": {
+        "operationId": "readSourceHistory",
+        "summary": "Read immutable repository history",
+        "description": "Repository read authorization is required. Supply either an exact commit_oid or a full branch/tag ref; omission uses the registered canonical ref. Returned reads bind to snapshot.commit_oid. These reads never write Git. Read budgets are application limits, not GitStore capacity claims.",
+        "parameters": [
+          {
+            "name": "repo_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "$ref": "#/components/schemas/RepositoryId"
+            }
+          },
+          {
+            "name": "commit_oid",
+            "in": "query",
+            "schema": {
+              "$ref": "#/components/schemas/GitObjectId"
+            }
+          },
+          {
+            "name": "ref",
+            "in": "query",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "offset",
+            "in": "query",
+            "schema": {
+              "type": "integer",
+              "minimum": 0
+            }
+          },
+          {
+            "name": "limit",
+            "in": "query",
+            "schema": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 100
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Exact Git observation.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SourceHistory"
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "Closed, sanitized source read error. Git remains unchanged.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SourceError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/source/repositories/{repo_id}/commit": {
+      "get": {
+        "operationId": "readSourceCommit",
+        "summary": "Read immutable repository commit",
+        "description": "Repository read authorization is required. Supply either an exact commit_oid or a full branch/tag ref; omission uses the registered canonical ref. Returned reads bind to snapshot.commit_oid. These reads never write Git. Read budgets are application limits, not GitStore capacity claims.",
+        "parameters": [
+          {
+            "name": "repo_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "$ref": "#/components/schemas/RepositoryId"
+            }
+          },
+          {
+            "name": "commit_oid",
+            "in": "query",
+            "schema": {
+              "$ref": "#/components/schemas/GitObjectId"
+            }
+          },
+          {
+            "name": "ref",
+            "in": "query",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Exact Git observation.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SourceCommitResult"
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "Closed, sanitized source read error. Git remains unchanged.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SourceError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/source/repositories/{repo_id}/summary": {
+      "get": {
+        "operationId": "readSourceSummary",
+        "summary": "Read immutable repository summary",
+        "description": "Repository read authorization is required. Supply either an exact commit_oid or a full branch/tag ref; omission uses the registered canonical ref. Returned reads bind to snapshot.commit_oid. These reads never write Git. Read budgets are application limits, not GitStore capacity claims.",
+        "parameters": [
+          {
+            "name": "repo_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "$ref": "#/components/schemas/RepositoryId"
+            }
+          },
+          {
+            "name": "commit_oid",
+            "in": "query",
+            "schema": {
+              "$ref": "#/components/schemas/GitObjectId"
+            }
+          },
+          {
+            "name": "ref",
+            "in": "query",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Exact Git observation.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SourceSummary"
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "Closed, sanitized source read error. Git remains unchanged.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SourceError"
+                }
+              }
+            }
+          }
+        }
+      }
     }
   },
   "components": {
@@ -6607,6 +6977,323 @@
           }
         },
         "description": "Repository push delivery. Ready is recorded only after the exact provider subscription is read back. Pending delivery blocks Future activation."
+      },
+      "SourceCommit": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "schema_version",
+          "repo_id",
+          "commit_oid",
+          "tree_oid",
+          "parent_oids",
+          "message",
+          "author",
+          "signature"
+        ],
+        "properties": {
+          "schema_version": {
+            "const": 1
+          },
+          "repo_id": {
+            "$ref": "#/components/schemas/RepositoryId"
+          },
+          "commit_oid": {
+            "$ref": "#/components/schemas/GitObjectId"
+          },
+          "tree_oid": {
+            "$ref": "#/components/schemas/GitObjectId"
+          },
+          "parent_oids": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/GitObjectId"
+            }
+          },
+          "message": {
+            "type": ["string", "null"]
+          },
+          "author": {
+            "type": ["string", "null"]
+          },
+          "signature": {
+            "enum": ["ABSENT", "UNVERIFIED", null]
+          }
+        },
+        "description": "Exact commit metadata. Signature presence is not verification; unavailable metadata remains null."
+      },
+      "SourceEntry": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["name", "mode", "kind", "oid", "path"],
+        "properties": {
+          "name": {
+            "type": "string"
+          },
+          "mode": {
+            "enum": ["040000", "100644", "100755", "120000", "160000"]
+          },
+          "kind": {
+            "enum": ["tree", "blob", "commit"]
+          },
+          "oid": {
+            "$ref": "#/components/schemas/GitObjectId"
+          },
+          "path": {
+            "type": "string"
+          }
+        }
+      },
+      "SourceDirectory": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "schema_version",
+          "snapshot",
+          "path",
+          "tree_oid",
+          "entries",
+          "entry_count",
+          "next_offset"
+        ],
+        "properties": {
+          "schema_version": {
+            "const": 1
+          },
+          "snapshot": {
+            "$ref": "#/components/schemas/SourceCommit"
+          },
+          "path": {
+            "type": "string"
+          },
+          "tree_oid": {
+            "$ref": "#/components/schemas/GitObjectId"
+          },
+          "entries": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/SourceEntry"
+            }
+          },
+          "entry_count": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "next_offset": {
+            "type": ["integer", "null"],
+            "minimum": 0
+          }
+        }
+      },
+      "SourceFile": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "schema_version",
+          "snapshot",
+          "path",
+          "blob_oid",
+          "mode",
+          "size_bytes",
+          "content_kind",
+          "text"
+        ],
+        "properties": {
+          "schema_version": {
+            "const": 1
+          },
+          "snapshot": {
+            "$ref": "#/components/schemas/SourceCommit"
+          },
+          "path": {
+            "type": "string"
+          },
+          "blob_oid": {
+            "$ref": "#/components/schemas/GitObjectId"
+          },
+          "mode": {
+            "enum": ["100644", "100755", "120000"]
+          },
+          "size_bytes": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "content_kind": {
+            "enum": ["TEXT", "BINARY", "SYMLINK"]
+          },
+          "text": {
+            "type": ["string", "null"]
+          }
+        },
+        "description": "Verified UTF-8 blob bytes. Binary content has no text preview; symlink targets are not followed."
+      },
+      "SourceHistory": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["schema_version", "snapshot", "mode", "commits", "next_offset", "truncated"],
+        "properties": {
+          "schema_version": {
+            "const": 1
+          },
+          "snapshot": {
+            "$ref": "#/components/schemas/SourceCommit"
+          },
+          "mode": {
+            "const": "FIRST_PARENT"
+          },
+          "commits": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/SourceCommit"
+            }
+          },
+          "next_offset": {
+            "type": ["integer", "null"],
+            "minimum": 0
+          },
+          "truncated": {
+            "type": "boolean"
+          }
+        },
+        "description": "Bounded first-parent history. All parent identities remain available in each commit."
+      },
+      "SourceSummary": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "schema_version",
+          "snapshot",
+          "files",
+          "directories",
+          "submodules",
+          "complete"
+        ],
+        "properties": {
+          "schema_version": {
+            "const": 1
+          },
+          "snapshot": {
+            "$ref": "#/components/schemas/SourceCommit"
+          },
+          "files": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "directories": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "submodules": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "complete": {
+            "type": "boolean"
+          }
+        },
+        "description": "Incomplete counts are lower bounds, not repository totals."
+      },
+      "SourceRefs": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["schema_version", "repo_id", "refs", "has_more", "next_cursor"],
+        "properties": {
+          "schema_version": {
+            "const": 1
+          },
+          "repo_id": {
+            "$ref": "#/components/schemas/RepositoryId"
+          },
+          "refs": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "ref": {
+                  "$ref": "#/components/schemas/ObservationRef"
+                },
+                "kind": {
+                  "type": "string",
+                  "enum": ["branch", "tag"]
+                },
+                "object_id": {
+                  "$ref": "#/components/schemas/GitObjectId"
+                },
+                "object_type": {
+                  "type": "string",
+                  "enum": ["commit", "tag", "tree", "blob", "unknown"]
+                },
+                "commit": {
+                  "type": ["string", "null"]
+                },
+                "available_for_future": {
+                  "type": ["boolean", "null"]
+                }
+              },
+              "required": [
+                "ref",
+                "kind",
+                "object_id",
+                "object_type",
+                "commit",
+                "available_for_future"
+              ],
+              "additionalProperties": false
+            },
+            "maxItems": 1000
+          },
+          "has_more": {
+            "type": "boolean"
+          },
+          "next_cursor": {
+            "type": ["string", "null"]
+          }
+        }
+      },
+      "SourceCommitResult": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["schema_version", "commit"],
+        "properties": {
+          "schema_version": {
+            "const": 1
+          },
+          "commit": {
+            "$ref": "#/components/schemas/SourceCommit"
+          }
+        }
+      },
+      "SourceError": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["schema_version", "error"],
+        "properties": {
+          "schema_version": {
+            "const": 1
+          },
+          "error": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": ["schema_version", "code", "failure_class", "retry_strategy", "message"],
+            "properties": {
+              "schema_version": {
+                "const": 1
+              },
+              "code": {
+                "type": "string"
+              },
+              "failure_class": {
+                "type": "string"
+              },
+              "retry_strategy": {
+                "type": "string"
+              },
+              "message": {
+                "type": "string"
+              }
+            }
+          }
+        }
       }
     }
   }

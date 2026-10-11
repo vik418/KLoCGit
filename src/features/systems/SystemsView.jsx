@@ -1,4 +1,4 @@
-import { GitFork, Layers3, Plus, RefreshCw } from 'lucide-react';
+import { Code2, GitFork, Layers3, Plus, RefreshCw } from 'lucide-react';
 import { Button } from '../../ui/Button.jsx';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '../../ui/Card.jsx';
 import { useNativeMutation } from '../../hooks/useNativeMutation.js';
@@ -10,6 +10,7 @@ export function SystemsView({
   onNewSystem,
   onNewObjective,
   onNewFuture,
+  onBrowseRepository,
   onContext,
   reload,
   message,
@@ -113,6 +114,17 @@ export function SystemsView({
                 )}
                 {repository.remote && <RepositoryRemote remote={repository.remote} />}
                 <div className="mt-4 flex flex-wrap items-center gap-2">
+                  {repository.status === 'ready' && onBrowseRepository && (
+                    <Button
+                      type="button"
+                      size="sm"
+                      variant="outline"
+                      onClick={() => onBrowseRepository(repository.id)}
+                    >
+                      <Code2 aria-hidden="true" />
+                      Browse code
+                    </Button>
+                  )}
                   {repository.status === 'ready' && repository.head && repository.tree && (
                     <Button
                       type="button"
