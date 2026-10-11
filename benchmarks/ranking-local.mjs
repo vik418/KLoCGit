@@ -86,6 +86,7 @@ export async function benchmarkLocalRanking({
     });
     return {
       ...report,
+      ranker_metadata: ranker?.metadata ?? null,
       workload: {
         schema_version: 1,
         kind: 'retry-response-loss',
