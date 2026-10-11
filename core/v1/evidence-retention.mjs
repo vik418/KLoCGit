@@ -6,9 +6,12 @@ import {
   digestBytes,
   parseDigest,
   parseObjectId,
+  operationId,
 } from './conventions.mjs';
 import { copyJsonData, RETENTION_CLASSES } from './domain.mjs';
 import { coordinationKey } from './coordination.mjs';
+import { retentionPeriods } from './retention-policy.mjs';
+import { appendAudit } from './audit.mjs';
 
 function valid(condition) {
   if (!condition) throw new V1Error('INVALID_ARGUMENT');
@@ -49,17 +52,7 @@ export class RetainedPayloadStore {
     valid(
       typeof now === 'function' && Number.isSafeInteger(max_payload_bytes) && max_payload_bytes > 0,
     );
-    const policy = copyJsonData(ttl_ms);
-    assertSchemaVersion(policy);
-    valid(Object.keys(policy).length === RETENTION_CLASSES.length + 1);
-    for (const retention of RETENTION_CLASSES) {
-      const ttl = policy[retention];
-      valid(
-        ['EPHEMERAL', 'REBUILDABLE'].includes(retention)
-          ? Number.isSafeInteger(ttl) && ttl >= 0
-          : ttl === null,
-      );
-    }
+    const policy = retentionPeriods(ttl_ms);
     Object.assign(this, {
       tenant_id,
       system_id,
@@ -133,6 +126,12 @@ export class RetainedPayloadStore {
       const created_ms = retained?.created_ms ?? created;
       const ttl = this.policy[retention_class];
       valid(ttl === null || Number.isSafeInteger(created_ms + ttl));
+      // Concurrent writers using older settings cannot shorten an existing
+      // retention commitment. New payloads use the configured period.
+      const expires_ms =
+        ttl === null || retained?.expires_ms === null
+          ? null
+          : Math.max(retained?.expires_ms ?? 0, created_ms + ttl);
       const record = {
         schema_version: 1,
         digest: request.digest,
@@ -141,7 +140,7 @@ export class RetainedPayloadStore {
         state: 'WRITING',
         retention_class,
         created_ms,
-        expires_ms: ttl === null ? null : created_ms + ttl,
+        expires_ms,
         pins: retained?.pins ?? [],
       };
       await tx.put('retention', record);
@@ -237,6 +236,7 @@ export class RetainedPayloadStore {
         return { schema_version: 1, state: 'PROTECTED' };
       const deleting = { ...current, state: 'DELETING' };
       await tx.put('retention', deleting);
+      await this.#auditDeletion(tx, context, deleting, 'READY', 'DELETING');
       return deleting;
     });
     if (prepared.state === 'PROTECTED') return false;
@@ -258,7 +258,36 @@ export class RetainedPayloadStore {
       if (current?.state === 'DELETED') return;
       if (current?.state !== 'DELETING') throw new V1Error('OUTCOME_UNKNOWN');
       await tx.put('retention', { ...current, state: 'DELETED' });
+      await this.#auditDeletion(tx, context, current, 'DELETING', 'DELETED');
     });
     return true;
+  }
+
+  async #auditDeletion(tx, context, record, from_state, to_state) {
+    const key = parseDigest(record.digest).hex + '.' + record.generation;
+    const operation_id = await operationId({
+      tenant_id: this.tenant_id,
+      resource_id: await coordinationKey(context.coordination),
+      action: 'evidence.payload.expire',
+      idempotency_key: key,
+    });
+    return appendAudit(
+      tx,
+      context.coordination,
+      {
+        schema_version: 1,
+        event_key: key + '.' + to_state,
+        actor_id: this.principal.actor_id,
+        trace_id: operation_id,
+        action: 'evidence.payload.expire',
+        subject_id: record.digest,
+        operation_id,
+        from_state,
+        to_state,
+        failure_class: null,
+        bindings: { payload_digest: record.digest },
+      },
+      this.now,
+    );
   }
 }

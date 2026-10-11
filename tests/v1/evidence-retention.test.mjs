@@ -8,6 +8,7 @@ import { CoordinationStore } from '../../core/v1/coordination.mjs';
 import { SqliteCoordinationBackend } from '../../adapters/local/coordination.mjs';
 import { FileObjectStore } from '../../adapters/local/object-store.mjs';
 import { digestBytes, objectId } from '../../core/v1/conventions.mjs';
+import { RetentionLifecycle, retentionConfiguration } from '../../core/v1/retention-policy.mjs';
 
 async function fixture(t) {
   const root = await mkdtemp(join(tmpdir(), 'klocgit-retention-'));
@@ -194,6 +195,151 @@ test('payload corruption is detected before a reference can preserve false evide
   });
   await assert.rejects(corrupted.read(f.input), { code: 'INTEGRITY_MISMATCH' });
   await assert.rejects(corrupted.pin(f.pin), { code: 'INTEGRITY_MISMATCH' });
+});
+
+test('long-term project retention expires unreferenced records while canonical references remain pinned', async (t) => {
+  const f = await fixture(t);
+  const store = new RetainedPayloadStore({
+    ...f.options,
+    ttl_ms: {
+      schema_version: 1,
+      EPHEMERAL: 10,
+      REBUILDABLE: 20,
+      DECISION_RECORD: 100,
+      CANONICAL: 200,
+    },
+  });
+  const canonical = { ...f.input, retention_class: 'CANONICAL' };
+  f.pin.payload_ref = (await store.put(canonical)).ref;
+  await store.pin(f.pin);
+  const bytes = new TextEncoder().encode('unreferenced decision observation');
+  const observation = {
+    ...f.input,
+    retention_class: 'DECISION_RECORD',
+    bytes,
+    digest: await digestBytes('evidence-payload', bytes),
+  };
+  await store.put(observation);
+  f.advance(101);
+  assert.equal(await store.expire(observation), true);
+  f.advance(200);
+  assert.equal(await store.expire(canonical), false);
+  assert.deepEqual(await store.read(canonical), f.input.bytes);
+});
+
+test('a writer with shorter lifecycle settings cannot shorten existing retained data', async (t) => {
+  const f = await fixture(t);
+  await f.store.put(f.input);
+  const shorter = new RetainedPayloadStore({
+    ...f.options,
+    ttl_ms: { ...f.options.ttl_ms, EPHEMERAL: 1 },
+  });
+  await shorter.put(f.input);
+  f.advance(2);
+  assert.equal(await shorter.expire(f.input), false);
+  f.advance(9);
+  assert.equal(await shorter.expire(f.input), true);
+});
+
+test('bounded lifecycle pages reread pins and never trust catalog keys or cross-tenant entries', async (t) => {
+  const f = await fixture(t);
+  await f.store.put(f.input);
+  const scope = { schema_version: 1, tenant_id: 'tenant', system_id: 'group' };
+  let page = {
+      schema_version: 1,
+      records: [{ ...scope, digest: f.input.digest }],
+      next_cursor: 'next-page',
+    },
+    allowed = true;
+  const configuration = retentionConfiguration({
+    schema_version: 1,
+    ttl_ms: f.options.ttl_ms,
+    batch_size: 2,
+    sweep_interval_ms: 100,
+  });
+  const lifecycle = new RetentionLifecycle({
+    scope,
+    configuration,
+    registry: {
+      list: async (queried, cursor, limit) => {
+        assert.deepEqual(queried, scope);
+        assert.equal(limit, 2);
+        assert.equal(cursor, null);
+        return page;
+      },
+    },
+    payloadStore: f.store,
+    authorize: () => allowed,
+  });
+  const principal = { actor_id: 'controller', tenant_id: 'tenant' };
+  f.pin.payload_ref = (await f.store.put(f.input)).ref;
+  await f.store.pin(f.pin);
+  const temporaryBytes = new TextEncoder().encode('unreferenced sweep target');
+  const temporary = {
+    ...f.input,
+    bytes: temporaryBytes,
+    digest: await digestBytes('evidence-payload', temporaryBytes),
+  };
+  await f.store.put(temporary);
+  page.records.push({ ...scope, digest: temporary.digest });
+  f.advance(100);
+  assert.deepEqual(await lifecycle.sweep({ schema_version: 1, cursor: null }, principal), {
+    schema_version: 1,
+    expired: 1,
+    protected: 1,
+    next_cursor: 'next-page',
+  });
+  await assert.rejects(f.store.read(temporary), { code: 'NOT_FOUND' });
+  page = { ...page, records: [{ ...scope, tenant_id: 'other', digest: f.input.digest }] };
+  await assert.rejects(lifecycle.sweep({ schema_version: 1, cursor: null }, principal), {
+    code: 'FORBIDDEN',
+  });
+  page = {
+    ...page,
+    records: Array.from({ length: 3 }, () => ({ ...scope, digest: f.input.digest })),
+  };
+  await assert.rejects(lifecycle.sweep({ schema_version: 1, cursor: null }, principal), {
+    code: 'INVALID_ARGUMENT',
+  });
+  allowed = false;
+  await assert.rejects(lifecycle.sweep({ schema_version: 1, cursor: null }, principal), {
+    code: 'FORBIDDEN',
+  });
+  assert.deepEqual(await f.store.read(f.input), f.input.bytes);
+});
+
+test('lifecycle configuration requires explicit class periods and positive scheduling bounds', () => {
+  for (const ttl_ms of [
+    { schema_version: 1, EPHEMERAL: 1 },
+    { schema_version: 1, EPHEMERAL: null, REBUILDABLE: 2, DECISION_RECORD: null, CANONICAL: null },
+  ]) {
+    assert.throws(
+      () =>
+        retentionConfiguration({
+          schema_version: 1,
+          ttl_ms,
+          batch_size: 1,
+          sweep_interval_ms: 100,
+        }),
+      { code: 'INVALID_ARGUMENT' },
+    );
+  }
+  assert.throws(
+    () =>
+      retentionConfiguration({
+        schema_version: 1,
+        ttl_ms: {
+          schema_version: 1,
+          EPHEMERAL: 1,
+          REBUILDABLE: 2,
+          DECISION_RECORD: null,
+          CANONICAL: null,
+        },
+        batch_size: 0,
+        sweep_interval_ms: 100,
+      }),
+    { code: 'INVALID_ARGUMENT' },
+  );
 });
 
 test('a delayed deletion retry cannot remove a recreated, decision-pinned payload', async (t) => {
