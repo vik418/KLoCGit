@@ -36,7 +36,7 @@ export class ProviderHttp {
     this.headers = { ...headers };
   }
 
-  async request(method, path, body) {
+  async request(method, path, body, headers = {}) {
     const effect = method !== 'GET';
     if (
       !['GET', 'PATCH', 'POST'].includes(method) ||
@@ -61,6 +61,7 @@ export class ProviderHttp {
         signal: AbortSignal.timeout(this.timeout_ms),
         headers: {
           ...this.headers,
+          ...headers,
           accept: 'application/json',
           'content-type': 'application/json',
           authorization: 'Bearer ' + token,
