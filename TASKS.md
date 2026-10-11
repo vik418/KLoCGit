@@ -44,7 +44,9 @@ Complete in dependency order. Do not skip acceptance criteria.
 - T081: COMPLETE. Eleven HTTP/Git/SQLite tests verify basis and canonical-ref conflicts, required PARTIAL blocking, authenticated scope, exact retained Evidence bindings, policy/authorization races, concurrent retries and restart. Thirty-eight focused resolution/retention/promotion tests pass. Resolution records the choice; Git promotion still requires its own current-policy CAS.
 - T082: COMPLETE. Five compiler-backed tests verify independent static footprints, resolved dependency intersections, incomplete/missing capability, security override, bounded analysis, cross-repository uncertainty and payload substitution. DISJOINT is explicitly limited to registered static scope; runtime compatibility remains subject to rematerialization and exact-state checks.
 - T083: COMPLETE. Six forward-port tests and thirteen real-Git materialization tests verify rematerialization on a moved base, unchanged reviewed delta, material-observation checks, exact-state Evidence scheduling, source integrity, policy/predicate changes and conservative staleness. Grouped alternatives require rediscovery. Preserved review retains its historical basis; the new Candidate/basis must still pass current resolution and CAS checks.
-- Next incomplete task: T090.
+- T090: COMPLETE. Accepted-state builder tests verify deterministic multi-repository OIDs, canonical ordering of accepted decisions, immutable snapshots, invalid/symbolic OID rejection and substituted-state detection. Authorization and current Git observation remain service responsibilities.
+- T091: COMPLETE. Release-contract tests retain provider-neutral ordering, compatibility, pre/postconditions and forward-only operations. Sequence order remains significant; constraints cannot be substituted or rebound to another SystemRevision. Five combined builder/verification tests pass.
+- Next incomplete task: T092.
 - All remaining tasks: INCOMPLETE.
 
 Existing v0 behavior does not establish v1 completion. Task completion requires the tests and acceptance criteria below.
