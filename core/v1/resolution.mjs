@@ -101,8 +101,9 @@ export class ResolutionService {
         typeof authorize === 'function',
     );
     valid(
-      typeof policyEvaluator?.required_analysis === 'function' &&
-        typeof policyEvaluator?.can_resolve === 'function',
+      typeof policyEvaluator === 'function' ||
+        (typeof policyEvaluator?.required_analysis === 'function' &&
+          typeof policyEvaluator?.can_resolve === 'function'),
     );
     valid(Number.isSafeInteger(max_evidence) && max_evidence > 0);
     Object.assign(this, {
@@ -112,10 +113,13 @@ export class ResolutionService {
       payloadStore,
       authorize,
       max_evidence,
-      policy: Object.freeze({
-        required_analysis: policyEvaluator.required_analysis.bind(policyEvaluator),
-        can_resolve: policyEvaluator.can_resolve.bind(policyEvaluator),
-      }),
+      policy:
+        typeof policyEvaluator === 'function'
+          ? policyEvaluator
+          : Object.freeze({
+              required_analysis: policyEvaluator.required_analysis.bind(policyEvaluator),
+              can_resolve: policyEvaluator.can_resolve.bind(policyEvaluator),
+            }),
     });
   }
 
@@ -219,7 +223,7 @@ export class ResolutionService {
     }
     if (digests.size !== basis.evidence_digests.length) throw new V1Error('INCOMPLETE_ANALYSIS');
     const dependencies = {
-      policyEvaluator: this.policy,
+      policyEvaluator: typeof this.policy === 'function' ? await this.policy(state) : this.policy,
       subject: state.subject,
       effects: state.effects,
     };

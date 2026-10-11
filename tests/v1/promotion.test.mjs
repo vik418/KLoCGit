@@ -60,7 +60,10 @@ async function fixture(t) {
     schema_version: 1,
     candidate_spec_id: objectId('candidate-spec', digest('object-candidate-spec')),
     repo_tree_oids: { [repo_id]: target.tree_oid },
-    materialization_record: {},
+    materialization_record: {
+      schema_version: 1,
+      repo_commit_oids: { [repo_id]: target.commit_oid },
+    },
   };
   const candidateDigest = await digestCanonical('object-candidate', candidateProjection);
   const candidate = Candidate({
@@ -207,6 +210,15 @@ async function fixture(t) {
     external,
     inputs,
     candidate,
+    sameTreeCommit: () =>
+      git(gitDirectory, [
+        'commit-tree',
+        target.tree_oid,
+        '-p',
+        target.commit_oid,
+        '-m',
+        'different history',
+      ]),
     basis,
     repo_id,
     ref,
@@ -555,4 +567,37 @@ test('reconciliation does not overwrite an explicitly stale Decision transition'
     'OBSERVED_TARGET',
   );
   assert.equal((await f.decision()).state, 'STALE');
+});
+
+test('the same tree at another commit cannot substitute for evaluated Git history', async (t) => {
+  const f = await fixture(t);
+  await f.changeInputs({ target_commit_oid: await f.sameTreeCommit() });
+  await assert.rejects(f.service.promote(f.request, { principal: f.principal }), {
+    code: 'INTEGRITY_MISMATCH',
+  });
+  assert.equal(f.counts().casCalls, 0);
+  assert.equal(await f.head(), f.initial.commit_oid);
+});
+
+test('promotion preserves the resolved reviewer choice and rechecks current eligibility', async (t) => {
+  const f = await fixture(t);
+  const resolved = await f.store.transitionDecision(
+    f.scope,
+    f.request.decision_id,
+    'RESOLVED',
+    f.basis,
+    {
+      policyEvaluator: { required_analysis: () => ['semantic'], can_resolve: () => true },
+      subject: {},
+      effects: [],
+      expectedBasisDigest: f.basis.digest,
+      resolution: {
+        candidate_digest: f.candidate.digest,
+        actor_id: 'reviewer',
+        operation_id: 'review-operation',
+      },
+    },
+  );
+  assert.equal((await f.service.promote(f.request, { principal: f.principal })).state, 'APPLIED');
+  assert.deepEqual((await f.decision()).resolution, resolved.resolution);
 });

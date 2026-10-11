@@ -10,7 +10,7 @@ import {
 import { Candidate, Decision, copyJsonData, gitOid, gitRef } from './domain.mjs';
 import { coordinationScope } from './coordination.mjs';
 import { digestCanonical } from './encoding.mjs';
-import { resolveDecision, verifyDecisionBasis } from './decisions.mjs';
+import { resolveDecision, revalidateResolvedDecision, verifyDecisionBasis } from './decisions.mjs';
 import { gitSnapshot } from './git-store.mjs';
 import { appendAudit } from './audit.mjs';
 
@@ -97,17 +97,21 @@ export class PromotionService {
     valid(typeof observeSnapshot === 'function' && typeof basisProvider?.current === 'function');
     valid(typeof authorize === 'function');
     valid(
-      typeof policyEvaluator?.required_analysis === 'function' &&
-        typeof policyEvaluator?.can_resolve === 'function',
+      typeof policyEvaluator === 'function' ||
+        (typeof policyEvaluator?.required_analysis === 'function' &&
+          typeof policyEvaluator?.can_resolve === 'function'),
     );
     this.store = store;
     this.git = gitStore;
     this.observeSnapshot = observeSnapshot;
     this.current = basisProvider.current.bind(basisProvider);
-    this.policy = Object.freeze({
-      required_analysis: policyEvaluator.required_analysis.bind(policyEvaluator),
-      can_resolve: policyEvaluator.can_resolve.bind(policyEvaluator),
-    });
+    this.policy =
+      typeof policyEvaluator === 'function'
+        ? policyEvaluator
+        : Object.freeze({
+            required_analysis: policyEvaluator.required_analysis.bind(policyEvaluator),
+            can_resolve: policyEvaluator.can_resolve.bind(policyEvaluator),
+          });
     this.authorize = authorize;
   }
 
@@ -185,20 +189,33 @@ export class PromotionService {
     if (
       snapshot.repo_id !== request.repo_id ||
       snapshot.commit_oid !== state.target_commit_oid ||
+      candidate.materialization_record.repo_commit_oids?.[request.repo_id] !==
+        snapshot.commit_oid ||
       snapshot.tree_oid !== candidate.repo_tree_oids[request.repo_id]
     )
       throw new V1Error('INTEGRITY_MISMATCH');
-    const authorizedDecision = await resolveDecision(decision, basis, {
-      policyEvaluator: this.policy,
+    const policyEvaluator =
+      typeof this.policy === 'function' ? await this.policy(state) : this.policy;
+    const dependencies = {
+      policyEvaluator,
       subject: state.subject,
       effects: state.effects,
       expectedBasisDigest: request.basis_digest,
-      resolution: {
-        candidate_digest: candidate.digest,
-        actor_id: principal.actor_id,
-        operation_id: context.id,
-      },
-    });
+    };
+    const authorizedDecision =
+      decision.state === 'RESOLVED'
+        ? await revalidateResolvedDecision(decision, basis, {
+            ...dependencies,
+            candidateDigest: candidate.digest,
+          })
+        : await resolveDecision(decision, basis, {
+            ...dependencies,
+            resolution: {
+              candidate_digest: candidate.digest,
+              actor_id: principal.actor_id,
+              operation_id: context.id,
+            },
+          });
     if ((await this.git.observe_ref(request.repo_id, request.ref)) !== request.expected_oid)
       throw new V1Error('STALE_BASIS');
     return freeze({

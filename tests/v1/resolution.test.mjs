@@ -20,6 +20,10 @@ import {
 import { digestCanonical } from '../../core/v1/encoding.mjs';
 import { digestBytes, objectId } from '../../core/v1/conventions.mjs';
 import { AuditStream } from '../../core/v1/audit.mjs';
+import { createCandidatePolicy } from '../../core/v1/decision-policy.mjs';
+import { PromotionService } from '../../core/v1/promotion.mjs';
+import { EventConsumer } from '../../core/v1/consumer.mjs';
+import { createEvent } from '../../core/v1/events.mjs';
 
 async function fixture(t) {
   const directory = await mkdtemp(join(tmpdir(), 'klocgit-resolution-'));
@@ -29,6 +33,24 @@ async function fixture(t) {
   const tree = await git(repository, ['mktree'], '');
   const head = await git(repository, ['commit-tree', tree, '-m', 'base']);
   const moved = await git(repository, ['commit-tree', tree, '-p', head, '-m', 'external']);
+  const candidateBlob = await git(
+    repository,
+    ['hash-object', '-w', '--stdin'],
+    'export const answer = 42;\n',
+  );
+  const candidateTree = await git(
+    repository,
+    ['mktree'],
+    `100644 blob ${candidateBlob}\tanswer.mjs\n`,
+  );
+  const candidateCommit = await git(repository, [
+    'commit-tree',
+    candidateTree,
+    '-p',
+    head,
+    '-m',
+    'candidate',
+  ]);
   const ref = 'refs/heads/main';
   await git(repository, ['update-ref', ref, head]);
   const backends = [];
@@ -99,8 +121,8 @@ async function fixture(t) {
       'candidate-spec',
       await digestCanonical('object-candidate-spec', { work: 'isolated' }),
     ),
-    { repo: tree },
-    { schema_version: 1, repo_commit_oids: { repo: head } },
+    { repo: candidateTree },
+    { schema_version: 1, repo_commit_oids: { repo: candidateCommit } },
   );
   const subject = await candidateEvidenceSubject(candidate);
   const evidence = await buildEvidence({
@@ -141,14 +163,45 @@ async function fixture(t) {
     schema_version: 1,
     basis,
     candidate,
+    target_commit_oid: candidateCommit,
     subject,
     effects: [],
     evidence_payloads: [{ schema_version: 1, evidence, payload_digest }],
   };
   await store.transaction(scope, (tx) => tx.put('inputs:' + decision_id, state));
+  const authenticatedEvidence = new Set([evidence.id]);
+  const requirements = {
+    schema_version: 1,
+    policy_digest: basis.policy_digest,
+    checks: [
+      {
+        schema_version: 1,
+        id: 'test',
+        type: evidence.type,
+        config_digest: evidence.config_digest,
+        environment_digest: evidence.environment_digest,
+        producers: [
+          {
+            schema_version: 1,
+            identity: evidence.producer_identity,
+            versions: [evidence.producer_version],
+          },
+        ],
+      },
+    ],
+  };
   const options = {
     basisProvider: { current: (tx, context) => tx.get('inputs:' + context.request.decision_id) },
-    policyEvaluator: { required_analysis: () => ['semantic'], can_resolve: () => policyAllows },
+    policyEvaluator: (state) =>
+      createCandidatePolicy({
+        candidate: state.candidate,
+        required_analysis: ['semantic'],
+        requirements,
+        evidence: state.evidence_payloads.map((payload) => payload.evidence),
+        verifyProvenance: (record) => authenticatedEvidence.has(record.id),
+        canReuse: () => policyAllows,
+        max_evidence: 10,
+      }),
     observeRef: (repo, fullRef) => {
       assert.equal(repo, 'repo');
       return git(repository, ['rev-parse', '--verify', fullRef]);
@@ -229,6 +282,23 @@ async function fixture(t) {
     move: () => git(repository, ['update-ref', ref, moved]),
     head: () => git(repository, ['rev-parse', ref]),
     original: head,
+    target: candidateCommit,
+    snapshot: async (repo, oid) => {
+      assert.equal(repo, 'repo');
+      const tree_oid = await git(repository, ['rev-parse', oid + '^{tree}']);
+      const parent_oids = (await git(repository, ['rev-list', '--parents', '-n', '1', oid]))
+        .split(' ')
+        .slice(1);
+      return { schema_version: 1, repo_id: repo, commit_oid: oid, tree_oid, parent_oids };
+    },
+    cas: async (_ref, expected, target) => {
+      try {
+        await git(repository, ['update-ref', _ref, target, expected]);
+        return true;
+      } catch {
+        return false;
+      }
+    },
   };
 }
 
@@ -393,4 +463,99 @@ test('bounded requests reject malformed and oversized input without leaking erro
   );
   assert.equal(malformed.status, 400);
   assert.equal((await f.fetch(new Request('https://klocgit.test/resolve'))).status, 405);
+});
+
+test('a resolved reviewed choice promotes through CAS and replayed events never promote another state', async (t) => {
+  const f = await fixture(t);
+  const decision = await f.service.resolve(f.request, { principal: f.principal });
+  assert.equal(decision.state, 'RESOLVED');
+  const refScope = {
+    ...f.scope,
+    kind: 'REF',
+    resource_id: { repo_id: 'repo', ref: 'refs/heads/main' },
+  };
+  // Copy the immutable reviewed record to the authoritative ref coordinator.
+  // This is service wiring, not a producer event that can write approvals.
+  const input = await f.store.transaction(f.scope, (tx) => tx.get('inputs:' + decision.id));
+  await f.store.transaction(refScope, async (tx) => {
+    await tx.put('decision:' + decision.id, decision);
+    await tx.put('inputs:' + decision.id, input);
+  });
+  let writes = 0;
+  const promotion = new PromotionService({
+    store: f.store,
+    gitStore: {
+      observe_ref: f.options.observeRef,
+      compare_and_swap_ref: async (...args) => {
+        writes += 1;
+        return f.cas(...args);
+      },
+    },
+    observeSnapshot: f.snapshot,
+    basisProvider: f.options.basisProvider,
+    policyEvaluator: f.options.policyEvaluator,
+    authorize: f.options.authorize,
+  });
+  const request = {
+    schema_version: 1,
+    tenant_id: f.scope.tenant_id,
+    system_id: f.scope.system_id,
+    repo_id: 'repo',
+    ref: 'refs/heads/main',
+    decision_id: decision.id,
+    basis_digest: f.basis.digest,
+    candidate_digest: f.candidate.digest,
+    expected_oid: f.original,
+    idempotency_key: 'promote',
+  };
+  const limits = { max_event_bytes: 4096, inline_payload_bytes: 2048, max_claim_bytes: 8192 };
+  const consumer = new EventConsumer({
+    store: f.store,
+    limits,
+    max_attempts: 2,
+    authorize: ({ principal, event }) =>
+      principal.tenant_id === event.tenant_id && principal.actor_id === f.principal.actor_id,
+    handler: ({ payload }) => [{ action: 'canonical.promote', resource_id: 'repo', payload }],
+    executor: {
+      idempotent: true,
+      execute: ({ effect, principal }) => promotion.promote(effect.payload, { principal }),
+    },
+    deadLetters: { send: () => {} },
+  });
+  const event = await createEvent(
+    {
+      schema_version: 1,
+      type: 'canonical.requested',
+      tenant_id: f.scope.tenant_id,
+      system_id: f.scope.system_id,
+      objective_id: f.scope.resource_id,
+      subject_id: decision.id,
+      subject_version: 1,
+      occurred_at: '2026-10-11T00:00:00Z',
+      trace_id: 'trace',
+    },
+    request,
+    limits,
+  );
+  assert.equal(
+    (await consumer.consume(event, { principal: f.principal, attempt: 1 })).state,
+    'APPLIED',
+  );
+  assert.equal(
+    (await consumer.consume(event, { principal: f.principal, attempt: 1 })).state,
+    'APPLIED',
+  );
+  assert.equal(writes, 1);
+  assert.equal(await f.head(), f.target);
+  const forged = { ...event, tenant_id: 'other' };
+  await assert.rejects(consumer.consume(forged, { principal: f.principal, attempt: 1 }), {
+    code: 'FORBIDDEN',
+  });
+  await f.move();
+  assert.equal(
+    (await consumer.consume(event, { principal: f.principal, attempt: 1 })).state,
+    'APPLIED',
+  );
+  assert.notEqual(await f.head(), f.target);
+  assert.equal(writes, 1);
 });
