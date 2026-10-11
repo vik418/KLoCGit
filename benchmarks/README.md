@@ -13,6 +13,8 @@ Record the input workload, repository/toolchain versions, evaluation budget, col
 | Extractors  | [Raw measurements](results/extractors-local.json)          | Actual pinned compilers; curated change-localization and status fixtures.                    |
 | Workspaces  | [Raw measurements](results/workspaces-local.json)          | Native ArtifactFS over local Git transport; full-fetch comparison and local composition.     |
 
+Evidence reuse: [raw measurements](results/evidence-reuse-local.json) use signed, independently observed CI results and actual sandbox composition checks.
+
 Run the reduction benchmark:
 
 ```sh
@@ -36,3 +38,11 @@ KLOCGIT_ARTIFACT_FS_BINARY=/path/to/artifact-fs node benchmarks/workspaces.mjs 1
 ```
 
 The binary fixture size varies from 0.25 to 16 MiB. Cold means fresh adapter/application caches; the OS cache is uncontrolled. Native head hydration and generic historical Git composition are measured separately. Byte counters describe delivered object payloads and private disk files, not network framing or background prefetch. Disk measurement avoids symlinks and mounted hydration trees. Full-fetch startup wins on the smallest fixture; partial hydration reduces bytes and latency on the larger ones. The measured ArtifactFS build is from upstream revision `2b87a48691ef4ae82d391b7bbe4976c06c7fadf7`.
+
+Run evidence reuse measurements:
+
+```sh
+node benchmarks/evidence-reuse.mjs 10
+```
+
+The fixture loses a request's response. One Future adds retrying; another adds charging before the response is lost. Each passes the registered at-most-one-charge check alone; their clean textual composition fails it. A trusted host recipe observes actual process output and ignores the producer's passing verdict. Signing stays outside execution. Initial CI evaluation cost is recorded separately from additional scheduler work. Failed exact-state Evidence can be reused as an observation; it cannot authorize a choice. These are local measurements, not live external CI or billing results.
