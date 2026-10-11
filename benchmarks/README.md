@@ -11,6 +11,7 @@ Record the input workload, repository/toolchain versions, evaluation budget, col
 | Coordinator | [Raw measurements](results/coordination-local.json)        | Local workerd, 512 requests at concurrency 1/4/16/64, one/eight scopes.                      |
 | Reduction   | [Raw measurements](results/candidate-reduction-local.json) | Synthetic Git-format objects and declared effects; actual reducer and SQLite event consumer. |
 | Extractors  | [Raw measurements](results/extractors-local.json)          | Actual pinned compilers; curated change-localization and status fixtures.                    |
+| Workspaces  | [Raw measurements](results/workspaces-local.json)          | Native ArtifactFS over local Git transport; full-fetch comparison and local composition.     |
 
 Run the reduction benchmark:
 
@@ -27,3 +28,11 @@ node benchmarks/extractors.mjs typescript,javascript,python,go,rust 3
 ```
 
 [Fixture labels](extractor-corpus.json) are separate from compiler output. Precision/recall describe the listed source/symbol change projections; they do not score all semantic effects. Go's conservative raw-source fingerprints count formatting as a symbol change. Its COMPLETE status covers static bindings, including an observed interface reference, rather than runtime dispatch resolution. Successful Rust analysis stays PARTIAL. Wall time includes helper processes; reported control-plane CPU excludes their CPU. Release-update lag requires longitudinal observations and remains unmeasured.
+
+Run workspace measurements with the pinned ArtifactFS build:
+
+```sh
+KLOCGIT_ARTIFACT_FS_BINARY=/path/to/artifact-fs node benchmarks/workspaces.mjs 1,16,64 262144
+```
+
+The binary fixture size varies from 0.25 to 16 MiB. Cold means fresh adapter/application caches; the OS cache is uncontrolled. Native head hydration and generic historical Git composition are measured separately. Byte counters describe delivered object payloads and private disk files, not network framing or background prefetch. Disk measurement avoids symlinks and mounted hydration trees. Full-fetch startup wins on the smallest fixture; partial hydration reduces bytes and latency on the larger ones. The measured ArtifactFS build is from upstream revision `2b87a48691ef4ae82d391b7bbe4976c06c7fadf7`.

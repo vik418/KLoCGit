@@ -1,0 +1,332 @@
+{
+  "schema_version": 1,
+  "measured_at": "2026-10-11T13:33:42.502Z",
+  "hypothesis": "H3",
+  "counts": [1, 16, 64],
+  "blob_bytes": 262144,
+  "runtime": {
+    "node": "v24.19.0",
+    "git": "git version 2.47.3",
+    "platform": "linux",
+    "arch": "x64"
+  },
+  "scope": "Local fixture transport, native FUSE hydration, generic local Git composition. No Cloudflare network/billing measurement.",
+  "byte_scope": "Exact object payload counters and private disk sizes; provider network framing and background prefetch are not measured.",
+  "rows": [
+    {
+      "schema_version": 1,
+      "file_count": 1,
+      "blob_bytes": 262144,
+      "source_blob_payload_bytes": 262170,
+      "transport": "local-file-git",
+      "cache_scope": "fresh adapter/application caches; operating-system cache is uncontrolled",
+      "native": {
+        "acquisition": {
+          "schema_version": 1,
+          "commit_oid": "d36e3397b553d9e97fbd47678918bf01f459f04b",
+          "initial_blob_count": 0,
+          "initial_blob_payload_bytes": 0,
+          "initial_metadata_payload_bytes": 275
+        },
+        "cold_usable_ms": 84.20116400000002,
+        "cold_selected_read_ms": 28.276855000000012,
+        "cold_metrics": {
+          "schema_version": 1,
+          "bytes_transferred": 284,
+          "metadata_bytes_transferred": 275,
+          "blob_bytes_transferred": 9,
+          "cache_hits": 0,
+          "cache_misses": 3,
+          "provider_reads": 3
+        },
+        "warm_usable_ms": 0.9065920000000176,
+        "warm_selected_read_ms": 0.005608999999992648,
+        "warm_metrics": {
+          "schema_version": 1,
+          "bytes_transferred": 0,
+          "metadata_bytes_transferred": 0,
+          "blob_bytes_transferred": 0,
+          "cache_hits": 3,
+          "cache_misses": 0,
+          "provider_reads": 0
+        },
+        "warm_cache_hit_rate": 1,
+        "cache": {
+          "schema_version": 1,
+          "entries": 3,
+          "payload_bytes": 284,
+          "evictions": 0,
+          "expirations": 0,
+          "retention_class": "REBUILDABLE"
+        },
+        "cache_loss_recovery_ms": 6.940187000000009,
+        "recovered_metrics": {
+          "schema_version": 1,
+          "bytes_transferred": 284,
+          "metadata_bytes_transferred": 275,
+          "blob_bytes_transferred": 9,
+          "cache_hits": 0,
+          "cache_misses": 3,
+          "provider_reads": 3
+        },
+        "disk": {
+          "schema_version": 1,
+          "apparent_bytes": 194384,
+          "allocated_bytes": 307200,
+          "skipped_mounts": 1
+        }
+      },
+      "conventional": {
+        "schema_version": 1,
+        "usable_ms": 29.097037999999998,
+        "selected_read_ms": 2.8646039999999857,
+        "blob_payload_bytes": 262170,
+        "metadata_payload_bytes": 275,
+        "disk": {
+          "schema_version": 1,
+          "apparent_bytes": 264144,
+          "allocated_bytes": 290816,
+          "skipped_mounts": 0
+        },
+        "full_warm_selected_read_ms": 2.0285480000000007
+      },
+      "materialization": {
+        "transport": "local-read-only-git-objects",
+        "materialization_cold_ms": 96.55227100000002,
+        "materialization_warm_ms": 62.60510100000005,
+        "cold_metrics": {
+          "schema_version": 1,
+          "elapsed_ms": 93.09033,
+          "bytes_transferred": 1524,
+          "metadata_bytes_transferred": 1471,
+          "blob_bytes_transferred": 53,
+          "cache_hits": 0,
+          "cache_misses": 14,
+          "provider_reads": 14
+        },
+        "warm_metrics": {
+          "schema_version": 1,
+          "elapsed_ms": 59.75928099999999,
+          "bytes_transferred": 0,
+          "metadata_bytes_transferred": 0,
+          "blob_bytes_transferred": 0,
+          "cache_hits": 14,
+          "cache_misses": 0,
+          "provider_reads": 0
+        },
+        "source_unchanged": true
+      },
+      "hydration_failures": 0
+    },
+    {
+      "schema_version": 1,
+      "file_count": 16,
+      "blob_bytes": 262144,
+      "source_blob_payload_bytes": 4194330,
+      "transport": "local-file-git",
+      "cache_scope": "fresh adapter/application caches; operating-system cache is uncontrolled",
+      "native": {
+        "acquisition": {
+          "schema_version": 1,
+          "commit_oid": "3a7ab15b2f9396c7df99a4a45b7b50f6991744ae",
+          "initial_blob_count": 0,
+          "initial_blob_payload_bytes": 0,
+          "initial_metadata_payload_bytes": 851
+        },
+        "cold_usable_ms": 82.96880699999997,
+        "cold_selected_read_ms": 15.726397999999904,
+        "cold_metrics": {
+          "schema_version": 1,
+          "bytes_transferred": 860,
+          "metadata_bytes_transferred": 851,
+          "blob_bytes_transferred": 9,
+          "cache_hits": 0,
+          "cache_misses": 3,
+          "provider_reads": 3
+        },
+        "warm_usable_ms": 1.1972990000000436,
+        "warm_selected_read_ms": 0.011806999999976142,
+        "warm_metrics": {
+          "schema_version": 1,
+          "bytes_transferred": 0,
+          "metadata_bytes_transferred": 0,
+          "blob_bytes_transferred": 0,
+          "cache_hits": 3,
+          "cache_misses": 0,
+          "provider_reads": 0
+        },
+        "warm_cache_hit_rate": 1,
+        "cache": {
+          "schema_version": 1,
+          "entries": 3,
+          "payload_bytes": 860,
+          "evictions": 0,
+          "expirations": 0,
+          "retention_class": "REBUILDABLE"
+        },
+        "cache_loss_recovery_ms": 8.163786000000073,
+        "recovered_metrics": {
+          "schema_version": 1,
+          "bytes_transferred": 860,
+          "metadata_bytes_transferred": 851,
+          "blob_bytes_transferred": 9,
+          "cache_hits": 0,
+          "cache_misses": 3,
+          "provider_reads": 3
+        },
+        "disk": {
+          "schema_version": 1,
+          "apparent_bytes": 195973,
+          "allocated_bytes": 307200,
+          "skipped_mounts": 1
+        }
+      },
+      "conventional": {
+        "schema_version": 1,
+        "usable_ms": 358.44378699999993,
+        "selected_read_ms": 2.0952380000001085,
+        "blob_payload_bytes": 4194330,
+        "metadata_payload_bytes": 851,
+        "disk": {
+          "schema_version": 1,
+          "apparent_bytes": 4198522,
+          "allocated_bytes": 4222976,
+          "skipped_mounts": 0
+        },
+        "full_warm_selected_read_ms": 1.8779420000000755
+      },
+      "materialization": {
+        "transport": "local-read-only-git-objects",
+        "materialization_cold_ms": 89.13804800000003,
+        "materialization_warm_ms": 63.068489,
+        "cold_metrics": {
+          "schema_version": 1,
+          "elapsed_ms": 87.16610500000002,
+          "bytes_transferred": 4404,
+          "metadata_bytes_transferred": 4351,
+          "blob_bytes_transferred": 53,
+          "cache_hits": 0,
+          "cache_misses": 14,
+          "provider_reads": 14
+        },
+        "warm_metrics": {
+          "schema_version": 1,
+          "elapsed_ms": 62.05363299999999,
+          "bytes_transferred": 0,
+          "metadata_bytes_transferred": 0,
+          "blob_bytes_transferred": 0,
+          "cache_hits": 14,
+          "cache_misses": 0,
+          "provider_reads": 0
+        },
+        "source_unchanged": true
+      },
+      "hydration_failures": 0
+    },
+    {
+      "schema_version": 1,
+      "file_count": 64,
+      "blob_bytes": 262144,
+      "source_blob_payload_bytes": 16777242,
+      "transport": "local-file-git",
+      "cache_scope": "fresh adapter/application caches; operating-system cache is uncontrolled",
+      "native": {
+        "acquisition": {
+          "schema_version": 1,
+          "commit_oid": "f3fe9667617d1ffd1ace08e5995e1edeef02ca4a",
+          "initial_blob_count": 0,
+          "initial_blob_payload_bytes": 0,
+          "initial_metadata_payload_bytes": 2723
+        },
+        "cold_usable_ms": 79.60863399999971,
+        "cold_selected_read_ms": 12.968434999999772,
+        "cold_metrics": {
+          "schema_version": 1,
+          "bytes_transferred": 2732,
+          "metadata_bytes_transferred": 2723,
+          "blob_bytes_transferred": 9,
+          "cache_hits": 0,
+          "cache_misses": 3,
+          "provider_reads": 3
+        },
+        "warm_usable_ms": 2.2221589999999196,
+        "warm_selected_read_ms": 0.005076999999801046,
+        "warm_metrics": {
+          "schema_version": 1,
+          "bytes_transferred": 0,
+          "metadata_bytes_transferred": 0,
+          "blob_bytes_transferred": 0,
+          "cache_hits": 3,
+          "cache_misses": 0,
+          "provider_reads": 0
+        },
+        "warm_cache_hit_rate": 1,
+        "cache": {
+          "schema_version": 1,
+          "entries": 3,
+          "payload_bytes": 2732,
+          "evictions": 0,
+          "expirations": 0,
+          "retention_class": "REBUILDABLE"
+        },
+        "cache_loss_recovery_ms": 8.275112999999692,
+        "recovered_metrics": {
+          "schema_version": 1,
+          "bytes_transferred": 2732,
+          "metadata_bytes_transferred": 2723,
+          "blob_bytes_transferred": 9,
+          "cache_hits": 0,
+          "cache_misses": 3,
+          "provider_reads": 3
+        },
+        "disk": {
+          "schema_version": 1,
+          "apparent_bytes": 209170,
+          "allocated_bytes": 319488,
+          "skipped_mounts": 1
+        }
+      },
+      "conventional": {
+        "schema_version": 1,
+        "usable_ms": 965.1812989999999,
+        "selected_read_ms": 2.0970609999999397,
+        "blob_payload_bytes": 16777242,
+        "metadata_payload_bytes": 2723,
+        "disk": {
+          "schema_version": 1,
+          "apparent_bytes": 16788455,
+          "allocated_bytes": 16809984,
+          "skipped_mounts": 0
+        },
+        "full_warm_selected_read_ms": 2.838134000000082
+      },
+      "materialization": {
+        "transport": "local-read-only-git-objects",
+        "materialization_cold_ms": 108.02506900000026,
+        "materialization_warm_ms": 75.88508100000035,
+        "cold_metrics": {
+          "schema_version": 1,
+          "elapsed_ms": 106.48859100000027,
+          "bytes_transferred": 13764,
+          "metadata_bytes_transferred": 13711,
+          "blob_bytes_transferred": 53,
+          "cache_hits": 0,
+          "cache_misses": 14,
+          "provider_reads": 14
+        },
+        "warm_metrics": {
+          "schema_version": 1,
+          "elapsed_ms": 74.82123200000024,
+          "bytes_transferred": 0,
+          "metadata_bytes_transferred": 0,
+          "blob_bytes_transferred": 0,
+          "cache_hits": 14,
+          "cache_misses": 0,
+          "provider_reads": 0
+        },
+        "source_unchanged": true
+      },
+      "hydration_failures": 0
+    }
+  ]
+}
