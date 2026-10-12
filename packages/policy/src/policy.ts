@@ -114,6 +114,10 @@ export class PolicyEvaluator {
       if (spec.id !== context.spec.id || spec.spec_digest !== context.spec.spec_digest ||
           context.candidate.candidate_spec_id !== spec.id || context.spec.effect_summary_digest !== basis.material_effect_digest)
         block("SPEC_CHANGED", context.spec.id);
+      if (await hashProjection("klocgit.review-base", spec.base_revisions) !==
+          await hashProjection("klocgit.review-base", basis.canonical_ref_oids) ||
+          Object.keys(spec.base_revisions).sort().join("\\0") !== Object.keys(context.candidate.repo_tree_oids).sort().join("\\0"))
+        block("BASE_CHANGED", context.candidate.candidate_digest);
       const observedFutures = new Set(context.effects.map(effect => effect.future_revision_id));
       if (observedFutures.size !== spec.selected_future_revisions.length ||
           spec.selected_future_revisions.some(id => !observedFutures.has(id)))

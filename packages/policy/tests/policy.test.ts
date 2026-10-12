@@ -88,3 +88,13 @@ test("resolution needs a matching promotion receipt and never mutates history", 
   assert.equal(DecisionLifecycle.resolve(ready, f.basis.basis_digest, "owner", receipt).state, "RESOLVED");
   assert.equal(original.state, "DISCOVERED");
 });
+
+test("changing only expected heads or omitting selected-future analysis never preserves authorization", async () => {
+  const f = await fixture(), evaluator = new PolicyEvaluator(f.policy);
+  const moved = await sealDecisionBasis({ ...f.basis, canonical_ref_oids: { repo: "3".repeat(40) } });
+  assert(!(await evaluator.canReview(moved, f.context)).allowed);
+  const spec = await sealCandidateSpec({ ...f.spec, selected_future_revisions: [f.effect.future_revision_id, "unobserved-future"] });
+  const candidate = await sealCandidate({ ...f.candidate, candidate_spec_id: spec.id });
+  const basis = await sealDecisionBasis({ ...f.basis, candidate_digests: [candidate.candidate_digest] });
+  assert(!(await evaluator.canReview(basis, { ...f.context, spec, candidate })).allowed);
+});
