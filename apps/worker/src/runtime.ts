@@ -69,10 +69,9 @@ export async function readJson<T>(request: Request, maxBytes = 32 * 1024): Promi
   catch { throw new Failure('INVALID_INPUT', 400, 'Invalid JSON'); }
 }
 
-/** Workers do not expose fatal decoding on every supported runtime. Round-trip
- * validation rejects malformed UTF-8 without accepting replacement characters. */
+/** Preserve exact UTF-8 bytes; malformed input must not gain replacement characters. */
 export function strictUtf8(bytes: Uint8Array): string {
-  const decoded = new TextDecoder('utf-8', { ignoreBOM: true }).decode(bytes);
+  const decoded = new TextDecoder('utf-8', { fatal: true, ignoreBOM: true }).decode(bytes);
   const encoded = new TextEncoder().encode(decoded);
   if (encoded.length !== bytes.length || encoded.some((byte, index) => byte !== bytes[index])) throw new Failure('INVALID_INPUT', 400, 'Malformed UTF-8');
   return decoded;
