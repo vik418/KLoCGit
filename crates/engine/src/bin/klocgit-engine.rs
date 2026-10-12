@@ -8,6 +8,16 @@ use std::io::{self, Read};
 #[derive(Deserialize)]
 #[serde(tag = "operation", rename_all = "snake_case", deny_unknown_fields)]
 enum Request {
+    PrepareCommit {
+        workspace: String,
+        candidate: klocgit_engine::contracts::Candidate,
+        repo_id: String,
+        expected_oid: String,
+        decision_id: String,
+        basis_digest: String,
+        author: klocgit_engine::git::commit::Author,
+        max_pack_bytes: usize,
+    },
     EvaluateVm {
         workspace: String,
         trusted_suite: String,
@@ -132,6 +142,14 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     }
     let input: Request = serde_json::from_slice(&bytes)?;
     let output = match input {
+        Request::PrepareCommit { workspace, candidate, repo_id, expected_oid, decision_id, basis_digest, author, max_pack_bytes } => {
+            let prepared = klocgit_engine::git::commit::prepare(std::path::Path::new(&workspace), &candidate, &repo_id,
+                git2::Oid::from_str(&expected_oid)?, &decision_id, &basis_digest, &author, max_pack_bytes)?;
+            serde_json::json!({ "schema_version": 1, "candidate_digest": candidate.candidate_digest,
+                "expected_oid": prepared.expected_oid.to_string(), "target_oid": prepared.target_oid.to_string(),
+                "tree_oid": prepared.tree_oid.to_string(), "payload_digest": prepared.payload_digest,
+                "pack_hex": prepared.pack.iter().map(|byte| format!("{byte:02x}")).collect::<String>() })
+        }
         Request::EvaluateVm {
             workspace,
             trusted_suite,

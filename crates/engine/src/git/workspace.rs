@@ -248,6 +248,12 @@ fn validate_symlink(parent: &Path, target: &Path) -> Result<()> {
 /// Hash the actual files presented to a checker. No Git index or producer
 /// metadata is used to assert that an execution workspace matches its subject.
 pub fn tree_oid(directory: &Path, limits: Limits, hydration: HydrationBudget) -> Result<Oid> {
+    tree_oid_with_objects(directory, limits, hydration, None)
+}
+
+pub(super) fn tree_oid_with_objects(
+    directory: &Path, limits: Limits, hydration: HydrationBudget, repository: Option<&Repository>,
+) -> Result<Oid> {
     fn visit(
         root: &Path,
         current: &Path,
@@ -256,6 +262,7 @@ pub fn tree_oid(directory: &Path, limits: Limits, hydration: HydrationBudget) ->
         hydration: HydrationBudget,
         entries: &mut BTreeMap<String, super::Entry>,
         total: &mut usize,
+        odb: Option<&git2::Odb<'_>>,
     ) -> Result<()> {
         use std::io::Read;
         if depth > limits.max_depth {
@@ -281,7 +288,7 @@ pub fn tree_oid(directory: &Path, limits: Limits, hydration: HydrationBudget) ->
             let metadata = fs::symlink_metadata(&path)
                 .map_err(|error| Error::InvalidInput(error.to_string()))?;
             if metadata.is_dir() {
-                visit(root, &path, depth + 1, limits, hydration, entries, total)?;
+                visit(root, &path, depth + 1, limits, hydration, entries, total, odb)?;
                 continue;
             }
             if entries.len() >= limits.max_entries {
@@ -345,17 +352,16 @@ pub fn tree_oid(directory: &Path, limits: Limits, hydration: HydrationBudget) ->
             if *total > hydration.max_total_bytes {
                 return Err(Error::LimitExceeded("workspace bytes"));
             }
-            entries.insert(
-                key,
-                super::Entry {
-                    oid: Oid::hash_object(git2::ObjectType::Blob, &contents)?,
-                    mode,
-                },
-            );
+            let oid = Oid::hash_object(git2::ObjectType::Blob, &contents)?;
+            if let Some(odb) = odb {
+                if odb.write(git2::ObjectType::Blob, &contents)? != oid { return Err(Error::RevisionMismatch); }
+            }
+            entries.insert(key, super::Entry { oid, mode });
         }
         Ok(())
     }
     let mut entries = BTreeMap::new();
+    let odb = repository.map(Repository::odb).transpose()?;
     visit(
         directory,
         directory,
@@ -364,6 +370,14 @@ pub fn tree_oid(directory: &Path, limits: Limits, hydration: HydrationBudget) ->
         hydration,
         &mut entries,
         &mut 0,
+        odb.as_ref(),
     )?;
-    super::synthesize_tree(&entries, &mut BTreeMap::new(), limits)
+    let mut trees = BTreeMap::new();
+    let tree_oid = super::synthesize_tree(&entries, &mut trees, limits)?;
+    if let Some(odb) = odb {
+        for (oid, bytes) in trees {
+            if odb.write(git2::ObjectType::Tree, &bytes)? != oid { return Err(Error::RevisionMismatch); }
+        }
+    }
+    Ok(tree_oid)
 }

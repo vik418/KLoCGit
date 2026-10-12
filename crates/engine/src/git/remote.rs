@@ -16,6 +16,9 @@ pub struct Cas {
     pub target_oid: String,
     pub idempotency_key: String,
     pub operation_digest: String,
+    pub pack_hex: Option<String>,
+    pub pack_payload_digest: Option<String>,
+    pub candidate_tree_oid: Option<String>,
 }
 
 #[derive(Clone, Serialize)]
@@ -81,7 +84,36 @@ impl Executor {
         }
         run(&["init", "--bare", "."])?;
         run(&["remote", "add", "origin", &input.remote])?;
-        run(&["fetch", "--no-tags", "--depth=1", "origin", &input.target_oid])?;
+        if let Some(hex) = &input.pack_hex {
+            if hex.len() > 16 * 1024 * 1024 || hex.len() % 2 != 0 || !hex.bytes().all(|byte| byte.is_ascii_hexdigit()) {
+                return Err(Error::LimitExceeded("promotion pack"));
+            }
+            let bytes: Vec<u8> = hex.as_bytes().chunks_exact(2).map(|pair| {
+                u8::from_str_radix(std::str::from_utf8(pair).map_err(|_| Error::RevisionMismatch)?, 16)
+                    .map_err(|_| Error::RevisionMismatch)
+            }).collect::<Result<_>>()?;
+            if input.pack_payload_digest.as_ref() != Some(&crate::canonical::payload_digest(&bytes)?) {
+                return Err(Error::RevisionMismatch);
+            }
+            let tree = input.candidate_tree_oid.as_ref().ok_or(Error::RevisionMismatch)?;
+            crate::contracts::validate_oid(tree)?;
+            run(&["fetch", "--no-tags", "--depth=1", "origin", &input.expected_oid])?;
+            if bytes.len() < 20 { return Err(Error::RevisionMismatch); }
+            let pack_oid = git2::Oid::from_bytes(&bytes[bytes.len() - 20..])?;
+            let pack_path = format!("objects/pack/pack-{pack_oid}.pack");
+            std::fs::write(directory.join(&pack_path), bytes).map_err(|_| Error::RevisionMismatch)?;
+            run(&["index-pack", "--strict", &pack_path])?;
+            if run(&["cat-file", "-t", &input.target_oid])? != "commit" { return Err(Error::RevisionMismatch); }
+            let commit = run(&["cat-file", "-p", &input.target_oid])?;
+            let headers: Vec<_> = commit.lines().take_while(|line| !line.is_empty()).collect();
+            let parents: Vec<_> = headers.iter().filter_map(|line| line.strip_prefix("parent ")).collect();
+            if headers.first().copied() != Some(format!("tree {tree}").as_str()) || parents != [input.expected_oid.as_str()] {
+                return Err(Error::RevisionMismatch);
+            }
+        } else {
+            if input.pack_payload_digest.is_some() || input.candidate_tree_oid.is_some() { return Err(Error::RevisionMismatch); }
+            run(&["fetch", "--no-tags", "--depth=1", "origin", &input.target_oid])?;
+        }
         // receive-pack atomically asserts the exact old ref. No independent
         // read followed by an unconditional push can provide this guarantee.
         run(&["push", "--porcelain", &format!("--force-with-lease={}:{}", input.ref_name, input.expected_oid),

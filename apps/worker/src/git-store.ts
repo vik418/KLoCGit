@@ -108,13 +108,15 @@ export class GitStore {
     target_oid: string;
     idempotency_key: string;
   }): Promise<{ status: "APPLIED"; expected_oid: string; target_oid: string }> {
-    const operation_digest = await hashProjection("klocgit.git-cas", command);
+    const operation = { scope: command.scope, ref: command.ref, expected_oid: command.expected_oid,
+      target_oid: command.target_oid, idempotency_key: command.idempotency_key };
+    const operation_digest = await hashProjection("klocgit.git-cas", operation);
     const value = await this.call<{
       status: string;
       expected_oid: string;
       target_oid: string;
       operation_digest: string;
-    }>("/cas", { schema_version: 1, ...command, operation_digest });
+    }>("/cas", { schema_version: 1, ...operation, operation_digest });
     if (
       value.operation_digest !== operation_digest ||
       value.status !== "APPLIED" ||
@@ -140,13 +142,15 @@ export class GitStore {
     expected_oid?: string;
     target_oid?: string;
   }> {
-    const operation_digest = await hashProjection("klocgit.git-cas", command);
+    const operation = { scope: command.scope, ref: command.ref, expected_oid: command.expected_oid,
+      target_oid: command.target_oid, idempotency_key: command.idempotency_key };
+    const operation_digest = await hashProjection("klocgit.git-cas", operation);
     const receipt = await this.call<{
       status: "APPLIED" | "NO_EFFECT" | "IN_PROGRESS" | "UNKNOWN";
       expected_oid?: string;
       target_oid?: string;
       operation_digest?: string;
-    }>("/operation", { schema_version: 1, ...command, operation_digest });
+    }>("/operation", { schema_version: 1, ...operation, operation_digest });
     if (
       receipt.status !== "UNKNOWN" &&
       receipt.operation_digest !== operation_digest

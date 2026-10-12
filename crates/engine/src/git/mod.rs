@@ -320,3 +320,5 @@ pub fn snapshot(
 }
 
 pub mod remote;
+
+pub mod commit;
