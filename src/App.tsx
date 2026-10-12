@@ -30,6 +30,19 @@ import {
   ExternalLink,
   Workflow,
   Sparkles,
+  Sliders,
+  Maximize2,
+  Minus,
+  X,
+  Sidebar as SidebarIcon,
+  HardDrive,
+  FolderTree,
+  FileText,
+  Clock,
+  KeyRound,
+  ShieldAlert,
+  SlidersHorizontal,
+  FolderGit2,
 } from 'lucide-react';
 import {
   computeFutureRevisionStateDigest,
@@ -76,26 +89,27 @@ const SAMPLE_EFFECT_SET: CanonicalEffectSet = {
 export default function App() {
   const [darkMode, setDarkMode] = useState(false);
   const [activeTab, setActiveTab] = useState<'overview' | 'dag' | 'repos' | 'diff' | 'policy' | 'digest' | 'audit'>('overview');
+  const [inspectorOpen, setInspectorOpen] = useState(true);
   const [copiedText, setCopiedText] = useState<string | null>(null);
 
   // Selected DAG Node
   const [selectedDagNode, setSelectedDagNode] = useState<string>('candidate_unified');
 
-  // Multi-repo status
-  const [repos, setRepos] = useState([
-    { id: 'repo-core', head: 'c999_promoted_canonical_head', lock: 'RELEASED', branches: 3, status: 'CONVERGED' },
-    { id: 'repo-auth', head: 'a001_auth_trunk_head', lock: 'RELEASED', branches: 2, status: 'CONVERGED' },
-    { id: 'repo-billing', head: 'b001_billing_trunk_head', lock: 'RELEASED', branches: 1, status: 'CONVERGED' },
+  // Repositories
+  const [repos] = useState([
+    { id: 'repo-core', head: 'c999_promoted_canonical_head', lock: 'RELEASED', branches: 3, status: 'CONVERGED', desc: 'Core orchestration & API services' },
+    { id: 'repo-auth', head: 'a001_auth_trunk_head', lock: 'RELEASED', branches: 2, status: 'CONVERGED', desc: 'Identity, capability tokens & JWT verification' },
+    { id: 'repo-billing', head: 'b001_billing_trunk_head', lock: 'RELEASED', branches: 1, status: 'CONVERGED', desc: 'Ledger, invoices & settlement contracts' },
   ]);
 
-  // Interactive Policy State
+  // Policy Review State
   const [policyRole, setPolicyRole] = useState<'TECH_LEAD' | 'AGENT' | 'OBSERVER'>('TECH_LEAD');
   const [decisionState, setDecisionState] = useState<'REVIEWABLE' | 'RESOLVED'>('REVIEWABLE');
   const [predicates, setPredicates] = useState([
-    { id: 'p1', label: 'ANALYSIS_COMPLETE (AST & SAST)', checked: true, required: true },
-    { id: 'p2', label: 'EVIDENCE_PASSED (Hermetic Sandbox 42/42)', checked: true, required: true },
-    { id: 'p3', label: 'CANDIDATE_UNCHANGED (Digest Match)', checked: true, required: true },
-    { id: 'p4', label: 'NO_DEPENDENCY_SKEW (Unified Semver)', checked: true, required: true },
+    { id: 'p1', label: 'ANALYSIS_COMPLETE (AST & SAST)', checked: true },
+    { id: 'p2', label: 'EVIDENCE_PASSED (Hermetic Sandbox 42/42)', checked: true },
+    { id: 'p3', label: 'CANDIDATE_UNCHANGED (Digest Match)', checked: true },
+    { id: 'p4', label: 'NO_DEPENDENCY_SKEW (Unified Semver)', checked: true },
   ]);
 
   // Digest Calculator State
@@ -107,8 +121,33 @@ export default function App() {
     return Array.from(bytes).map(b => b.toString(16).padStart(2, '0')).join(' ');
   });
 
-  // Audit Search
-  const [auditQuery, setAuditQuery] = useState('');
+  // Extractor State
+  const [sourceCode, setSourceCode] = useState<string>(
+`import express from 'express';
+import { z } from 'zod';
+
+export function handleUserLogin(req: Request) {
+  return "token_issued";
+}
+
+export const API_VERSION = 2;
+
+// Security check
+eval("console.log('danger')");`
+  );
+  const [extractedEffects, setExtractedEffects] = useState<any>(null);
+
+  // CAS Simulator State
+  const [casExpected, setCasExpected] = useState('4b825dc642cb6eb9a060e54bf8d69288fbee4904');
+  const [casRemote, setCasRemote] = useState('4b825dc642cb6eb9a060e54bf8d69288fbee4904');
+  const [casTarget, setCasTarget] = useState('c999_promoted_canonical_head');
+  const [casResult, setCasResult] = useState<{ status: 'IDLE' | 'SUCCESS' | 'CONFLICT'; message: string }>({
+    status: 'IDLE',
+    message: 'Ready to assert Compare-And-Swap invariant against remote Git reference.',
+  });
+
+  // Search filter
+  const [searchQuery, setSearchQuery] = useState('');
 
   const copyToClipboard = (text: string, label: string) => {
     navigator.clipboard.writeText(text);
@@ -140,762 +179,793 @@ export default function App() {
     }
   };
 
+  const handleRunExtractor = () => {
+    const lines = sourceCode.split('\n');
+    const exports: string[] = [];
+    const deps: Record<string, string> = {};
+    const security: string[] = [];
+
+    for (const line of lines) {
+      const trimmed = line.trim();
+      if (trimmed.startsWith('export function ')) {
+        const name = trimmed.replace('export function ', '').split('(')[0]?.trim();
+        if (name) exports.push(name);
+      } else if (trimmed.startsWith('export const ')) {
+        const name = trimmed.replace('export const ', '').split(/[:=]/)[0]?.trim();
+        if (name) exports.push(name);
+      }
+      if (trimmed.includes("from '") || trimmed.includes('from "')) {
+        const pkg = trimmed.split(/from ['"]/)[1]?.split(/['"]/)[0];
+        if (pkg && !pkg.startsWith('.')) deps[pkg] = '*';
+      }
+      if (trimmed.includes('eval(')) security.push('EXEC:eval');
+      if (trimmed.includes('crypto')) security.push('CRYPTO:usage');
+    }
+
+    const effectSet: CanonicalEffectSet = {
+      future_revision_id: 'fut-sample-live',
+      extractor_id: 'tree-sitter-structural-v1',
+      extractor_version: '1.0.0',
+      capability: 'STRUCTURAL',
+      status: 'COMPLETE',
+      modified_exports: exports.sort(),
+      added_dependencies: deps,
+      db_migrations_detected: false,
+      security_effects: security.sort(),
+    };
+
+    setExtractedEffects(effectSet);
+  };
+
+  const handleRunCas = () => {
+    if (casExpected === casRemote) {
+      setCasResult({
+        status: 'SUCCESS',
+        message: `CAS Assertion PASSED: Remote ref equals expected OID ${casExpected}. Target mutation ${casTarget} safely applied via receive-pack.`,
+      });
+    } else {
+      setCasResult({
+        status: 'CONFLICT',
+        message: `CAS CONFLICT (Blocked): Remote ref has moved to ${casRemote}, which differs from expected OID ${casExpected}. Promotion rejected to prevent race condition.`,
+      });
+    }
+  };
+
   const allPredicatesPassing = predicates.every(p => p.checked);
 
   return (
-    <div className={`min-h-screen transition-colors duration-200 ${darkMode ? 'bg-[#000000] text-[#F5F5F7]' : 'bg-[#F5F5F7] text-[#1D1D1F]'}`}>
-      {/* Top Navigation */}
-      <header className={`sticky top-0 z-50 backdrop-blur-2xl border-b transition-colors ${
-        darkMode ? 'bg-[#161617]/75 border-white/[0.08]' : 'bg-white/75 border-black/[0.08]'
+    <div className={`min-h-screen p-3 md:p-6 flex flex-col justify-center items-center transition-colors duration-200 select-none ${
+      darkMode ? 'bg-[#0E0F12]' : 'bg-[#E5E7EB]'
+    }`}>
+      {/* Authentic macOS Window Container (Apple Design Resources) */}
+      <div className={`w-full max-w-[1400px] h-[92vh] max-h-[980px] rounded-2xl shadow-[0_25px_70px_-15px_rgba(0,0,0,0.35)] ring-1 ring-black/10 dark:ring-white/10 flex flex-col overflow-hidden transition-colors ${
+        darkMode ? 'bg-[#1E1E20] text-[#F5F5F7]' : 'bg-[#FFFFFF] text-[#1D1D1F]'
       }`}>
-        <div className="max-w-7xl mx-auto px-6 h-14 flex items-center justify-between">
-          <div className="flex items-center space-x-3">
-            <div className={`w-8 h-8 rounded-lg flex items-center justify-center font-semibold text-xs tracking-tight ${
-              darkMode ? 'bg-white text-black' : 'bg-black text-white'
-            }`}>
-              
+        
+        {/* macOS Unified Titlebar & Toolbar */}
+        <header className={`h-13 px-4 flex items-center justify-between border-b shrink-0 transition-colors ${
+          darkMode ? 'bg-[#28282A] border-black/40' : 'bg-[#F6F6F6] border-black/[0.08]'
+        }`}>
+          {/* Left: Window Controls (Traffic Lights) */}
+          <div className="flex items-center space-x-4">
+            <div className="flex items-center space-x-2 group">
+              <span className="w-3 h-3 rounded-full bg-[#FF5F56] border border-[#E0443E] flex items-center justify-center cursor-pointer shadow-sm">
+                <X className="w-2 h-2 text-[#7F1713] opacity-0 group-hover:opacity-100 transition-opacity" />
+              </span>
+              <span className="w-3 h-3 rounded-full bg-[#FFBD2E] border border-[#DEA123] flex items-center justify-center cursor-pointer shadow-sm">
+                <Minus className="w-2 h-2 text-[#8A5808] opacity-0 group-hover:opacity-100 transition-opacity" />
+              </span>
+              <span className="w-3 h-3 rounded-full bg-[#27C93F] border border-[#1AAB29] flex items-center justify-center cursor-pointer shadow-sm">
+                <Maximize2 className="w-2 h-2 text-[#0D6318] opacity-0 group-hover:opacity-100 transition-opacity" />
+              </span>
             </div>
-            <div>
-              <span className="font-semibold text-[15px] tracking-tight">KLoCGit v1</span>
-              <span className={`text-[12px] ml-2 ${darkMode ? 'text-[#86868B]' : 'text-[#86868B]'}`}>
-                Enterprise Convergence Platform
+
+            <button
+              onClick={() => setInspectorOpen(!inspectorOpen)}
+              className={`p-1.5 rounded-md text-xs transition-colors ${
+                darkMode ? 'hover:bg-white/[0.08] text-[#86868B]' : 'hover:bg-black/[0.06] text-[#6E6E73]'
+              }`}
+              title="Toggle Inspector Sidebar"
+            >
+              <SidebarIcon className="w-4 h-4" />
+            </button>
+
+            <div className="flex items-center space-x-2">
+              <FolderGit2 className="w-4 h-4 text-[#0071E3]" />
+              <span className="font-semibold text-[13px] tracking-tight">KLoCGit v1</span>
+              <span className={`text-[11px] ${darkMode ? 'text-[#86868B]' : 'text-[#86868B]'}`}>
+                — Convergence Platform
               </span>
             </div>
           </div>
 
-          {/* Segmented Navigation */}
-          <div className={`hidden md:flex items-center p-1 rounded-xl text-[13px] border ${
-            darkMode ? 'bg-[#1C1C1E] border-white/[0.06]' : 'bg-black/[0.04] border-black/[0.04]'
-          }`}>
-            {[
-              { id: 'overview', label: 'Overview' },
-              { id: 'dag', label: 'Convergence DAG' },
-              { id: 'repos', label: 'Repositories' },
-              { id: 'diff', label: 'Inspection Studio' },
-              { id: 'policy', label: 'Policy Portal' },
-              { id: 'digest', label: 'Digest Engine' },
-              { id: 'audit', label: 'Audit Trail' },
-            ].map((tab) => (
-              <button
-                key={tab.id}
-                onClick={() => setActiveTab(tab.id as any)}
-                className={`px-3 py-1 rounded-lg transition-all text-xs font-medium ${
-                  activeTab === tab.id
-                    ? darkMode
-                      ? 'bg-[#2C2C2E] text-white shadow-sm'
-                      : 'bg-white text-black shadow-[0_1px_3px_rgba(0,0,0,0.08)]'
-                    : darkMode
-                    ? 'text-[#86868B] hover:text-white'
-                    : 'text-[#6E6E73] hover:text-black'
-                }`}
-              >
-                {tab.label}
-              </button>
-            ))}
+          {/* Center: Search Field */}
+          <div className="hidden md:flex items-center relative w-72">
+            <Search className={`w-3.5 h-3.5 absolute left-2.5 ${darkMode ? 'text-[#86868B]' : 'text-[#8E8E93]'}`} />
+            <input
+              type="text"
+              placeholder="Search revisions, DAG, OIDs..."
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+              className={`w-full h-7 pl-8 pr-12 rounded-lg text-[12px] border outline-none transition-all ${
+                darkMode
+                  ? 'bg-[#18181A] border-white/[0.08] text-white focus:border-[#0071E3]'
+                  : 'bg-white border-black/[0.12] text-black focus:border-[#0071E3]'
+              }`}
+            />
+            <span className={`absolute right-2 text-[10px] font-mono px-1 rounded ${
+              darkMode ? 'bg-white/[0.08] text-[#86868B]' : 'bg-black/[0.06] text-[#8E8E93]'
+            }`}>
+              ⌘K
+            </span>
           </div>
 
-          {/* Right Action & Theme Toggle */}
+          {/* Right: Actions & Theme Toggle */}
           <div className="flex items-center space-x-2">
-            <span className="hidden sm:inline-flex text-[11px] font-mono px-2 py-0.5 rounded-full bg-[#34C759]/10 text-[#34C759] border border-[#34C759]/20">
-              P1-P7 Shipped
-            </span>
+            <div className="flex items-center space-x-1.5 text-[11px] font-medium text-[#34C759] mr-2">
+              <span className="w-2 h-2 rounded-full bg-[#34C759]"></span>
+              <span>All 7 Gates Passed</span>
+            </div>
+
             <button
               onClick={() => setDarkMode(!darkMode)}
-              className={`p-2 rounded-lg transition-colors ${
-                darkMode ? 'hover:bg-white/[0.08] text-white' : 'hover:bg-black/[0.05] text-black'
+              className={`p-1.5 rounded-md transition-colors ${
+                darkMode ? 'hover:bg-white/[0.08] text-white' : 'hover:bg-black/[0.06] text-black'
               }`}
-              title="Toggle Light / Dark Appearance"
+              title="Toggle Dark / Light Appearance"
             >
-              {darkMode ? <Sun className="w-4 h-4 text-amber-300" /> : <Moon className="w-4 h-4 text-slate-700" />}
+              {darkMode ? <Sun className="w-3.5 h-3.5 text-amber-300" /> : <Moon className="w-3.5 h-3.5 text-slate-700" />}
             </button>
           </div>
-        </div>
-      </header>
+        </header>
 
-      {/* Main Content Area */}
-      <main className="max-w-7xl mx-auto px-6 py-8 space-y-8">
-        {/* OVERVIEW TAB */}
-        {activeTab === 'overview' && (
-          <div className="space-y-8">
-            <div className={`p-8 rounded-3xl border transition-all ${
-              darkMode
-                ? 'bg-[#1C1C1E] border-white/[0.08] shadow-[0_4px_24px_rgba(0,0,0,0.4)]'
-                : 'bg-white border-black/[0.06] shadow-[0_2px_16px_rgba(0,0,0,0.04)]'
-            }`}>
-              <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-6">
-                <div className="space-y-2">
-                  <div className="flex items-center space-x-2 text-xs font-medium text-[#0071E3]">
-                    <span>Codex Operating Contract</span>
-                    <span aria-hidden="true">·</span>
-                    <span>All 7 Phases Implemented & Verified</span>
-                  </div>
-                  <h1 className="text-3xl font-semibold tracking-tight">
-                    Autonomous Multi-Agent Git Convergence
-                  </h1>
-                  <p className={`text-[15px] max-w-3xl leading-relaxed ${darkMode ? 'text-[#86868B]' : 'text-[#6E6E73]'}`}>
-                    KLoCGit continuously merges competing code streams across distributed repositories using deterministic CBOR normalization, scratch ArtifactFS sandboxes, typed policy gates, and serialized Git CAS locks.
-                  </p>
-                </div>
-
-                <div className="flex items-center gap-3 shrink-0">
-                  <button
-                    onClick={() => setActiveTab('dag')}
-                    className="px-5 py-2.5 rounded-xl bg-[#0071E3] hover:bg-[#0077ED] text-white text-[13px] font-medium transition-all shadow-sm flex items-center space-x-2"
-                  >
-                    <span>View Convergence DAG</span>
-                    <ArrowRight className="w-4 h-4" />
-                  </button>
-                </div>
-              </div>
-
-              {/* 7 Verification Gates Matrix */}
-              <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-7 gap-3 mt-8 pt-6 border-t border-black/[0.06] dark:border-white/[0.08]">
-                {[
-                  { phase: 'P1: Engine', cmd: 'test -p klocgit-engine', status: '8/8 Passed' },
-                  { phase: 'P2: Coordination', cmd: 'test:coordination', status: 'Zero Races' },
-                  { phase: 'P3: Materialize', cmd: 'test:materialization', status: 'ArtifactFS' },
-                  { phase: 'P4: Reduction', cmd: 'test_reduction', status: 'Deduplicated' },
-                  { phase: 'P5: Policy', cmd: 'test:policy', status: 'Gates Verified' },
-                  { phase: 'P6: Console', cmd: 'vite build', status: 'Apple HIG' },
-                  { phase: 'P7: End-to-End', cmd: 'test:e2e', status: '100% Passed' },
-                ].map((item, idx) => (
-                  <div
-                    key={idx}
-                    className={`p-3.5 rounded-2xl border transition-all text-left ${
-                      darkMode ? 'bg-[#2C2C2E]/60 border-white/[0.06]' : 'bg-[#F5F5F7] border-black/[0.04]'
-                    }`}
-                  >
-                    <div className="text-[11px] font-semibold text-[#0071E3] truncate">{item.phase}</div>
-                    <div className="text-[12px] font-semibold mt-1 text-[#34C759] flex items-center space-x-1">
-                      <Check className="w-3 h-3 shrink-0" />
-                      <span>{item.status}</span>
-                    </div>
-                    <div className={`text-[10px] font-mono mt-1.5 truncate ${darkMode ? 'text-[#86868B]' : 'text-[#86868B]'}`}>
-                      {item.cmd}
-                    </div>
-                  </div>
-                ))}
-              </div>
-            </div>
-
-            {/* Invariants */}
+        {/* macOS Three-Pane Layout */}
+        <div className="flex-1 flex overflow-hidden">
+          {/* PANE 1: Sidebar Navigation (macOS HIG Style) */}
+          <nav className={`w-56 border-r shrink-0 p-3 flex flex-col justify-between transition-colors ${
+            darkMode ? 'bg-[#18181A] border-black/40' : 'bg-[#F2F2F7]/70 border-black/[0.08]'
+          }`}>
             <div className="space-y-4">
-              <div className="flex items-center justify-between">
-                <h2 className="text-xl font-semibold tracking-tight">The 9 Architectural Invariants</h2>
-                <span className={`text-xs ${darkMode ? 'text-[#86868B]' : 'text-[#86868B]'}`}>
-                  Non-Negotiable System Guarantees
+              {/* Group 1: CONVERGENCE */}
+              <div>
+                <span className={`px-2 text-[10px] font-semibold tracking-wider ${
+                  darkMode ? 'text-[#86868B]' : 'text-[#8E8E93]'
+                }`}>
+                  CONVERGENCE
                 </span>
-              </div>
-
-              <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                {[
-                  { id: '1', title: 'Canonical Projections', desc: 'State, record, and payload hashes strictly bind to immutable RFC 8949 canonical projections.' },
-                  { id: '2', title: 'Compare-And-Swap (CAS)', desc: 'Trunk mutation uses CAS asserting remote ref equals expected OID. Zero race conditions.' },
-                  { id: '3', title: 'Review Validity', desc: 'Reviewed state must equal authorized state. Any material input change revokes approval.' },
-                  { id: '4', title: 'Inferred AI Output', desc: 'AI outputs are INFERRED suggestions, never autonomous evidence or sign-off authority.' },
-                  { id: '5', title: 'Strict Resolution Gate', desc: 'Required PARTIAL, FAILED, or UNSUPPORTED analysis strictly blocks candidate promotion.' },
-                  { id: '6', title: 'Scratch Space Isolation', desc: 'Candidates materialize in scratch ArtifactFS overlays; never write speculative durable Git refs.' },
-                  { id: '7', title: 'External CD Boundary', desc: 'External CD owns traffic rollout and rollback; KLoCGit submits intent and verifies attestations.' },
-                  { id: '8', title: 'Retention Classes', desc: 'Policy-driven retention classes (EPHEMERAL, REBUILDABLE, DECISION_RECORD, CANONICAL).' },
-                  { id: '9', title: 'Identity Decoupling', desc: 'Storage locations, retention tags, and diagnostics never mutate the state_digest of code.' },
-                ].map((inv) => (
-                  <div
-                    key={inv.id}
-                    className={`p-5 rounded-2xl border transition-all ${
-                      darkMode ? 'bg-[#1C1C1E] border-white/[0.08]' : 'bg-white border-black/[0.06] shadow-sm'
-                    }`}
-                  >
-                    <span className="text-[11px] font-semibold text-[#0071E3] font-mono block mb-1">Invariant {inv.id}</span>
-                    <h3 className="text-[14px] font-semibold tracking-tight mb-1">{inv.title}</h3>
-                    <p className={`text-[12px] leading-relaxed ${darkMode ? 'text-[#86868B]' : 'text-[#6E6E73]'}`}>{inv.desc}</p>
-                  </div>
-                ))}
-              </div>
-            </div>
-          </div>
-        )}
-
-        {/* CONVERGENCE DAG TAB */}
-        {activeTab === 'dag' && (
-          <div className="space-y-6">
-            <div className={`p-8 rounded-3xl border ${
-              darkMode ? 'bg-[#1C1C1E] border-white/[0.08]' : 'bg-white border-black/[0.06] shadow-sm'
-            }`}>
-              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-6">
-                <div>
-                  <div className="text-xs font-medium text-[#0071E3]">Phase 4 & 6 · Semantic Reduction Graph</div>
-                  <h2 className="text-2xl font-semibold tracking-tight">Convergence DAG Visualizer</h2>
-                  <p className={`text-[14px] ${darkMode ? 'text-[#86868B]' : 'text-[#6E6E73]'}`}>
-                    Interactive flow from autonomous agent future revisions to synthesized candidate specs and promoted trunk.
-                  </p>
-                </div>
-                <div className="text-xs font-mono">
-                  <span className="text-[#34C759] font-semibold">Live Convergence Pipeline</span>
-                </div>
-              </div>
-
-              {/* Visual Interactive Graph */}
-              <div className={`p-6 rounded-2xl border overflow-x-auto ${
-                darkMode ? 'bg-[#000000] border-white/[0.08]' : 'bg-[#F5F5F7] border-black/[0.06]'
-              }`}>
-                <div className="min-w-[700px] flex items-center justify-between gap-6 py-6">
-                  {/* Stage 1: Base */}
-                  <div className="space-y-3 shrink-0">
-                    <span className="text-[11px] font-mono text-[#86868B] block">1. Base Trunk</span>
+                <div className="mt-1 space-y-0.5">
+                  {[
+                    { id: 'overview', label: 'Overview', icon: LayoutDashboardIcon },
+                    { id: 'dag', label: 'Convergence DAG', icon: GitBranch },
+                    { id: 'repos', label: 'Repositories', icon: Database },
+                  ].map((item) => (
                     <button
-                      onClick={() => setSelectedDagNode('base_trunk')}
-                      className={`p-4 rounded-2xl border text-left w-44 transition-all ${
-                        selectedDagNode === 'base_trunk'
-                          ? 'border-[#0071E3] bg-[#0071E3]/10 ring-2 ring-[#0071E3]/20'
-                          : darkMode ? 'bg-[#1C1C1E] border-white/[0.08]' : 'bg-white border-black/[0.08]'
+                      key={item.id}
+                      onClick={() => setActiveTab(item.id as any)}
+                      className={`w-full px-2.5 py-1.5 rounded-lg text-[13px] flex items-center space-x-2.5 font-medium transition-colors ${
+                        activeTab === item.id
+                          ? 'bg-[#0071E3] text-white shadow-sm'
+                          : darkMode
+                          ? 'text-[#AEAEB2] hover:bg-white/[0.06] hover:text-white'
+                          : 'text-[#48484A] hover:bg-black/[0.05] hover:text-black'
                       }`}
                     >
-                      <GitCommit className="w-4 h-4 text-[#0071E3] mb-2" />
-                      <div className="text-xs font-semibold">repo-core / main</div>
-                      <div className="text-[10px] font-mono text-[#86868B] mt-1 truncate">c001_trunk_head</div>
+                      <item.icon className="w-4 h-4 shrink-0" />
+                      <span>{item.label}</span>
                     </button>
+                  ))}
+                </div>
+              </div>
+
+              {/* Group 2: ENGINEERING */}
+              <div>
+                <span className={`px-2 text-[10px] font-semibold tracking-wider ${
+                  darkMode ? 'text-[#86868B]' : 'text-[#8E8E93]'
+                }`}>
+                  ENGINEERING
+                </span>
+                <div className="mt-1 space-y-0.5">
+                  {[
+                    { id: 'diff', label: 'Inspection Studio', icon: FileCode2 },
+                    { id: 'digest', label: 'Digest Engine', icon: Cpu },
+                  ].map((item) => (
+                    <button
+                      key={item.id}
+                      onClick={() => setActiveTab(item.id as any)}
+                      className={`w-full px-2.5 py-1.5 rounded-lg text-[13px] flex items-center space-x-2.5 font-medium transition-colors ${
+                        activeTab === item.id
+                          ? 'bg-[#0071E3] text-white shadow-sm'
+                          : darkMode
+                          ? 'text-[#AEAEB2] hover:bg-white/[0.06] hover:text-white'
+                          : 'text-[#48484A] hover:bg-black/[0.05] hover:text-black'
+                      }`}
+                    >
+                      <item.icon className="w-4 h-4 shrink-0" />
+                      <span>{item.label}</span>
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+              {/* Group 3: GOVERNANCE */}
+              <div>
+                <span className={`px-2 text-[10px] font-semibold tracking-wider ${
+                  darkMode ? 'text-[#86868B]' : 'text-[#8E8E93]'
+                }`}>
+                  GOVERNANCE
+                </span>
+                <div className="mt-1 space-y-0.5">
+                  {[
+                    { id: 'policy', label: 'Policy Portal', icon: ShieldCheck },
+                    { id: 'audit', label: 'Audit Trail', icon: FileText },
+                  ].map((item) => (
+                    <button
+                      key={item.id}
+                      onClick={() => setActiveTab(item.id as any)}
+                      className={`w-full px-2.5 py-1.5 rounded-lg text-[13px] flex items-center space-x-2.5 font-medium transition-colors ${
+                        activeTab === item.id
+                          ? 'bg-[#0071E3] text-white shadow-sm'
+                          : darkMode
+                          ? 'text-[#AEAEB2] hover:bg-white/[0.06] hover:text-white'
+                          : 'text-[#48484A] hover:bg-black/[0.05] hover:text-black'
+                      }`}
+                    >
+                      <item.icon className="w-4 h-4 shrink-0" />
+                      <span>{item.label}</span>
+                    </button>
+                  ))}
+                </div>
+              </div>
+            </div>
+
+            {/* Sidebar Bottom Status */}
+            <div className={`p-2.5 rounded-xl border text-[11px] font-mono ${
+              darkMode ? 'bg-black/30 border-white/[0.06] text-[#86868B]' : 'bg-white border-black/[0.06] text-[#6E6E73]'
+            }`}>
+              <div className="flex items-center justify-between">
+                <span>CAS LOCK</span>
+                <span className="text-[#34C759] font-semibold">ONLINE</span>
+              </div>
+              <div className="text-[10px] truncate mt-1">refs/heads/main</div>
+            </div>
+          </nav>
+
+          {/* PANE 2: Center Content Viewport */}
+          <div className="flex-1 overflow-y-auto p-6 space-y-6">
+            {/* OVERVIEW */}
+            {activeTab === 'overview' && (
+              <div className="space-y-6">
+                <div>
+                  <h1 className="text-2xl font-semibold tracking-tight">System Overview</h1>
+                  <p className={`text-[13px] mt-0.5 ${darkMode ? 'text-[#86868B]' : 'text-[#6E6E73]'}`}>
+                    KLoCGit v1 Enterprise Convergence Platform — 7/7 Phases Shipped & Verified
+                  </p>
+                </div>
+
+                {/* 7 Verification Gates Matrix */}
+                <div className="grid grid-cols-2 sm:grid-cols-4 lg:grid-cols-7 gap-3">
+                  {[
+                    { phase: 'Phase 1', title: 'Engine Core', status: '8/8 Passed' },
+                    { phase: 'Phase 2', title: 'Coordinators', status: 'Zero Races' },
+                    { phase: 'Phase 3', title: 'ArtifactFS', status: 'Hermetic' },
+                    { phase: 'Phase 4', title: 'Reduction', status: 'Deduplicated' },
+                    { phase: 'Phase 5', title: 'Policy Gate', status: 'Verified' },
+                    { phase: 'Phase 6', title: 'Apple Console', status: 'HIG Native' },
+                    { phase: 'Phase 7', title: 'Full E2E', status: '100% Passed' },
+                  ].map((g, idx) => (
+                    <div
+                      key={idx}
+                      className={`p-3 rounded-xl border transition-all ${
+                        darkMode ? 'bg-[#28282A] border-white/[0.06]' : 'bg-[#F9F9FA] border-black/[0.06]'
+                      }`}
+                    >
+                      <div className="text-[10px] font-mono text-[#0071E3] font-semibold">{g.phase}</div>
+                      <div className="text-[12px] font-semibold mt-0.5 truncate">{g.title}</div>
+                      <div className="text-[11px] text-[#34C759] font-medium flex items-center space-x-1 mt-1">
+                        <Check className="w-3 h-3" />
+                        <span>{g.status}</span>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+
+                {/* Architecture Invariants */}
+                <div className="space-y-3">
+                  <h2 className="text-[15px] font-semibold tracking-tight">Frozen Architecture Invariants</h2>
+                  <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+                    {[
+                      { num: '01', title: 'Canonical Projections', desc: 'Identities bind to immutable RFC 8949 projections.' },
+                      { num: '02', title: 'Compare-And-Swap (CAS)', desc: 'Canonical Git mutation asserts expected OID.' },
+                      { num: '03', title: 'Review Validity', desc: 'Material input change revokes prior review.' },
+                      { num: '04', title: 'Inferred AI Output', desc: 'AI suggestions are inferred; never trusted authorization.' },
+                      { num: '05', title: 'Strict Resolution Gate', desc: 'PARTIAL, FAILED analysis blocks promotion.' },
+                      { num: '06', title: 'Scratch Isolation', desc: 'Candidates synthesize in ArtifactFS scratch space.' },
+                    ].map((inv) => (
+                      <div
+                        key={inv.num}
+                        className={`p-4 rounded-xl border ${
+                          darkMode ? 'bg-[#28282A] border-white/[0.06]' : 'bg-white border-black/[0.06] shadow-sm'
+                        }`}
+                      >
+                        <span className="text-[10px] font-mono text-[#0071E3] font-semibold block">{inv.num}</span>
+                        <h3 className="text-[13px] font-semibold mt-0.5">{inv.title}</h3>
+                        <p className={`text-[11px] mt-1 leading-relaxed ${darkMode ? 'text-[#86868B]' : 'text-[#6E6E73]'}`}>{inv.desc}</p>
+                      </div>
+                    ))}
                   </div>
+                </div>
+              </div>
+            )}
 
-                  <ChevronRight className="w-5 h-5 text-[#86868B] shrink-0" />
+            {/* CONVERGENCE DAG */}
+            {activeTab === 'dag' && (
+              <div className="space-y-6">
+                <div>
+                  <h1 className="text-2xl font-semibold tracking-tight">Convergence DAG Visualizer</h1>
+                  <p className={`text-[13px] mt-0.5 ${darkMode ? 'text-[#86868B]' : 'text-[#6E6E73]'}`}>
+                    Interactive graph from autonomous agent future revisions to synthesized candidate specs and trunk promotion.
+                  </p>
+                </div>
 
-                  {/* Stage 2: Futures */}
-                  <div className="space-y-3 shrink-0">
-                    <span className="text-[11px] font-mono text-[#86868B] block">2. Ingested Futures (5)</span>
+                <div className={`p-6 rounded-2xl border ${
+                  darkMode ? 'bg-[#18181A] border-white/[0.08]' : 'bg-[#F6F6F6] border-black/[0.08]'
+                }`}>
+                  <div className="flex flex-col md:flex-row items-center justify-between gap-6 overflow-x-auto py-4">
+                    {/* Step 1: Base */}
+                    <div
+                      onClick={() => setSelectedDagNode('base_trunk')}
+                      className={`p-4 rounded-xl border cursor-pointer w-44 transition-all ${
+                        selectedDagNode === 'base_trunk'
+                          ? 'border-[#0071E3] bg-[#0071E3]/10 ring-2 ring-[#0071E3]/20'
+                          : darkMode ? 'bg-[#28282A] border-white/[0.06]' : 'bg-white border-black/[0.08]'
+                      }`}
+                    >
+                      <GitCommit className="w-4 h-4 text-[#0071E3] mb-1.5" />
+                      <div className="text-xs font-semibold">Base Trunk</div>
+                      <div className="text-[10px] font-mono text-[#86868B] truncate">c001_core_trunk_head</div>
+                    </div>
+
+                    <ChevronRight className="w-4 h-4 text-[#86868B] shrink-0" />
+
+                    {/* Step 2: Futures */}
                     <div className="space-y-2">
-                      {['agent-fut-01', 'agent-fut-02', 'agent-fut-03'].map((f) => (
-                        <button
+                      {['agent-future-01', 'agent-future-02'].map((f) => (
+                        <div
                           key={f}
                           onClick={() => setSelectedDagNode(f)}
-                          className={`p-2.5 rounded-xl border text-left w-44 block transition-all ${
+                          className={`p-2.5 rounded-lg border cursor-pointer w-44 transition-all ${
                             selectedDagNode === f
                               ? 'border-[#0071E3] bg-[#0071E3]/10 ring-2 ring-[#0071E3]/20'
-                              : darkMode ? 'bg-[#1C1C1E] border-white/[0.08]' : 'bg-white border-black/[0.08]'
+                              : darkMode ? 'bg-[#28282A] border-white/[0.06]' : 'bg-white border-black/[0.08]'
                           }`}
                         >
                           <div className="text-[11px] font-semibold">{f}</div>
-                          <div className="text-[9px] font-mono text-[#86868B]">modified: handleOrder</div>
-                        </button>
+                          <div className="text-[9px] font-mono text-[#86868B]">handleOrder slice</div>
+                        </div>
+                      ))}
+                    </div>
+
+                    <ChevronRight className="w-4 h-4 text-[#86868B] shrink-0" />
+
+                    {/* Step 3: Candidate */}
+                    <div
+                      onClick={() => setSelectedDagNode('candidate_unified')}
+                      className={`p-4 rounded-xl border cursor-pointer w-48 transition-all ${
+                        selectedDagNode === 'candidate_unified'
+                          ? 'border-[#0071E3] bg-[#0071E3]/10 ring-2 ring-[#0071E3]/20'
+                          : darkMode ? 'bg-[#28282A] border-white/[0.06]' : 'bg-white border-black/[0.08]'
+                      }`}
+                    >
+                      <Layers className="w-4 h-4 text-[#AF52DE] mb-1.5" />
+                      <div className="text-xs font-semibold">cand-spec-unified-01</div>
+                      <div className="text-[10px] text-[#34C759]">Deduplicated (2 slices)</div>
+                    </div>
+
+                    <ChevronRight className="w-4 h-4 text-[#86868B] shrink-0" />
+
+                    {/* Step 4: Promoted Trunk */}
+                    <div
+                      onClick={() => setSelectedDagNode('promoted_trunk')}
+                      className={`p-4 rounded-xl border cursor-pointer w-44 transition-all ${
+                        selectedDagNode === 'promoted_trunk'
+                          ? 'border-[#0071E3] bg-[#0071E3]/10 ring-2 ring-[#0071E3]/20'
+                          : darkMode ? 'bg-[#28282A] border-white/[0.06]' : 'bg-white border-black/[0.08]'
+                      }`}
+                    >
+                      <Lock className="w-4 h-4 text-[#34C759] mb-1.5" />
+                      <div className="text-xs font-semibold">CAS Promoted Trunk</div>
+                      <div className="text-[10px] font-mono text-[#34C759] truncate">c999_promoted_head</div>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            )}
+
+            {/* REPOSITORIES */}
+            {activeTab === 'repos' && (
+              <div className="space-y-6">
+                <div>
+                  <h1 className="text-2xl font-semibold tracking-tight">Active Repositories</h1>
+                  <p className={`text-[13px] mt-0.5 ${darkMode ? 'text-[#86868B]' : 'text-[#6E6E73]'}`}>
+                    Multi-repository status board with serialized ref locks and canonical head OIDs.
+                  </p>
+                </div>
+
+                <div className="overflow-x-auto">
+                  <table className="w-full text-left text-xs">
+                    <thead>
+                      <tr className={`border-b font-medium ${darkMode ? 'border-white/[0.08] text-[#86868B]' : 'border-black/[0.08] text-[#86868B]'}`}>
+                        <th className="pb-2.5">REPOSITORY</th>
+                        <th className="pb-2.5">CANONICAL HEAD OID</th>
+                        <th className="pb-2.5">CAS LOCK</th>
+                        <th className="pb-2.5">ACTIVE BRANCHES</th>
+                        <th className="pb-2.5 text-right">STATUS</th>
+                      </tr>
+                    </thead>
+                    <tbody className={`divide-y font-mono ${darkMode ? 'divide-white/[0.04]' : 'divide-black/[0.04]'}`}>
+                      {repos.map((r) => (
+                        <tr key={r.id} className={darkMode ? 'hover:bg-white/[0.02]' : 'hover:bg-black/[0.02]'}>
+                          <td className="py-3 font-semibold text-[#0071E3]">{r.id}</td>
+                          <td className="py-3 select-all">{r.head}</td>
+                          <td className="py-3 text-[#34C759]">{r.lock}</td>
+                          <td className="py-3">{r.branches} active</td>
+                          <td className="py-3 text-right text-[#34C759] font-medium">{r.status}</td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+
+                {/* Compare-And-Swap Simulator */}
+                <div className={`p-5 rounded-2xl border space-y-4 ${
+                  darkMode ? 'bg-[#28282A] border-white/[0.06]' : 'bg-[#F9F9FA] border-black/[0.06]'
+                }`}>
+                  <h3 className="text-sm font-semibold">Serialized CAS Git Push Simulator</h3>
+                  <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+                    <div>
+                      <label className="block text-[11px] font-medium mb-1">Expected OID</label>
+                      <input
+                        type="text"
+                        value={casExpected}
+                        onChange={(e) => setCasExpected(e.target.value)}
+                        className={`w-full p-2 rounded-lg text-xs font-mono border ${
+                          darkMode ? 'bg-[#18181A] border-white/[0.1]' : 'bg-white border-black/[0.1]'
+                        }`}
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-[11px] font-medium mb-1">Current Remote OID</label>
+                      <input
+                        type="text"
+                        value={casRemote}
+                        onChange={(e) => setCasRemote(e.target.value)}
+                        className={`w-full p-2 rounded-lg text-xs font-mono border ${
+                          darkMode ? 'bg-[#18181A] border-white/[0.1]' : 'bg-white border-black/[0.1]'
+                        }`}
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-[11px] font-medium mb-1">Target Mutation OID</label>
+                      <input
+                        type="text"
+                        value={casTarget}
+                        onChange={(e) => setCasTarget(e.target.value)}
+                        className={`w-full p-2 rounded-lg text-xs font-mono border ${
+                          darkMode ? 'bg-[#18181A] border-white/[0.1]' : 'bg-white border-black/[0.1]'
+                        }`}
+                      />
+                    </div>
+                  </div>
+                  <div className="flex gap-2">
+                    <button
+                      onClick={handleRunCas}
+                      className="px-4 py-2 bg-[#0071E3] hover:bg-[#0077ED] text-white text-xs font-medium rounded-lg shadow-sm"
+                    >
+                      Assert CAS Push
+                    </button>
+                    <button
+                      onClick={() => setCasRemote('stale_remote_oid_race')}
+                      className={`px-3 py-2 rounded-lg text-xs border ${
+                        darkMode ? 'bg-[#18181A] border-white/[0.08]' : 'bg-white border-black/[0.08]'
+                      }`}
+                    >
+                      Simulate Concurrent Race
+                    </button>
+                  </div>
+                  <div className={`p-3 rounded-lg border text-xs font-mono ${
+                    casResult.status === 'SUCCESS' ? 'text-[#34C759] border-[#34C759]/30 bg-[#34C759]/10' :
+                    casResult.status === 'CONFLICT' ? 'text-[#FF3B30] border-[#FF3B30]/30 bg-[#FF3B30]/10' : ''
+                  }`}>
+                    {casResult.message}
+                  </div>
+                </div>
+              </div>
+            )}
+
+            {/* INSPECTION STUDIO */}
+            {activeTab === 'diff' && (
+              <div className="space-y-6">
+                <div>
+                  <h1 className="text-2xl font-semibold tracking-tight">Candidate Inspection Studio</h1>
+                  <p className={`text-[13px] mt-0.5 ${darkMode ? 'text-[#86868B]' : 'text-[#6E6E73]'}`}>
+                    Side-by-side unified diff inspection with provenance slice origin annotations.
+                  </p>
+                </div>
+
+                <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+                  <div>
+                    <div className="text-xs font-semibold text-rose-500 mb-1.5">Base Trunk (repo-core / src/order.ts)</div>
+                    <pre className={`p-4 rounded-xl border font-mono text-[11px] leading-relaxed overflow-x-auto ${
+                      darkMode ? 'bg-[#18181A] border-white/[0.08] text-rose-400' : 'bg-[#FFF5F5] border-rose-200 text-rose-900'
+                    }`}>
+{`- export function handleOrder(orderId: string) {
+-   const legacy = initLegacy();
+-   return legacy.charge(orderId);
+- }`}
+                    </pre>
+                  </div>
+                  <div>
+                    <div className="text-xs font-semibold text-emerald-500 mb-1.5">Synthesized Candidate (Unified Slice)</div>
+                    <pre className={`p-4 rounded-xl border font-mono text-[11px] leading-relaxed overflow-x-auto ${
+                      darkMode ? 'bg-[#18181A] border-white/[0.08] text-emerald-400' : 'bg-[#F0FDF4] border-emerald-200 text-emerald-900'
+                    }`}>
+{`+ export async function handleOrder(orderId: string) {
++   const payment = await getPaymentCluster();
++   return await payment.authorize(orderId);
++ }`}
+                    </pre>
+                  </div>
+                </div>
+              </div>
+            )}
+
+            {/* POLICY PORTAL */}
+            {activeTab === 'policy' && (
+              <div className="space-y-6">
+                <div>
+                  <h1 className="text-2xl font-semibold tracking-tight">Policy Review & Sign-Off</h1>
+                  <p className={`text-[13px] mt-0.5 ${darkMode ? 'text-[#86868B]' : 'text-[#6E6E73]'}`}>
+                    Invariant 5 enforcement and authorized human lead sign-off required for CAS lock release.
+                  </p>
+                </div>
+
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                  <div className={`p-5 rounded-xl border space-y-3 ${
+                    darkMode ? 'bg-[#28282A] border-white/[0.06]' : 'bg-[#F9F9FA] border-black/[0.06]'
+                  }`}>
+                    <h3 className="text-xs font-semibold text-[#0071E3]">TYPED CONDITIONAL PREDICATES</h3>
+                    <div className="space-y-2.5">
+                      {predicates.map((p) => (
+                        <label key={p.id} className="flex items-center space-x-2 text-xs font-mono cursor-pointer">
+                          <input
+                            type="checkbox"
+                            checked={p.checked}
+                            onChange={(e) => {
+                              setPredicates(predicates.map(item => item.id === p.id ? { ...item, checked: e.target.checked } : item));
+                            }}
+                            className="w-3.5 h-3.5 rounded text-[#0071E3]"
+                          />
+                          <span>{p.label}</span>
+                        </label>
                       ))}
                     </div>
                   </div>
 
-                  <ChevronRight className="w-5 h-5 text-[#86868B] shrink-0" />
-
-                  {/* Stage 3: Candidate Spec */}
-                  <div className="space-y-3 shrink-0">
-                    <span className="text-[11px] font-mono text-[#86868B] block">3. Synthesized Candidate</span>
-                    <button
-                      onClick={() => setSelectedDagNode('candidate_unified')}
-                      className={`p-4 rounded-2xl border text-left w-48 transition-all ${
-                        selectedDagNode === 'candidate_unified'
-                          ? 'border-[#0071E3] bg-[#0071E3]/10 ring-2 ring-[#0071E3]/20'
-                          : darkMode ? 'bg-[#1C1C1E] border-white/[0.08]' : 'bg-white border-black/[0.08]'
-                      }`}
-                    >
-                      <Layers className="w-4 h-4 text-[#AF52DE] mb-2" />
-                      <div className="text-xs font-semibold">cand-spec-unified-01</div>
-                      <div className="text-[10px] text-[#34C759] mt-1">Deduplicated (2 slices)</div>
-                    </button>
-                  </div>
-
-                  <ChevronRight className="w-5 h-5 text-[#86868B] shrink-0" />
-
-                  {/* Stage 4: Policy Gate & Promoted Trunk */}
-                  <div className="space-y-3 shrink-0">
-                    <span className="text-[11px] font-mono text-[#86868B] block">4. Promoted Trunk</span>
-                    <button
-                      onClick={() => setSelectedDagNode('promoted_trunk')}
-                      className={`p-4 rounded-2xl border text-left w-44 transition-all ${
-                        selectedDagNode === 'promoted_trunk'
-                          ? 'border-[#0071E3] bg-[#0071E3]/10 ring-2 ring-[#0071E3]/20'
-                          : darkMode ? 'bg-[#1C1C1E] border-white/[0.08]' : 'bg-white border-black/[0.08]'
-                      }`}
-                    >
-                      <Lock className="w-4 h-4 text-[#34C759] mb-2" />
-                      <div className="text-xs font-semibold">CAS Promoted OID</div>
-                      <div className="text-[10px] font-mono text-[#34C759] mt-1 truncate">c999_promoted_canonical</div>
-                    </button>
-                  </div>
-                </div>
-              </div>
-
-              {/* Node Inspector */}
-              <div className={`mt-6 p-5 rounded-2xl border ${
-                darkMode ? 'bg-[#2C2C2E]/40 border-white/[0.06]' : 'bg-[#F5F5F7] border-black/[0.04]'
-              }`}>
-                <div className="flex items-center justify-between mb-2">
-                  <span className="text-xs font-mono font-semibold text-[#0071E3]">
-                    SELECTED NODE: {selectedDagNode.toUpperCase()}
-                  </span>
-                  <span className="text-[11px] font-mono text-[#86868B]">Provenance Slice Hash Verified</span>
-                </div>
-                <div className={`p-3 rounded-xl border text-[11px] font-mono break-all leading-relaxed ${
-                  darkMode ? 'bg-[#000000] border-white/[0.08]' : 'bg-white border-black/[0.08]'
-                }`}>
-                  {selectedDagNode === 'candidate_unified' && (
-                    <>
-                      <div>spec_digest: e7e3e6b4aa8141f7bf92311cab205ab436b7f1bc06321c13b9eb9763ec77be37</div>
-                      <div className="mt-1">composition_manifest: [repo-core:src/order.ts:symbol:handleOrder_shared, repo-auth:src/jwt.ts:hunk]</div>
-                      <div className="mt-1">reduction_strategy: EXACT_SYNTACTIC_DEDUPLICATION_COLLAPSED (8 duplicates removed)</div>
-                    </>
-                  )}
-                  {selectedDagNode === 'base_trunk' && (
-                    <div>canonical_ref: refs/heads/main @ c001_core_trunk_head (Uncontended)</div>
-                  )}
-                  {selectedDagNode === 'promoted_trunk' && (
-                    <div>cas_promotion: Mutator: convergence-worker-01 · Locked: false · Attestation: SUCCEEDED</div>
-                  )}
-                  {selectedDagNode.startsWith('agent-fut') && (
-                    <div>future_id: {selectedDagNode} · producer: autonomous-agent-v2 · status: REDUCED</div>
-                  )}
-                </div>
-              </div>
-            </div>
-          </div>
-        )}
-
-        {/* MULTI-REPO STATUS BOARD */}
-        {activeTab === 'repos' && (
-          <div className="space-y-6">
-            <div className={`p-8 rounded-3xl border ${
-              darkMode ? 'bg-[#1C1C1E] border-white/[0.08]' : 'bg-white border-black/[0.06] shadow-sm'
-            }`}>
-              <div className="space-y-1 mb-6">
-                <div className="text-xs font-medium text-[#0071E3]">Multi-Repository System Topology</div>
-                <h2 className="text-2xl font-semibold tracking-tight">Active Repositories & Serialized Ref Locks</h2>
-                <p className={`text-[14px] ${darkMode ? 'text-[#86868B]' : 'text-[#6E6E73]'}`}>
-                  Real-time status of all repositories participating in the current system revision with atomic CAS locks.
-                </p>
-              </div>
-
-              <div className="overflow-x-auto">
-                <table className="w-full text-left text-[13px]">
-                  <thead>
-                    <tr className={`border-b text-xs font-medium ${darkMode ? 'border-white/[0.08] text-[#86868B]' : 'border-black/[0.08] text-[#86868B]'}`}>
-                      <th className="pb-3">REPOSITORY</th>
-                      <th className="pb-3">CANONICAL HEAD OID</th>
-                      <th className="pb-3">REF LOCK</th>
-                      <th className="pb-3">PENDING BRANCHES</th>
-                      <th className="pb-3 text-right">CONVERGENCE</th>
-                    </tr>
-                  </thead>
-                  <tbody className={`divide-y font-mono text-xs ${darkMode ? 'divide-white/[0.04]' : 'divide-black/[0.04]'}`}>
-                    {repos.map((r) => (
-                      <tr key={r.id} className={darkMode ? 'hover:bg-white/[0.02]' : 'hover:bg-black/[0.02]'}>
-                        <td className="py-4 font-semibold text-[#0071E3]">{r.id}</td>
-                        <td className="py-4 select-all">{r.head}</td>
-                        <td className="py-4">
-                          <span className="inline-flex items-center space-x-1 text-[#34C759]">
-                            <Lock className="w-3.5 h-3.5" />
-                            <span>{r.lock}</span>
-                          </span>
-                        </td>
-                        <td className="py-4">{r.branches} active</td>
-                        <td className="py-4 text-right">
-                          <span className="text-[#34C759] font-medium">{r.status}</span>
-                        </td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
-            </div>
-          </div>
-        )}
-
-        {/* CANDIDATE INSPECTION STUDIO */}
-        {activeTab === 'diff' && (
-          <div className="space-y-6">
-            <div className={`p-8 rounded-3xl border ${
-              darkMode ? 'bg-[#1C1C1E] border-white/[0.08]' : 'bg-white border-black/[0.06] shadow-sm'
-            }`}>
-              <div className="space-y-1 mb-6">
-                <div className="text-xs font-medium text-[#0071E3]">Candidate Inspection Studio</div>
-                <h2 className="text-2xl font-semibold tracking-tight">Side-by-Side Unified Diff & Provenance</h2>
-                <p className={`text-[14px] ${darkMode ? 'text-[#86868B]' : 'text-[#6E6E73]'}`}>
-                  Inspect unified candidate changes with AST symbol annotations and exact provenance slice origin.
-                </p>
-              </div>
-
-              <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-                <div className="space-y-2">
-                  <div className="flex items-center justify-between text-xs">
-                    <span className="font-semibold text-rose-500">Base Trunk: repo-core / src/order.ts</span>
-                    <span className="font-mono text-[11px] text-[#86868B]">c001_core_trunk_head</span>
-                  </div>
-                  <pre className={`p-4 rounded-2xl border font-mono text-[12px] overflow-x-auto leading-relaxed ${
-                    darkMode ? 'bg-[#000000] border-white/[0.08] text-rose-400' : 'bg-[#FFF5F5] border-rose-200 text-rose-900'
+                  <div className={`p-5 rounded-xl border space-y-4 ${
+                    darkMode ? 'bg-[#28282A] border-white/[0.06]' : 'bg-[#F9F9FA] border-black/[0.06]'
                   }`}>
-{`- export function handleOrder(orderId: string) {
--   // Legacy synchronous payment authorization
--   const legacyClient = initLegacyPayment();
--   return legacyClient.charge(orderId);
-- }`}
-                  </pre>
-                </div>
+                    <h3 className="text-xs font-semibold text-[#0071E3]">HUMAN PROMOTION SIGN-OFF</h3>
+                    <div>
+                      <label className="block text-[11px] font-medium mb-1">Authorized Role</label>
+                      <select
+                        value={policyRole}
+                        onChange={(e) => setPolicyRole(e.target.value as any)}
+                        className={`w-full p-2 rounded-lg text-xs border ${
+                          darkMode ? 'bg-[#18181A] border-white/[0.1] text-white' : 'bg-white border-black/[0.1]'
+                        }`}
+                      >
+                        <option value="TECH_LEAD">TECH_LEAD (Authorized)</option>
+                        <option value="AGENT">AGENT (Autonomous Bot - Blocked)</option>
+                        <option value="OBSERVER">OBSERVER (Read-Only - Blocked)</option>
+                      </select>
+                    </div>
 
-                <div className="space-y-2">
-                  <div className="flex items-center justify-between text-xs">
-                    <span className="font-semibold text-emerald-500">Synthesized Candidate (Unified Slice)</span>
-                    <span className="font-mono text-[11px] text-[#34C759]">from agent-future-01</span>
-                  </div>
-                  <pre className={`p-4 rounded-2xl border font-mono text-[12px] overflow-x-auto leading-relaxed ${
-                    darkMode ? 'bg-[#000000] border-white/[0.08] text-emerald-400' : 'bg-[#F0FDF4] border-emerald-200 text-emerald-900'
-                  }`}>
-{`+ export async function handleOrder(orderId: string): Promise<OrderReceipt> {
-+   // Converged asynchronous settlement with idempotent retries
-+   const paymentGateway = await getPaymentCluster();
-+   return await paymentGateway.authorizeAndCapture(orderId);
-+ }`}
-                  </pre>
-                </div>
-              </div>
-
-              {/* Provenance Metadata Strip */}
-              <div className={`mt-6 p-4 rounded-2xl border flex flex-wrap items-center justify-between gap-4 text-xs ${
-                darkMode ? 'bg-[#2C2C2E]/40 border-white/[0.06]' : 'bg-[#F5F5F7] border-black/[0.04]'
-              }`}>
-                <div className="flex items-center space-x-2">
-                  <span className="font-semibold">Selector:</span>
-                  <span className="font-mono text-[#0071E3]">symbol:handleOrder</span>
-                </div>
-                <div className="flex items-center space-x-2">
-                  <span className="font-semibold">Origin:</span>
-                  <span className="font-mono text-[#86868B]">agent-future-01 @ commit_fut_01</span>
-                </div>
-                <div className="flex items-center space-x-2">
-                  <span className="font-semibold">Capability:</span>
-                  <span className="text-[#34C759] font-medium">STRUCTURAL (Tree-sitter TS)</span>
-                </div>
-              </div>
-            </div>
-          </div>
-        )}
-
-        {/* POLICY & REVIEW PORTAL */}
-        {activeTab === 'policy' && (
-          <div className="space-y-6">
-            <div className={`p-8 rounded-3xl border ${
-              darkMode ? 'bg-[#1C1C1E] border-white/[0.08]' : 'bg-white border-black/[0.06] shadow-sm'
-            }`}>
-              <div className="space-y-1 mb-6">
-                <div className="text-xs font-medium text-[#0071E3]">Phase 5 · Policy Decision Engine</div>
-                <h2 className="text-2xl font-semibold tracking-tight">Policy Review & Promotion Gating</h2>
-                <p className={`text-[14px] ${darkMode ? 'text-[#86868B]' : 'text-[#6E6E73]'}`}>
-                  Enforce Invariant 5 (strict analysis complete requirement) and require authorized Tech Lead human sign-off before releasing Git push CAS lock.
-                </p>
-              </div>
-
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
-                {/* Predicate Checklist */}
-                <div className={`p-6 rounded-2xl border space-y-4 ${
-                  darkMode ? 'bg-[#2C2C2E]/40 border-white/[0.06]' : 'bg-[#F5F5F7] border-black/[0.04]'
-                }`}>
-                  <div className="flex items-center justify-between">
-                    <span className="text-xs font-semibold text-[#0071E3]">CONDITIONAL PREDICATES CHECKLIST</span>
-                    <span className="text-[11px] font-mono text-[#86868B]">Typed Predicates</span>
-                  </div>
-
-                  <div className="space-y-3">
-                    {predicates.map((p) => (
-                      <label key={p.id} className="flex items-center space-x-3 text-xs cursor-pointer">
-                        <input
-                          type="checkbox"
-                          checked={p.checked}
-                          onChange={(e) => {
-                            setPredicates(predicates.map(item => item.id === p.id ? { ...item, checked: e.target.checked } : item));
-                          }}
-                          className="w-4 h-4 rounded text-[#0071E3] focus:ring-0"
-                        />
-                        <span className="font-mono">{p.label}</span>
-                      </label>
-                    ))}
-                  </div>
-
-                  <div className="pt-2 text-[11px] text-[#86868B]">
-                    * Unchecking any required analysis predicate triggers Invariant 5 and immediately blocks promotion.
-                  </div>
-                </div>
-
-                {/* Sign-off Actions */}
-                <div className={`p-6 rounded-2xl border space-y-4 ${
-                  darkMode ? 'bg-[#2C2C2E]/40 border-white/[0.06]' : 'bg-[#F5F5F7] border-black/[0.04]'
-                }`}>
-                  <div className="flex items-center justify-between">
-                    <span className="text-xs font-semibold text-[#0071E3]">HUMAN SIGN-OFF & PROMOTION</span>
-                    <span className={`text-xs font-semibold ${decisionState === 'RESOLVED' ? 'text-[#34C759]' : 'text-[#FF9500]'}`}>
-                      STATE: {decisionState}
-                    </span>
-                  </div>
-
-                  <div>
-                    <label className="block text-xs font-medium mb-1">Sign-off Role</label>
-                    <select
-                      value={policyRole}
-                      onChange={(e) => setPolicyRole(e.target.value as any)}
-                      className={`w-full p-2.5 rounded-xl border text-xs font-medium ${
-                        darkMode ? 'bg-[#1C1C1E] border-white/[0.1] text-white' : 'bg-white border-black/[0.1]'
-                      }`}
-                    >
-                      <option value="TECH_LEAD">TECH_LEAD (Authorized)</option>
-                      <option value="AGENT">AGENT (Autonomous Bot - Blocked by Invariant 4)</option>
-                      <option value="OBSERVER">OBSERVER (Read-Only - Blocked)</option>
-                    </select>
-                  </div>
-
-                  <div className="pt-3">
                     <button
                       onClick={() => {
                         if (!allPredicatesPassing) {
-                          alert('BLOCKED: Invariant 5 prevents sign-off when any required analysis predicate is incomplete!');
+                          alert('BLOCKED by Invariant 5: Incomplete predicates!');
                           return;
                         }
                         if (policyRole !== 'TECH_LEAD') {
-                          alert(`BLOCKED: Invariant 4 prevents ${policyRole} from signing off! Only authorized human leads may sign off.`);
+                          alert('BLOCKED: Only TECH_LEAD human role can sign off!');
                           return;
                         }
                         setDecisionState('RESOLVED');
                       }}
-                      className={`w-full py-2.5 rounded-xl font-medium text-xs transition-all flex items-center justify-center space-x-2 ${
+                      className={`w-full py-2.5 rounded-lg text-xs font-medium text-white shadow-sm ${
                         allPredicatesPassing && policyRole === 'TECH_LEAD'
-                          ? 'bg-[#34C759] hover:bg-[#2FB350] text-white shadow-sm'
-                          : 'bg-slate-300 dark:bg-slate-700 text-slate-500 cursor-not-allowed'
+                          ? 'bg-[#34C759] hover:bg-[#2FB350]'
+                          : 'bg-slate-400 cursor-not-allowed'
                       }`}
                     >
-                      <Check className="w-4 h-4" />
-                      <span>{decisionState === 'RESOLVED' ? 'Promotion Sign-Off Verified' : 'Authorize & Sign-Off Promotion'}</span>
+                      {decisionState === 'RESOLVED' ? 'Sign-Off Verified' : 'Authorize & Sign-Off Promotion'}
+                    </button>
+                  </div>
+                </div>
+              </div>
+            )}
+
+            {/* DIGEST ENGINE */}
+            {activeTab === 'digest' && (
+              <div className="space-y-6">
+                <div>
+                  <h1 className="text-2xl font-semibold tracking-tight">Canonical Digest Explorer</h1>
+                  <p className={`text-[13px] mt-0.5 ${darkMode ? 'text-[#86868B]' : 'text-[#6E6E73]'}`}>
+                    Deterministic RFC 8949 CBOR serializer and SHA-256 hasher matching Rust engine.
+                  </p>
+                </div>
+
+                <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+                  <div className="space-y-3">
+                    <textarea
+                      rows={12}
+                      value={jsonInput}
+                      onChange={(e) => setJsonInput(e.target.value)}
+                      className={`w-full p-3.5 rounded-xl border font-mono text-[11px] ${
+                        darkMode ? 'bg-[#18181A] border-white/[0.08] text-white' : 'bg-[#F9F9FA] border-black/[0.08]'
+                      }`}
+                    />
+                    <button
+                      onClick={handleCalculateDigest}
+                      className="px-4 py-2 bg-[#0071E3] text-white text-xs font-medium rounded-lg shadow-sm"
+                    >
+                      Recompute Digest
                     </button>
                   </div>
 
-                  <p className="text-[11px] text-[#86868B] text-center">
-                    {decisionState === 'RESOLVED'
-                      ? '✓ Decision RESOLVED: Git push CAS lock released for merge.'
-                      : 'Requires all predicates complete + authorized human role.'}
-                  </p>
-                </div>
-              </div>
-            </div>
-          </div>
-        )}
-
-        {/* DIGEST ENGINE TAB */}
-        {activeTab === 'digest' && (
-          <div className="space-y-6">
-            <div className={`p-8 rounded-3xl border ${
-              darkMode ? 'bg-[#1C1C1E] border-white/[0.08]' : 'bg-white border-black/[0.06] shadow-sm'
-            }`}>
-              <div className="space-y-1 mb-6">
-                <div className="text-xs font-medium text-[#0071E3]">Phase 1 · RFC 8949 CBOR Engine</div>
-                <h2 className="text-2xl font-semibold tracking-tight">Canonical Digest Explorer</h2>
-                <p className={`text-[14px] ${darkMode ? 'text-[#86868B]' : 'text-[#6E6E73]'}`}>
-                  Real-time deterministic CBOR serialization and SHA-256 calculation matching the Rust engine.
-                </p>
-              </div>
-
-              <div className="flex space-x-1 p-1 rounded-xl bg-black/[0.05] dark:bg-white/[0.06] w-fit mb-6 text-xs">
-                {[
-                  { id: 'future_state', label: 'CanonicalFutureRevisionState' },
-                  { id: 'effect_set', label: 'CanonicalEffectSet' },
-                  { id: 'payload', label: 'Raw Payload' },
-                ].map((s) => (
-                  <button
-                    key={s.id}
-                    onClick={() => {
-                      setSchemaType(s.id as any);
-                      if (s.id === 'future_state') setJsonInput(JSON.stringify(SAMPLE_REVISION_STATE, null, 2));
-                      if (s.id === 'effect_set') setJsonInput(JSON.stringify(SAMPLE_EFFECT_SET, null, 2));
-                      if (s.id === 'payload') setJsonInput('Sandbox test receipt: hermetic execution 42 tests passed.');
-                    }}
-                    className={`px-3 py-1.5 rounded-lg font-medium transition-all ${
-                      schemaType === s.id
-                        ? darkMode ? 'bg-[#2C2C2E] text-white shadow-sm' : 'bg-white text-black shadow-[0_1px_3px_rgba(0,0,0,0.08)]'
-                        : darkMode ? 'text-[#86868B]' : 'text-[#6E6E73]'
-                    }`}
-                  >
-                    {s.label}
-                  </button>
-                ))}
-              </div>
-
-              <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
-                <div className="space-y-3">
-                  <div className="flex items-center justify-between text-xs">
-                    <label className="font-medium">Input JSON</label>
-                    <span className="font-mono text-[11px] text-[#86868B]">Auto-normalized RFC 8949</span>
-                  </div>
-                  <textarea
-                    rows={12}
-                    value={jsonInput}
-                    onChange={(e) => setJsonInput(e.target.value)}
-                    className={`w-full p-4 rounded-2xl border font-mono text-[12px] leading-relaxed focus:outline-none focus:ring-2 focus:ring-[#0071E3]/20 ${
-                      darkMode ? 'bg-[#000000] border-white/[0.1] text-white' : 'bg-[#F5F5F7] border-black/[0.08] text-black'
-                    }`}
-                  />
-                  <button
-                    onClick={handleCalculateDigest}
-                    className="px-4 py-2 bg-[#0071E3] hover:bg-[#0077ED] text-white text-xs font-medium rounded-xl transition-all shadow-sm flex items-center space-x-2"
-                  >
-                    <RefreshCw className="w-3.5 h-3.5" />
-                    <span>Calculate Digest & CBOR</span>
-                  </button>
-                </div>
-
-                <div className="space-y-4">
-                  <div className={`p-5 rounded-2xl border space-y-2 ${
-                    darkMode ? 'bg-[#000000] border-white/[0.08]' : 'bg-[#F5F5F7] border-black/[0.08]'
-                  }`}>
-                    <div className="flex items-center justify-between">
-                      <span className="text-xs font-medium text-[#0071E3]">
-                        {schemaType === 'future_state' ? 'state_digest' : schemaType === 'effect_set' ? 'effect_digest' : 'payload_digest'}
-                      </span>
-                      <button
-                        onClick={() => copyToClipboard(computedDigest, 'digest')}
-                        className={`p-1 rounded-lg text-xs flex items-center space-x-1 ${
-                          darkMode ? 'hover:bg-white/[0.1] text-[#86868B]' : 'hover:bg-black/[0.05] text-[#6E6E73]'
-                        }`}
-                      >
-                        {copiedText === 'digest' ? <Check className="w-3 h-3 text-[#34C759]" /> : <Copy className="w-3 h-3 text-[#86868B]" />}
-                        <span>{copiedText === 'digest' ? 'Copied' : 'Copy'}</span>
-                      </button>
-                    </div>
-                    <div className="font-mono text-xs break-all select-all font-semibold text-[#0071E3]">
-                      {computedDigest}
-                    </div>
-                  </div>
-
-                  <div className={`p-5 rounded-2xl border space-y-2 ${
-                    darkMode ? 'bg-[#000000] border-white/[0.08]' : 'bg-[#F5F5F7] border-black/[0.08]'
-                  }`}>
-                    <span className="text-xs font-medium block">RFC 8949 CBOR Stream (Hex Bytes)</span>
-                    <div className={`font-mono text-[11px] break-all max-h-44 overflow-y-auto leading-relaxed select-all ${
-                      darkMode ? 'text-[#86868B]' : 'text-[#6E6E73]'
+                  <div className="space-y-4">
+                    <div className={`p-4 rounded-xl border ${
+                      darkMode ? 'bg-[#18181A] border-white/[0.08]' : 'bg-[#F9F9FA] border-black/[0.08]'
                     }`}>
-                      {cborHex}
+                      <div className="text-[11px] font-semibold text-[#0071E3] mb-1">COMPUTED DIGEST</div>
+                      <div className="font-mono text-xs break-all font-semibold select-all text-[#0071E3]">{computedDigest}</div>
+                    </div>
+                    <div className={`p-4 rounded-xl border ${
+                      darkMode ? 'bg-[#18181A] border-white/[0.08]' : 'bg-[#F9F9FA] border-black/[0.08]'
+                    }`}>
+                      <div className="text-[11px] font-semibold mb-1">CBOR HEX BYTES</div>
+                      <div className="font-mono text-[10px] break-all max-h-40 overflow-y-auto">{cborHex}</div>
                     </div>
                   </div>
                 </div>
               </div>
-            </div>
-          </div>
-        )}
+            )}
 
-        {/* AUDIT TRAIL & RETENTION EXPLORER */}
-        {activeTab === 'audit' && (
-          <div className="space-y-6">
-            <div className={`p-8 rounded-3xl border ${
-              darkMode ? 'bg-[#1C1C1E] border-white/[0.08]' : 'bg-white border-black/[0.06] shadow-sm'
-            }`}>
-              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-6">
+            {/* AUDIT TRAIL */}
+            {activeTab === 'audit' && (
+              <div className="space-y-6">
                 <div>
-                  <div className="text-xs font-medium text-[#0071E3]">Audit Trail & Retention Lifecycle</div>
-                  <h2 className="text-2xl font-semibold tracking-tight">Immutable Record & Attestation Ledger</h2>
-                  <p className={`text-[14px] ${darkMode ? 'text-[#86868B]' : 'text-[#6E6E73]'}`}>
-                    Searchable immutable records tagged with explicit policy retention classes.
+                  <h1 className="text-2xl font-semibold tracking-tight">Audit Trail & Retention Ledger</h1>
+                  <p className={`text-[13px] mt-0.5 ${darkMode ? 'text-[#86868B]' : 'text-[#6E6E73]'}`}>
+                    Immutable record ledger tagged with explicit retention classes.
                   </p>
                 </div>
-                <div className="relative">
-                  <Search className="w-4 h-4 text-[#86868B] absolute left-3 top-2.5" />
-                  <input
-                    type="text"
-                    placeholder="Filter records..."
-                    value={auditQuery}
-                    onChange={(e) => setAuditQuery(e.target.value)}
-                    className={`pl-9 pr-4 py-2 rounded-xl text-xs border ${
-                      darkMode ? 'bg-[#000000] border-white/[0.1] text-white' : 'bg-[#F5F5F7] border-black/[0.1]'
-                    }`}
-                  />
-                </div>
-              </div>
 
-              <div className="overflow-x-auto">
-                <table className="w-full text-left text-xs font-mono">
-                  <thead>
-                    <tr className={`border-b text-[#86868B] ${darkMode ? 'border-white/[0.08]' : 'border-black/[0.08]'}`}>
-                      <th className="pb-3">EVENT RECORD</th>
-                      <th className="pb-3">SUBJECT DIGEST</th>
-                      <th className="pb-3">RETENTION CLASS</th>
-                      <th className="pb-3">STORAGE REF</th>
-                      <th className="pb-3 text-right">STATUS</th>
-                    </tr>
-                  </thead>
-                  <tbody className={`divide-y ${darkMode ? 'divide-white/[0.04]' : 'divide-black/[0.04]'}`}>
-                    {[
-                      {
-                        event: 'External CD Attestation',
-                        digest: 'e18654ed5c2ca9cf5f84b052a8fe42b0...',
-                        retention: 'CANONICAL',
-                        ref: 'r2://klocgit-attestations/production/intent_8871.json',
-                        status: 'SUCCEEDED',
-                      },
-                      {
-                        event: 'Hermetic Sandbox Receipt',
-                        digest: '180a9e8977467cd9fe5c61938ed0522a...',
-                        retention: 'DECISION_RECORD',
-                        ref: 'r2://klocgit-evidence/cand_9981/exec_1002.json',
-                        status: 'PASSED',
-                      },
-                      {
-                        event: 'Candidate Reduction Spec',
-                        digest: 'e7e3e6b4aa8141f7bf92311cab205ab...',
-                        retention: 'CANONICAL',
-                        ref: 'r2://klocgit-specs/cand-spec-unified-01.cbor',
-                        status: 'REDUCED',
-                      },
-                      {
-                        event: 'Transient Smoke Run',
-                        digest: '4a187e5fd60ff5833446002ff2c3af1d...',
-                        retention: 'EPHEMERAL',
-                        ref: 'r2://klocgit-scratch/temp_run_441.json',
-                        status: 'EXPIRED',
-                      },
-                    ]
-                      .filter(r => r.event.toLowerCase().includes(auditQuery.toLowerCase()) || r.retention.toLowerCase().includes(auditQuery.toLowerCase()))
-                      .map((row, idx) => (
+                <div className="overflow-x-auto">
+                  <table className="w-full text-left text-xs font-mono">
+                    <thead>
+                      <tr className={`border-b ${darkMode ? 'border-white/[0.08] text-[#86868B]' : 'border-black/[0.08] text-[#86868B]'}`}>
+                        <th className="pb-2.5">EVENT</th>
+                        <th className="pb-2.5">SUBJECT DIGEST</th>
+                        <th className="pb-2.5">RETENTION</th>
+                        <th className="pb-2.5">STORAGE REF</th>
+                        <th className="pb-2.5 text-right">STATUS</th>
+                      </tr>
+                    </thead>
+                    <tbody className={`divide-y ${darkMode ? 'divide-white/[0.04]' : 'divide-black/[0.04]'}`}>
+                      {[
+                        { event: 'External CD Attestation', digest: 'e18654ed5c...', retention: 'CANONICAL', ref: 'r2://attestations/intent_8871.json', status: 'SUCCEEDED' },
+                        { event: 'Hermetic Sandbox Receipt', digest: '180a9e8977...', retention: 'DECISION_RECORD', ref: 'r2://evidence/exec_1002.json', status: 'PASSED' },
+                        { event: 'Candidate Reduction Spec', digest: 'e7e3e6b4aa...', retention: 'CANONICAL', ref: 'r2://specs/cand-spec-01.cbor', status: 'REDUCED' },
+                        { event: 'Transient Smoke Run', digest: '4a187e5fd6...', retention: 'EPHEMERAL', ref: 'r2://scratch/temp_run.json', status: 'EXPIRED' },
+                      ].map((row, idx) => (
                         <tr key={idx} className={darkMode ? 'hover:bg-white/[0.02]' : 'hover:bg-black/[0.02]'}>
-                          <td className="py-3.5 font-semibold text-[#0071E3]">{row.event}</td>
-                          <td className="py-3.5 text-slate-400 select-all">{row.digest}</td>
-                          <td className="py-3.5">
-                            <span className={`px-2 py-0.5 rounded text-[10px] font-medium ${
-                              row.retention === 'CANONICAL'
-                                ? 'bg-[#34C759]/10 text-[#34C759]'
-                                : row.retention === 'DECISION_RECORD'
-                                ? 'bg-[#0071E3]/10 text-[#0071E3]'
-                                : 'bg-[#FF9500]/10 text-[#FF9500]'
-                            }`}>
+                          <td className="py-3 font-semibold text-[#0071E3]">{row.event}</td>
+                          <td className="py-3 text-slate-400 select-all">{row.digest}</td>
+                          <td className="py-3">
+                            <span className="px-2 py-0.5 rounded text-[10px] font-medium bg-[#34C759]/10 text-[#34C759]">
                               {row.retention}
                             </span>
                           </td>
-                          <td className="py-3.5 text-[#86868B] truncate max-w-xs">{row.ref}</td>
-                          <td className="py-3.5 text-right font-medium text-[#34C759]">{row.status}</td>
+                          <td className="py-3 text-[#86868B] truncate max-w-xs">{row.ref}</td>
+                          <td className="py-3 text-right text-[#34C759] font-medium">{row.status}</td>
                         </tr>
                       ))}
-                  </tbody>
-                </table>
+                    </tbody>
+                  </table>
+                </div>
               </div>
-            </div>
+            )}
           </div>
-        )}
-      </main>
 
-      {/* Apple Footer */}
-      <footer className={`py-8 px-6 text-center text-xs border-t transition-colors ${
-        darkMode ? 'border-white/[0.06] text-[#86868B]' : 'border-black/[0.06] text-[#86868B]'
-      }`}>
-        <div className="max-w-7xl mx-auto flex flex-col sm:flex-row items-center justify-between gap-4">
-          <div>
-            KLoCGit v1 Enterprise Convergence Platform · Built with Apple Human Interface Guidelines
-          </div>
-          <div className="flex items-center space-x-4">
-            <span>RFC 8949 CBOR</span>
-            <span aria-hidden="true">·</span>
-            <span>Git CAS receive-pack</span>
-            <span aria-hidden="true">·</span>
-            <span>DO SQLite</span>
-            <span aria-hidden="true">·</span>
-            <span>Hermetic Sandbox</span>
-          </div>
+          {/* PANE 3: macOS Right Inspector Panel (Collapsible) */}
+          {inspectorOpen && (
+            <aside className={`w-72 border-l shrink-0 p-4 space-y-4 overflow-y-auto transition-colors ${
+              darkMode ? 'bg-[#18181A] border-black/40' : 'bg-[#F2F2F7]/50 border-black/[0.08]'
+            }`}>
+              <div className="flex items-center justify-between">
+                <span className={`text-[10px] font-semibold tracking-wider ${
+                  darkMode ? 'text-[#86868B]' : 'text-[#8E8E93]'
+                }`}>
+                  INSPECTOR
+                </span>
+                <span className="text-[10px] font-mono text-[#0071E3]">
+                  RFC 8949
+                </span>
+              </div>
+
+              {/* Selected Target Card */}
+              <div className={`p-3.5 rounded-xl border text-xs space-y-2 ${
+                darkMode ? 'bg-[#28282A] border-white/[0.06]' : 'bg-white border-black/[0.06] shadow-sm'
+              }`}>
+                <div className="font-semibold text-[12px]">Selected Entity</div>
+                <div className="text-[11px] font-mono text-[#0071E3] break-all">{selectedDagNode}</div>
+                <div className="text-[10px] text-[#86868B]">Validated via 3-tier digest hierarchy</div>
+              </div>
+
+              {/* Identity Breakdown */}
+              <div className="space-y-2 text-xs">
+                <span className={`text-[10px] font-semibold tracking-wider block ${
+                  darkMode ? 'text-[#86868B]' : 'text-[#8E8E93]'
+                }`}>
+                  PROJECTION PROVENANCE
+                </span>
+
+                <div className={`p-3 rounded-xl border text-[11px] font-mono space-y-1.5 ${
+                  darkMode ? 'bg-[#28282A] border-white/[0.06]' : 'bg-white border-black/[0.06] shadow-sm'
+                }`}>
+                  <div className="flex justify-between">
+                    <span className="text-[#86868B]">Domain:</span>
+                    <span className="truncate max-w-[120px]">klocgit/candidate</span>
+                  </div>
+                  <div className="flex justify-between">
+                    <span className="text-[#86868B]">Schema:</span>
+                    <span>v1</span>
+                  </div>
+                  <div className="flex justify-between">
+                    <span className="text-[#86868B]">Retention:</span>
+                    <span className="text-[#34C759]">CANONICAL</span>
+                  </div>
+                </div>
+              </div>
+
+              {/* Quick Actions */}
+              <div className="space-y-1.5 pt-2">
+                <button
+                  onClick={() => copyToClipboard(computedDigest, 'inspector')}
+                  className={`w-full py-2 px-3 rounded-lg text-xs font-medium border flex items-center justify-center space-x-2 transition-colors ${
+                    darkMode ? 'bg-[#28282A] border-white/[0.08] hover:bg-[#323235]' : 'bg-white border-black/[0.08] hover:bg-[#F2F2F7]'
+                  }`}
+                >
+                  {copiedText === 'inspector' ? <Check className="w-3.5 h-3.5 text-[#34C759]" /> : <Copy className="w-3.5 h-3.5" />}
+                  <span>{copiedText === 'inspector' ? 'Copied Digest' : 'Copy Active Digest'}</span>
+                </button>
+              </div>
+            </aside>
+          )}
         </div>
-      </footer>
+      </div>
     </div>
+  );
+}
+
+function LayoutDashboardIcon(props: any) {
+  return (
+    <svg {...props} width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+      <rect width="7" height="9" x="3" y="3" rx="1" />
+      <rect width="7" height="5" x="14" y="3" rx="1" />
+      <rect width="7" height="9" x="14" y="12" rx="1" />
+      <rect width="7" height="5" x="3" y="16" rx="1" />
+    </svg>
   );
 }
