@@ -58,7 +58,11 @@ export class ObjectiveCoordinator extends DurableObject<Bindings> {
       if (action === 'reduction') return this.reduction(body);
       if (grant.actor_id !== body.principal.sub || body.principal.exp * 1000 <= Date.now()) throw new Failure('FORBIDDEN', 403, 'Ingestion authorization expired');
       authorize(body.principal, body.scope, 'ingest');
-      return await this.ctx.blockConcurrencyWhile(() => this.ingest(body));
+      return await this.ctx.blockConcurrencyWhile(async () => {
+        // A denied request is a normal response, not a fatal object reset.
+        try { return await this.ingest(body); }
+        catch (error) { return failureResponse(error); }
+      });
     } catch (error) { return failureResponse(error); }
   }
 
