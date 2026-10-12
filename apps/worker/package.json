@@ -11,9 +11,9 @@
     "hono": "4.12.5"
   },
   "devDependencies": {
-    "@cloudflare/workers-types": "^4.20261006.0",
+    "@cloudflare/workers-types": "latest",
     "esbuild": "0.25.0",
-    "miniflare": "^4.20261001.0",
+    "miniflare": "4",
     "typescript": "5.9.3"
   }
 }
