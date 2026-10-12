@@ -1,4 +1,5 @@
 import { hashProjection } from "../../../packages/contracts/src/index.ts";
+import { signToken } from "./auth.ts";
 import { Failure, readJson } from "./runtime.ts";
 import type { Bindings, Scope } from "./runtime.ts";
 
@@ -15,14 +16,19 @@ function oid(value: unknown): string {
 }
 
 export class GitStore {
-  constructor(private binding: Bindings["GIT_EXECUTOR"]) {}
+  private binding: Bindings["GIT_EXECUTOR"];
+  private signingKey: string;
+  constructor(binding: Bindings["GIT_EXECUTOR"], signingKey: string) { this.binding = binding; this.signingKey = signingKey; }
 
   private async call<T>(path: string, command: unknown): Promise<T> {
     let response: Response;
     try {
+      const body = command as { scope: Scope };
+      const authorization = await signToken({ schema_version: 1, aud: "git-executor", scope: body.scope, action: path.slice(1),
+        subject_digest: await hashProjection("klocgit.git-command", command), actor_id: "coordinator", expires_at: Date.now() + 120000 }, this.signingKey);
       response = await this.binding.fetch("https://git.internal" + path, {
         method: "POST",
-        headers: { "content-type": "application/json" },
+        headers: { "content-type": "application/json", "x-klocgit-internal": authorization },
         body: JSON.stringify(command),
         signal: AbortSignal.timeout(15_000),
       });

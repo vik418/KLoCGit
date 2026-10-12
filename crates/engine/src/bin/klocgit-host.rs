@@ -148,13 +148,14 @@ struct EvaluationJob {
 
 fn main() -> std::result::Result<(), Box<dyn std::error::Error>> {
     let role = std::env::var("KLOCGIT_HOST_ROLE")?;
-    if !["analysis", "evaluation"].contains(&role.as_str()) { return Err("invalid host role".into()); }
+    if !["analysis", "evaluation", "git"].contains(&role.as_str()) { return Err("invalid host role".into()); }
     let session = std::env::var("KLOCGIT_SESSION")?;
     if session.len() < 32 { return Err("session key is required".into()); }
     let port: u16 = std::env::var("KLOCGIT_HOST_PORT")?.parse()?;
     let server = Server::http(("0.0.0.0", port)).map_err(|error| error.to_string())?;
     let mut materialized: Option<(klocgit_engine::git::workspace::Workspace, Vec<host::ExportFile>)> = None;
     let mut execution = if role == "evaluation" { Some(EvaluationWorkspace::new()?) } else { None };
+    let mut git_executor = klocgit_engine::git::remote::Executor::new();
     for mut request in server.incoming_requests() {
         if request.url() == "/health" && request.method().as_str() == "GET" {
             let _ = request.respond(Response::from_string("ready")); continue;
@@ -174,6 +175,19 @@ fn main() -> std::result::Result<(), Box<dyn std::error::Error>> {
             if read.is_err() || bytes.len() > MAX_REQUEST { return Err(Error::LimitExceeded("host request")); }
             let json = |value: serde_json::Value| -> Result<(Vec<u8>, &'static str)> { Ok((serde_json::to_vec(&value)?, "application/json")) };
             match (role.as_str(), path.as_str()) {
+                ("git", "/git/cas") => {
+                    let receipt = git_executor.compare_and_swap(serde_json::from_slice(&bytes)?)?;
+                    json(serde_json::to_value(receipt)?)
+                }
+                ("git", "/git/operation") => {
+                    #[derive(Deserialize)]
+                    #[serde(deny_unknown_fields)]
+                    struct Query { idempotency_key: String, operation_digest: String }
+                    let query: Query = serde_json::from_slice(&bytes)?;
+                    let receipt = git_executor.operation(&query.idempotency_key, &query.operation_digest)?;
+                    json(serde_json::to_value(receipt)?.as_object().cloned().map(serde_json::Value::Object)
+                        .unwrap_or_else(|| serde_json::json!({ "schema_version": 1, "status": "UNKNOWN" })))
+                }
                 ("analysis", "/analyze") => json(host::analyze(serde_json::from_slice(&bytes)?)?),
                 ("analysis", "/reduce") => json(host::reduce(serde_json::from_slice(&bytes)?)?),
                 ("analysis", "/materialize") => {

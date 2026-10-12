@@ -306,3 +306,5 @@ pub fn snapshot(source: &dyn objects::ObjectSource, commit_oid: Oid, limits: Lim
     let entries = objects::read_entries(source, commit.tree_oid, &mut budget)?;
     Ok(Snapshot { tree_oid: commit.tree_oid, parent_oids: commit.parent_oids, entries })
 }
+
+pub mod remote;

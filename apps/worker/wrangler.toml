@@ -47,3 +47,7 @@ service = "klocgit-engine"
 
 [observability]
 enabled = true
+
+[[artifacts]]
+binding = "ARTIFACTS"
+namespace = "klocgit"

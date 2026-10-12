@@ -65,9 +65,13 @@ export class ObjectiveCoordinator extends DurableObject<Bindings> {
     ctx.storage.sql.exec(
       "CREATE TABLE IF NOT EXISTS futures (revision_id TEXT PRIMARY KEY, ref TEXT NOT NULL, version INTEGER NOT NULL, schema_version INTEGER NOT NULL, record TEXT NOT NULL, effects TEXT)",
     );
-    const columns = ctx.storage.sql.exec<{ name: string }>("PRAGMA table_info(futures)").toArray();
-    if (!columns.some(column => column.name === "analysis_paths"))
-      ctx.storage.sql.exec("ALTER TABLE futures ADD COLUMN analysis_paths TEXT");
+    const columns = ctx.storage.sql
+      .exec<{ name: string }>("PRAGMA table_info(futures)")
+      .toArray();
+    if (!columns.some((column) => column.name === "analysis_paths"))
+      ctx.storage.sql.exec(
+        "ALTER TABLE futures ADD COLUMN analysis_paths TEXT",
+      );
     ctx.storage.sql.exec(
       "CREATE TABLE IF NOT EXISTS current_refs (ref TEXT PRIMARY KEY, revision_id TEXT NOT NULL)",
     );
@@ -240,7 +244,7 @@ export class ObjectiveCoordinator extends DurableObject<Bindings> {
       await this.flush();
       return Response.json(JSON.parse(prior.response));
     }
-    const store = new GitStore(this.env.GIT_EXECUTOR);
+    const store = new GitStore(this.env.GIT_EXECUTOR, this.env.INTERNAL_SIGNING_KEY);
     const capturedBase = this.ctx.storage.sql
       .exec<{ value: string }>(
         "SELECT value FROM metadata WHERE key = ?",
@@ -372,7 +376,12 @@ export class ObjectiveCoordinator extends DurableObject<Bindings> {
         const payload = {
           schema_version: 1,
           scope: command.scope,
-          base_oid: this.ctx.storage.sql.exec<{ value: string }>("SELECT value FROM metadata WHERE key = ?", "base_oid").one().value,
+          base_oid: this.ctx.storage.sql
+            .exec<{ value: string }>(
+              "SELECT value FROM metadata WHERE key = ?",
+              "base_oid",
+            )
+            .one().value,
           state,
           revision,
         };
@@ -474,10 +483,22 @@ export class ObjectiveCoordinator extends DurableObject<Bindings> {
       command.effects.future_revision_id !== row.revision_id
     )
       throw new Failure("INVALID_ANALYSIS", 409, "Analysis inputs differ");
-    if (!Array.isArray(command.changed_paths) || command.changed_paths.length > 4096 ||
-        command.changed_paths.some(path => typeof path !== "string" || !path || path.length > 4096 ||
-          path.normalize("NFC") !== path || path.startsWith("/") || path.includes("\\") ||
-          path.split("/").some(part => !part || part === "." || part === "..")))
+    if (
+      !Array.isArray(command.changed_paths) ||
+      command.changed_paths.length > 4096 ||
+      command.changed_paths.some(
+        (path) =>
+          typeof path !== "string" ||
+          !path ||
+          path.length > 4096 ||
+          path.normalize("NFC") !== path ||
+          path.startsWith("/") ||
+          path.includes("\\") ||
+          path
+            .split("/")
+            .some((part) => !part || part === "." || part === ".."),
+      )
+    )
       throw new Failure("INVALID_ANALYSIS", 409, "Observed paths are invalid");
     const changed_paths = [...new Set(command.changed_paths)].sort();
     const sealed = await sealEffectSet(command.effects);

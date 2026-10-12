@@ -206,7 +206,7 @@ export class RefCoordinator extends DurableObject<Bindings> {
       });
     });
     try {
-      const receipt = await new GitStore(this.env.GIT_EXECUTOR).compareAndSwap(
+      const receipt = await new GitStore(this.env.GIT_EXECUTOR, this.env.INTERNAL_SIGNING_KEY).compareAndSwap(
         command,
       );
       const result = {
@@ -262,7 +262,7 @@ export class RefCoordinator extends DurableObject<Bindings> {
       throw new Failure("IDEMPOTENCY_MISMATCH", 409, "Recovery inputs differ");
     if (prior.status === "APPLIED")
       return Response.json(JSON.parse(prior.result!));
-    const receipt = await new GitStore(this.env.GIT_EXECUTOR).operation(
+    const receipt = await new GitStore(this.env.GIT_EXECUTOR, this.env.INTERNAL_SIGNING_KEY).operation(
       command,
     );
     if (

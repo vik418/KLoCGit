@@ -19,7 +19,7 @@ RUN --mount=type=secret,id=proxy_ca \
     certificate=/etc/ssl/certs/ca-certificates.crt; \
     if [ -f /run/secrets/proxy_ca ]; then certificate=/run/secrets/proxy_ca; fi; \
     apt-get -o Acquire::https::CaInfo="$certificate" update && \
-    apt-get -o Acquire::https::CaInfo="$certificate" install -y --no-install-recommends ca-certificates && \
+    apt-get -o Acquire::https::CaInfo="$certificate" install -y --no-install-recommends ca-certificates git && \
     rm -rf /var/lib/apt/lists/*
 COPY --from=build /source/target/release/klocgit-host /usr/local/bin/klocgit-host
 COPY --from=build /source/target/release/klocgit-engine /usr/local/bin/klocgit-engine

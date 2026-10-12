@@ -1,0 +1,27 @@
+name = "klocgit-git-executor"
+main = "src/native/git-service.ts"
+compatibility_date = "2026-08-06"
+compatibility_flags = ["nodejs_compat"]
+
+[[durable_objects.bindings]]
+name = "GIT"
+class_name = "GitContainer"
+
+[[migrations]]
+tag = "v1"
+new_sqlite_classes = ["GitContainer"]
+
+[[containers]]
+class_name = "GitContainer"
+image = "../../crates/engine/Dockerfile"
+image_build_context = "../.."
+image_vars = { KLOCGIT_IMAGE_TARGET = "analysis" }
+instance_type = "basic"
+max_instances = 4
+
+[[artifacts]]
+binding = "ARTIFACTS"
+namespace = "klocgit"
+
+[observability]
+enabled = true
