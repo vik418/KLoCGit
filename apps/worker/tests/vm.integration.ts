@@ -163,6 +163,7 @@ test("ephemeral VM runs each supported toolchain without a Docker daemon or cred
             input: JSON.stringify(payload),
             encoding: "utf8",
             timeout: 180000,
+            stdio: ["pipe", "pipe", "pipe"],
             maxBuffer: 8 * 1024 * 1024,
           },
         ),

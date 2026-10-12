@@ -204,7 +204,7 @@ async function fixture(t: { after: (fn: () => unknown) => void }) {
               operation_digest: input.operation_digest,
             }),
           );
-          return new WorkerResponse("stale", { status: 409 });
+          return WorkerResponse.json({ error: { code: "STALE_BASIS" } }, { status: 409 });
         }
       }
       return new WorkerResponse("not found", { status: 404 });

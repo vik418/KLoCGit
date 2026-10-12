@@ -44,6 +44,8 @@ jobs:
         run: npm run test:contracts
       - name: Cross-language gate
         run: npm run test:canonical-cross-language
+      - name: Coordination gate
+        run: npm run test:coordination
       - name: Build the isolated evaluator fixture
         run: |
           docker build -f tests/fixtures/sandbox/Dockerfile -t klocgit-evaluator-fixture tests/fixtures/sandbox
@@ -56,8 +58,6 @@ jobs:
           echo "KLOCGIT_NATIVE_IMAGE=$image_oid" >> "$GITHUB_ENV"
       - name: Sandbox gate
         run: npm run test:sandbox
-      - name: Coordination gate
-        run: npm run test:coordination
       - name: Collect reproducible source
         if: always()
         run: |
