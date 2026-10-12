@@ -134,7 +134,7 @@ fn run_check(
             "--memory-swap",
             &policy.memory_bytes.to_string(),
             "--cpus=1",
-            "--tmpfs=/tmp:rw,nosuid,nodev,size=268435456",
+            "--tmpfs=/tmp:rw,exec,nosuid,nodev,size=268435456",
             "--mount",
             &source_mount,
             "--mount",
@@ -256,7 +256,9 @@ pub fn evaluate(
     }
     let toolchain = toolchains::select(source, &policy.language, &policy.supported_toolchains)?;
     if toolchain.image_oid != policy.image_oid {
-        return Err(Error::InvalidInput("UNSUPPORTED: evaluator image differs from the selected toolchain".into()));
+        return Err(Error::InvalidInput(
+            "UNSUPPORTED: evaluator image differs from the selected toolchain".into(),
+        ));
     }
     // Environment and policy are separate from execution timing and payload location.
     let config_digest = canonical::hash_projection("klocgit.evaluator.config", policy)?;
@@ -266,6 +268,7 @@ pub fn evaluate(
             "image_oid": policy.image_oid, "network": "NONE", "uid": 10001,
             "source_read_only": true, "suite_read_only": true, "memory_bytes": policy.memory_bytes,
             "pids_limit": policy.pids_limit, "toolchain": toolchain,
+            "scratch_mount": { "writable": true, "executable": true, "bytes": 268435456 },
         }),
     )?;
     let mut checks = Vec::new();
