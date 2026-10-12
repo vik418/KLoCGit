@@ -1,0 +1,60 @@
+name: Engine foundations
+
+on:
+  push:
+    branches: [feat/convergence-platform]
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  foundations:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@1.90.0
+        with:
+          components: rustfmt, clippy
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+      - name: Format the test checkout
+        run: |
+          cargo fmt --all
+          npx --yes prettier@3.9.9 --write packages/contracts/src/index.ts packages/contracts/src/canonical.ts packages/contracts/tests/*.ts packages/contracts/tsconfig.json tests/fixtures/canonical.golden.json tests/fixtures/typescript/**/*.ts tests/fixtures/typescript/**/*.json
+      - name: Check contract types
+        run: npx --yes --package typescript@5.9.3 tsc -p packages/contracts/tsconfig.json
+      - name: Rust engine gate
+        run: cargo test -p klocgit-engine
+      - name: TypeScript contract gate
+        run: npm run test:contracts
+      - name: Cross-language gate
+        run: npm run test:canonical-cross-language
+      - name: Collect reproducible source
+        if: always()
+        run: |
+          node --input-type=module <<'NODE'
+          import { readFileSync, readdirSync } from 'node:fs';
+          const files = ['Cargo.lock'];
+          const walk = (path) => {
+            for (const item of readdirSync(path, { withFileTypes: true })) {
+              const child = path + '/' + item.name;
+              if (item.isDirectory()) walk(child);
+              else if (/\.(rs|ts|json)$/.test(child)) files.push(child);
+            }
+          };
+          walk('crates/engine/src');
+          walk('crates/engine/tests');
+          for (const path of ['packages/contracts/src/index.ts', 'packages/contracts/src/canonical.ts', 'packages/contracts/tsconfig.json']) files.push(path);
+          walk('packages/contracts/tests');
+          walk('tests/fixtures');
+          for (const path of files) {
+            try {
+              console.log('KLOCGIT_SOURCE ' + JSON.stringify({ path, content: readFileSync(path, 'utf8') }));
+            } catch (error) {
+              if (path !== 'Cargo.lock') throw error;
+            }
+          }
+          NODE

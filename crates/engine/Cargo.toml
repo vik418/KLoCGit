@@ -1,14 +1,22 @@
 [package]
 name = "klocgit-engine"
-version = "0.1.0"
-edition = "2021"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+publish.workspace = true
 
 [dependencies]
+git2 = { version = "0.20", default-features = false }
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+sha2 = "0.10"
+thiserror = "2"
+toml = "0.8"
+tree-sitter = "0.25"
+tree-sitter-typescript = "0.23"
+tree-sitter-python = "0.23"
+tree-sitter-go = "0.23"
+unicode-normalization = "0.1"
 
-[[bin]]
-name = "klocgit-cli"
-path = "src/bin/cli.rs"
-
-[lib]
-name = "klocgit_engine"
-path = "src/lib.rs"
+[dev-dependencies]
+tempfile = "3"

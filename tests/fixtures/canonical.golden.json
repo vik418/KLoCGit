@@ -1,0 +1,330 @@
+[
+  {
+    "name": "integers",
+    "domain": "klocgit.vector",
+    "projection": [
+      0,
+      23,
+      24,
+      255,
+      256,
+      65535,
+      65536,
+      4294967295,
+      4294967296,
+      -1,
+      -24,
+      -25,
+      -1000
+    ],
+    "cbor_hex": "8d0017181818ff19010019ffff1a000100001affffffff1b0000000100000000203738183903e7",
+    "expected_digest": "sha256:22631a227637c3a29d0277f9983c518dddaf32b2444ce90a1eb54224de65b9eb"
+  },
+  {
+    "name": "unicode-map",
+    "domain": "klocgit.vector",
+    "projection": {
+      "aa": 1,
+      "b": 2,
+      "é": 3
+    },
+    "cbor_hex": "a36162026261610162c3a903",
+    "expected_digest": "sha256:51183cc9992610a5da5c291df2dfc721e0f1a37a38cb6e1bdd414ba84ba80812"
+  },
+  {
+    "name": "nfc-string",
+    "domain": "klocgit.vector",
+    "projection": "café",
+    "cbor_hex": "65636166c3a9",
+    "expected_digest": "sha256:9105f143a70c8bce6bfdb1a7016dbcf074236ad878f7017d64bbe54d3a1e7b12"
+  },
+  {
+    "name": "ordered-array",
+    "domain": "klocgit.vector",
+    "projection": [
+      "b",
+      "a"
+    ],
+    "cbor_hex": "8261626161",
+    "expected_digest": "sha256:2a0bddca36c8b96373d03cba4ffef93371a2c5cea524adc54aa64640c70bfd3a"
+  },
+  {
+    "name": "null",
+    "domain": "klocgit.vector",
+    "projection": null,
+    "cbor_hex": "f6",
+    "expected_digest": "sha256:abe9b39838189f719d6ae361f2f53f808c2b4feb74fe779d6e703d4c88162ae9"
+  },
+  {
+    "name": "future-state",
+    "domain": "klocgit.future-revision.state",
+    "projection": {
+      "repo_id": "repo",
+      "commit_oid": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+      "tree_oid": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+      "parent_oids": [
+        "cccccccccccccccccccccccccccccccccccccccc",
+        "dddddddddddddddddddddddddddddddddddddddd"
+      ]
+    },
+    "cbor_hex": "a4677265706f5f6964647265706f68747265655f6f69647828626262626262626262626262626262626262626262626262626262626262626262626262626262626a636f6d6d69745f6f69647828616161616161616161616161616161616161616161616161616161616161616161616161616161616b706172656e745f6f69647382782863636363636363636363636363636363636363636363636363636363636363636363636363636363782864646464646464646464646464646464646464646464646464646464646464646464646464646464",
+    "expected_digest": "sha256:6867afa0a15f44fe8f31f0b094e2005ded233baa7607245536d992d392169a34"
+  },
+  {
+    "name": "future-parent-order",
+    "domain": "klocgit.future-revision.state",
+    "projection": {
+      "repo_id": "repo",
+      "commit_oid": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+      "tree_oid": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+      "parent_oids": [
+        "dddddddddddddddddddddddddddddddddddddddd",
+        "cccccccccccccccccccccccccccccccccccccccc"
+      ]
+    },
+    "cbor_hex": "a4677265706f5f6964647265706f68747265655f6f69647828626262626262626262626262626262626262626262626262626262626262626262626262626262626a636f6d6d69745f6f69647828616161616161616161616161616161616161616161616161616161616161616161616161616161616b706172656e745f6f69647382782864646464646464646464646464646464646464646464646464646464646464646464646464646464782863636363636363636363636363636363636363636363636363636363636363636363636363636363",
+    "expected_digest": "sha256:9f2b4cde936df598f37a77ce691a022c0c5870fb81e8f088dd32c4ccdf274414"
+  },
+  {
+    "name": "future-record",
+    "domain": "klocgit.future-revision.record",
+    "projection": {
+      "state_digest": "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+      "system_id": "system",
+      "ref": "refs/futures/agent/work",
+      "producer": {
+        "actor_id": "agent"
+      }
+    },
+    "cbor_hex": "a46372656677726566732f667574757265732f6167656e742f776f726b6870726f6475636572a1686163746f725f6964656167656e746973797374656d5f69646673797374656d6c73746174655f64696765737478477368613235363a61616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161",
+    "expected_digest": "sha256:1afbd6af5290c90dd7683cec2c612999bf7ac8ed1b162627768a60651cdc4226"
+  },
+  {
+    "name": "effects",
+    "domain": "klocgit.effect-set",
+    "projection": {
+      "future_revision_id": "future",
+      "extractor_id": "tree-sitter.typescript",
+      "extractor_version": "1",
+      "capability": "STRUCTURAL",
+      "status": "COMPLETE",
+      "modified_exports": [
+        "api.ts::A",
+        "api.ts::B"
+      ],
+      "added_dependencies": {
+        "zod": "^3.24.0"
+      },
+      "db_migrations_detected": false,
+      "security_effects": [
+        "dependency-change"
+      ]
+    },
+    "cbor_hex": "a96673746174757368434f4d504c4554456a6361706162696c6974796a5354525543545552414c6c657874726163746f725f696476747265652d7369747465722e74797065736372697074706d6f6469666965645f6578706f72747382696170692e74733a3a41696170692e74733a3a427073656375726974795f656666656374738171646570656e64656e63792d6368616e676571657874726163746f725f76657273696f6e61317261646465645f646570656e64656e63696573a1637a6f64675e332e32342e30726675747572655f7265766973696f6e5f6964666675747572657664625f6d6967726174696f6e735f6465746563746564f4",
+    "expected_digest": "sha256:a00ae7b8042d2192c500abab1b65d70143bab9d065ff0e6113f1200753190002"
+  },
+  {
+    "name": "spec",
+    "domain": "klocgit.candidate-spec",
+    "projection": {
+      "base_revisions": {
+        "repo": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+      },
+      "selected_future_revisions": [
+        "future"
+      ],
+      "composition_manifest": [
+        {
+          "repo_id": "repo",
+          "path": "api.ts",
+          "selector": {
+            "type": "file",
+            "value": "api.ts"
+          },
+          "source_future_id": "future",
+          "source_commit_oid": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+        }
+      ],
+      "creation_reason": "composition"
+    },
+    "cbor_hex": "a46e626173655f7265766973696f6e73a1647265706f7828616161616161616161616161616161616161616161616161616161616161616161616161616161616f6372656174696f6e5f726561736f6e6b636f6d706f736974696f6e74636f6d706f736974696f6e5f6d616e696665737481a56470617468666170692e7473677265706f5f6964647265706f6873656c6563746f72a264747970656466696c656576616c7565666170692e747370736f757263655f6675747572655f69646666757475726571736f757263655f636f6d6d69745f6f6964782861616161616161616161616161616161616161616161616161616161616161616161616161616161781973656c65637465645f6675747572655f7265766973696f6e738166667574757265",
+    "expected_digest": "sha256:3917d53d2c47c5e77f0833d27e348ffa1ad4a0c5daec2f9fafd8396733046206"
+  },
+  {
+    "name": "candidate",
+    "domain": "klocgit.candidate",
+    "projection": {
+      "candidate_spec_id": "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+      "repo_tree_oids": {
+        "repo": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb"
+      }
+    },
+    "cbor_hex": "a26e7265706f5f747265655f6f696473a1647265706f7828626262626262626262626262626262626262626262626262626262626262626262626262626262627163616e6469646174655f737065635f696478477368613235363a61616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161",
+    "expected_digest": "sha256:8a390859af7b5d943ab5060d6cdb37fa02497456b4e48ccea6577444b41cb4ef"
+  },
+  {
+    "name": "evidence",
+    "domain": "klocgit.evidence",
+    "projection": {
+      "subject_digest": "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+      "evaluator_id": "trusted-tests",
+      "evaluator_version": "1",
+      "config_digest": "sha256:bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+      "environment_digest": "sha256:cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc",
+      "result": "PASSED",
+      "payload_digest": "sha256:dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd"
+    },
+    "cbor_hex": "a766726573756c74665041535345446c6576616c7561746f725f69646d747275737465642d74657374736d636f6e6669675f64696765737478477368613235363a626262626262626262626262626262626262626262626262626262626262626262626262626262626262626262626262626262626262626262626262626262626e7061796c6f61645f64696765737478477368613235363a646464646464646464646464646464646464646464646464646464646464646464646464646464646464646464646464646464646464646464646464646464646e7375626a6563745f64696765737478477368613235363a61616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161716576616c7561746f725f76657273696f6e613172656e7669726f6e6d656e745f64696765737478477368613235363a63636363636363636363636363636363636363636363636363636363636363636363636363636363636363636363636363636363636363636363636363636363",
+    "expected_digest": "sha256:bb73984e681c6e4da782175a2d6bdca4a138e976a45a10ea1e51d88ceb2b32cc"
+  },
+  {
+    "name": "basis",
+    "domain": "klocgit.decision-basis",
+    "projection": {
+      "candidate_digests": [
+        "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+      ],
+      "evidence_digests": [
+        "sha256:bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb"
+      ],
+      "material_effect_digest": "sha256:cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc",
+      "policy_digest": "sha256:dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd",
+      "canonical_ref_oids": {
+        "repo": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+      },
+      "required_analysis_status": {
+        "tree-sitter.typescript": "COMPLETE"
+      }
+    },
+    "cbor_hex": "a66d706f6c6963795f64696765737478477368613235363a646464646464646464646464646464646464646464646464646464646464646464646464646464646464646464646464646464646464646464646464646464647065766964656e63655f646967657374738178477368613235363a626262626262626262626262626262626262626262626262626262626262626262626262626262626262626262626262626262626262626262626262626262627163616e6469646174655f646967657374738178477368613235363a616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161617263616e6f6e6963616c5f7265665f6f696473a1647265706f782861616161616161616161616161616161616161616161616161616161616161616161616161616161766d6174657269616c5f6566666563745f64696765737478477368613235363a63636363636363636363636363636363636363636363636363636363636363636363636363636363636363636363636363636363636363636363636363636363781872657175697265645f616e616c797369735f737461747573a176747265652d7369747465722e7479706573637269707468434f4d504c455445",
+    "expected_digest": "sha256:b482df875f28e998884aaca4df7293ab4146fa4e6228e580a96789067eaacc6e"
+  },
+  {
+    "name": "system-state",
+    "domain": "klocgit.system-revision.state",
+    "projection": {
+      "repositories": {
+        "repo": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+      },
+      "configuration_digests": {
+        "config": "sha256:bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb"
+      }
+    },
+    "cbor_hex": "a26c7265706f7369746f72696573a1647265706f78286161616161616161616161616161616161616161616161616161616161616161616161616161616175636f6e66696775726174696f6e5f64696765737473a166636f6e66696778477368613235363a62626262626262626262626262626262626262626262626262626262626262626262626262626262626262626262626262626262626262626262626262626262",
+    "expected_digest": "sha256:7d6e790c992d5db1bfac78cf37961801488d97932379044064d17d4297642b8f"
+  },
+  {
+    "name": "system-record",
+    "domain": "klocgit.system-revision.record",
+    "projection": {
+      "state_digest": "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+      "accepted_decision_ids": [
+        "decision"
+      ],
+      "composition_manifest": [
+        {
+          "repo_id": "repo",
+          "path": "api.ts",
+          "selector": {
+            "type": "file",
+            "value": "api.ts"
+          },
+          "source_future_id": "future",
+          "source_commit_oid": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+        }
+      ]
+    },
+    "cbor_hex": "a36c73746174655f64696765737478477368613235363a6161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616174636f6d706f736974696f6e5f6d616e696665737481a56470617468666170692e7473677265706f5f6964647265706f6873656c6563746f72a264747970656466696c656576616c7565666170692e747370736f757263655f6675747572655f69646666757475726571736f757263655f636f6d6d69745f6f69647828616161616161616161616161616161616161616161616161616161616161616161616161616161617561636365707465645f6465636973696f6e5f69647381686465636973696f6e",
+    "expected_digest": "sha256:43bb307a51add7a6a1e0fb25bbef86318c479ae94da1b3288dbf00c9ba038f29"
+  },
+  {
+    "name": "constraints",
+    "domain": "klocgit.release-constraints",
+    "projection": {
+      "system_revision_state_digest": "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+      "ordering_constraints": [
+        {
+          "before": {
+            "repo_id": "repo",
+            "resource_type": "service",
+            "resource_id": "api"
+          },
+          "after": {
+            "repo_id": "repo",
+            "resource_type": "service",
+            "resource_id": "worker"
+          }
+        }
+      ],
+      "compatibility_requirements": [
+        {
+          "subject": {
+            "repo_id": "repo",
+            "resource_type": "service",
+            "resource_id": "api"
+          },
+          "target": {
+            "repo_id": "repo",
+            "resource_type": "service",
+            "resource_id": "worker"
+          },
+          "relation": "COMPATIBLE"
+        }
+      ],
+      "preconditions": [
+        {
+          "target": {
+            "repo_id": "repo",
+            "resource_type": "service",
+            "resource_id": "api"
+          },
+          "assertion": "EXISTS"
+        }
+      ],
+      "postconditions": [
+        {
+          "target": {
+            "repo_id": "repo",
+            "resource_type": "service",
+            "resource_id": "api"
+          },
+          "assertion": "HEALTHY"
+        }
+      ],
+      "forward_only_operations": []
+    },
+    "cbor_hex": "a66d707265636f6e646974696f6e7381a266746172676574a3677265706f5f6964647265706f6b7265736f757263655f6964636170696d7265736f757263655f74797065677365727669636569617373657274696f6e664558495354536e706f7374636f6e646974696f6e7381a266746172676574a3677265706f5f6964647265706f6b7265736f757263655f6964636170696d7265736f757263655f74797065677365727669636569617373657274696f6e674845414c544859746f72646572696e675f636f6e73747261696e747381a2656166746572a3677265706f5f6964647265706f6b7265736f757263655f696466776f726b65726d7265736f757263655f747970656773657276696365666265666f7265a3677265706f5f6964647265706f6b7265736f757263655f6964636170696d7265736f757263655f74797065677365727669636577666f72776172645f6f6e6c795f6f7065726174696f6e7380781a636f6d7061746962696c6974795f726571756972656d656e747381a366746172676574a3677265706f5f6964647265706f6b7265736f757263655f696466776f726b65726d7265736f757263655f747970656773657276696365677375626a656374a3677265706f5f6964647265706f6b7265736f757263655f6964636170696d7265736f757263655f7479706567736572766963656872656c6174696f6e6a434f4d50415449424c45781c73797374656d5f7265766973696f6e5f73746174655f64696765737478477368613235363a61616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161",
+    "expected_digest": "sha256:27f791cea4e9796e0e37fe49f1ee5538186f5d7f413b86a8b2b760795b5b0e5a"
+  },
+  {
+    "name": "attestation",
+    "domain": "klocgit.deployment-attestation",
+    "projection": {
+      "system_revision_state_digest": "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+      "environment": "staging",
+      "deployer_identity": "cd",
+      "observed_state": "UNKNOWN",
+      "observed_repositories": {
+        "repo": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+      },
+      "observed_configuration_digests": {
+        "config": "sha256:bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb"
+      },
+      "payload_digest": "sha256:cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc"
+    },
+    "cbor_hex": "a76b656e7669726f6e6d656e746773746167696e676e6f627365727665645f737461746567554e4b4e4f574e6e7061796c6f61645f64696765737478477368613235363a63636363636363636363636363636363636363636363636363636363636363636363636363636363636363636363636363636363636363636363636363636363716465706c6f7965725f6964656e74697479626364756f627365727665645f7265706f7369746f72696573a1647265706f782861616161616161616161616161616161616161616161616161616161616161616161616161616161781c73797374656d5f7265766973696f6e5f73746174655f64696765737478477368613235363a61616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161781e6f627365727665645f636f6e66696775726174696f6e5f64696765737473a166636f6e66696778477368613235363a62626262626262626262626262626262626262626262626262626262626262626262626262626262626262626262626262626262626262626262626262626262",
+    "expected_digest": "sha256:9baa881b4818b77833c215ccffe27b0f11edf5d47da67b8c6a5aaccd52732d09"
+  },
+  {
+    "name": "payload-nfc",
+    "domain": "klocgit.payload",
+    "payload_hex": "636166c3a9",
+    "expected_digest": "sha256:1c499d77d465c894e0e7a65d80ab8caed916876ea3b8a0555649150deba05bc0"
+  },
+  {
+    "name": "payload-original-bytes",
+    "domain": "klocgit.payload",
+    "payload_hex": "63616665cc81",
+    "expected_digest": "sha256:27784f345f0a1b38bd37ca0c96c8681aa7430a86a51f77b9439b30c8a653bc82"
+  }
+]
