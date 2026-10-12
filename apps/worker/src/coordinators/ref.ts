@@ -2,6 +2,7 @@ import { DurableObject } from "cloudflare:workers";
 import { hashProjection } from "../../../../packages/contracts/src/index.ts";
 import { verifyInternal, sameScope } from "../auth.ts";
 import { GitStore } from "../git-store.ts";
+import type { PromotionPack } from "../git-store.ts";
 import {
   Failure,
   failureResponse,
@@ -20,6 +21,7 @@ export interface PromotionCommand {
   target_oid: string;
   actor_id: string;
   idempotency_key: string;
+  promotion_pack?: PromotionPack;
 }
 
 export function refName(scope: Scope, ref: string): Promise<string> {

@@ -25,3 +25,7 @@ namespace = "klocgit"
 
 [observability]
 enabled = true
+
+[[r2_buckets]]
+binding = "PAYLOADS"
+bucket_name = "klocgit-payloads"

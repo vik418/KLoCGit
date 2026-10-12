@@ -15,6 +15,12 @@ function oid(value: unknown): string {
   return value;
 }
 
+export interface PromotionPack {
+  payload_digest: string;
+  candidate_digest: string;
+  tree_oid: string;
+}
+
 export class GitStore {
   private binding: Bindings["GIT_EXECUTOR"];
   private signingKey: string;
@@ -56,8 +62,7 @@ export class GitStore {
       );
     }
     if (!response.ok) {
-      const failure = await response
-        .json<{ error?: { code?: string } }>()
+      const failure = await readJson<{ error?: { code?: string } }>(response, 32 * 1024)
         .catch(() => ({}) as { error?: { code?: string } });
       if (response.status === 409 && failure.error?.code === "STALE_BASIS")
         throw new Failure("STALE_BASIS", 409, "Canonical Git head changed");
@@ -101,6 +106,7 @@ export class GitStore {
     expected_oid: string;
     target_oid: string;
     idempotency_key: string;
+    promotion_pack?: PromotionPack;
   }): Promise<{ status: "APPLIED"; expected_oid: string; target_oid: string }> {
     const operation = { scope: command.scope, ref: command.ref, expected_oid: command.expected_oid,
       target_oid: command.target_oid, idempotency_key: command.idempotency_key };
@@ -110,7 +116,8 @@ export class GitStore {
       expected_oid: string;
       target_oid: string;
       operation_digest: string;
-    }>("/cas", { schema_version: 1, ...operation, operation_digest });
+    }>("/cas", { schema_version: 1, ...operation, operation_digest,
+      ...(command.promotion_pack ? { promotion_pack: command.promotion_pack } : {}) });
     if (
       value.operation_digest !== operation_digest ||
       value.status !== "APPLIED" ||
@@ -131,6 +138,7 @@ export class GitStore {
     expected_oid: string;
     target_oid: string;
     idempotency_key: string;
+    promotion_pack?: PromotionPack;
   }): Promise<{
     status: "APPLIED" | "NO_EFFECT" | "IN_PROGRESS" | "UNKNOWN";
     expected_oid?: string;

@@ -54,6 +54,7 @@ export class NativeContainer extends Container<NativeBindings> {
           "reduce",
           "materialize",
           "workspace/blob",
+          "prepare-commit",
           "stage",
           "evaluate",
           "destroy",
@@ -74,7 +75,7 @@ export class NativeContainer extends Container<NativeBindings> {
         throw new Failure("FORBIDDEN", 403, "Native command scope differs");
       const permitted =
         this.role === "analysis"
-          ? ["analyze", "reduce", "materialize", "workspace/blob", "destroy"]
+          ? ["analyze", "reduce", "materialize", "workspace/blob", "prepare-commit", "destroy"]
           : this.role === "git"
             ? ["git/cas", "git/operation", "destroy"]
             : ["stage", "evaluate", "destroy"];

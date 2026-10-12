@@ -12,6 +12,7 @@ import {
   failureResponse,
   readJson,
   validateScope,
+  strictUtf8,
 } from "../runtime.ts";
 import type { Scope } from "../runtime.ts";
 import type { NativeBindings } from "./containers.ts";
@@ -179,7 +180,7 @@ export default {
       if (request.method !== "POST")
         throw new Failure("METHOD_NOT_ALLOWED", 405, "POST is required");
       const action = new URL(request.url).pathname.slice(1);
-      const body = await readJson<
+      let body = await readJson<
         Record<string, unknown> & { scope: Scope; schema_version: number }
       >(request, 32 * 1024);
       scope = validateScope(body.scope);
@@ -194,13 +195,20 @@ export default {
       if (
         body.schema_version !== 1 ||
         !sameScope(grant.scope, scope) ||
-        !["analyze", "reduce", "evaluate"].includes(action)
+        !["analyze", "reduce", "evaluate", "prepare"].includes(action)
       )
         throw new Failure(
           "FORBIDDEN",
           403,
           "Native execution is outside the authorized scope",
         );
+      if (body.job_payload_ref !== undefined) {
+        const bytes = await r2Bytes(env, String(body.job_payload_ref), String(body.job_payload_digest), "jobs/" + scope.tenant_id + "/");
+        const referenced = JSON.parse(strictUtf8(bytes));
+        if (referenced.schema_version !== 1 || !sameScope(validateScope(referenced.scope), scope))
+          throw new Failure("FORBIDDEN", 403, "Referenced job scope differs");
+        body = referenced;
+      }
       instance = await hashProjection("klocgit.analysis-instance", {
         scope,
         input_digest: digest,
@@ -232,7 +240,7 @@ export default {
           String(body.input_payload_digest),
           "analysis/" + scope.tenant_id + "/",
         );
-        const manifest = JSON.parse(new TextDecoder().decode(bytes)) as {
+        const manifest = JSON.parse(strictUtf8(bytes)) as {
           schema_version: number;
           segments: { payload_ref: string; payload_digest: string }[];
         };
@@ -262,7 +270,7 @@ export default {
               409,
               "Reduction input exceeds budget",
             );
-          const rows = JSON.parse(new TextDecoder().decode(bytes));
+          const rows = JSON.parse(strictUtf8(bytes));
           if (!Array.isArray(rows))
             throw new Failure(
               "INPUT_MISMATCH",
@@ -340,6 +348,36 @@ export default {
             reduction_digest: result.reduction_digest,
           },
         });
+      }
+      if (action === "prepare") {
+        const spec = body.candidate_spec as { base_revisions: Record<string, string> };
+        if (spec.base_revisions[scope.repo_id] !== body.expected_oid)
+          throw new Failure("STALE_BASIS", 409, "Prepared candidate base differs");
+        const materialized = await responseJson<{ candidate: Candidate }>(await native(env, scope, instance, "materialize", {
+          schema_version: 1, scope, broker_endpoint: "https://broker.internal/internal/git-objects",
+          read_capability: await readCapability(env, scope), candidate_spec: body.candidate_spec, sources: body.sources,
+        }));
+        if (materialized.candidate.candidate_digest !== body.candidate_digest)
+          throw new Failure("CANDIDATE_CHANGED", 409, "Prepared code differs from evaluated candidate");
+        const prepared = await responseJson<{ schema_version: number; candidate_digest: string; target_oid: string;
+          tree_oid: string; expected_oid: string; payload_digest: string; pack_hex: string }>(
+          await native(env, scope, instance, "prepare-commit", { schema_version: 1,
+            candidate_digest: body.candidate_digest, repo_id: scope.repo_id, expected_oid: body.expected_oid,
+            decision_id: body.decision_id, basis_digest: body.basis_digest, author: body.author, max_pack_bytes: 8 * 1024 * 1024 }),
+          20 * 1024 * 1024);
+        if (prepared.schema_version !== 1 || prepared.candidate_digest !== body.candidate_digest ||
+            prepared.expected_oid !== body.expected_oid || materialized.candidate.repo_tree_oids[scope.repo_id] !== prepared.tree_oid ||
+            prepared.pack_hex.length > 16 * 1024 * 1024 || prepared.pack_hex.length % 2 !== 0 || !/^[0-9a-f]+$/.test(prepared.pack_hex))
+          throw new Failure("INPUT_MISMATCH", 409, "Promotion pack binding differs");
+        const pack = new Uint8Array(prepared.pack_hex.length / 2);
+        for (let index = 0; index < pack.length; index++) pack[index] = Number.parseInt(prepared.pack_hex.slice(index * 2, index * 2 + 2), 16);
+        if (await payloadDigest(pack) !== prepared.payload_digest)
+          throw new Failure("INPUT_MISMATCH", 409, "Promotion pack bytes differ");
+        const payload_ref = "promotion-packs/" + await hashProjection("klocgit.promotion-pack.scope", scope) + "/" + prepared.payload_digest.slice(7);
+        await env.PAYLOADS.put(payload_ref, pack, { onlyIf: { etagDoesNotMatch: "*" },
+          customMetadata: { schema_version: "1", retention_class: "EPHEMERAL", payload_digest: prepared.payload_digest } });
+        return Response.json({ schema_version: 1, candidate_digest: prepared.candidate_digest, expected_oid: prepared.expected_oid,
+          target_oid: prepared.target_oid, tree_oid: prepared.tree_oid, payload_ref, payload_digest: prepared.payload_digest });
       }
       let config: Config;
       let suite: SuiteManifest;
