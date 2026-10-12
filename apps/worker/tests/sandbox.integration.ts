@@ -496,8 +496,17 @@ test("native materialization hydrates pinned Artifacts objects over an authentic
     futures: [{ state, revision, effects, changed_paths: ["api.ts", "removed.bin"], required_future_ids: [] }],
     budget: { max_candidates: 8, max_futures: 100, max_footprint_entries: 1000, max_output_bytes: 1000000 } });
   const cert = join(certificateDirectory, "cert.pem"); const key = join(certificateDirectory, "key.pem");
-  execFileSync("openssl", ["req", "-x509", "-newkey", "rsa:2048", "-nodes", "-keyout", key, "-out", cert,
-    "-days", "1", "-subj", "/CN=127.0.0.1", "-addext", "subjectAltName=IP:127.0.0.1"], { stdio: "ignore" });
+  const ca = join(certificateDirectory, "ca.pem");
+  const caKey = join(certificateDirectory, "ca-key.pem");
+  const csr = join(certificateDirectory, "server.csr");
+  const extension = join(certificateDirectory, "server.ext");
+  execFileSync("openssl", ["req", "-x509", "-newkey", "rsa:2048", "-nodes", "-keyout", caKey, "-out", ca,
+    "-days", "1", "-subj", "/CN=Fixture CA", "-addext", "basicConstraints=critical,CA:TRUE"], { stdio: "ignore" });
+  execFileSync("openssl", ["req", "-new", "-newkey", "rsa:2048", "-nodes", "-keyout", key,
+    "-out", csr, "-subj", "/CN=127.0.0.1"], { stdio: "ignore" });
+  writeFileSync(extension, "subjectAltName=IP:127.0.0.1\nbasicConstraints=critical,CA:FALSE\nkeyUsage=critical,digitalSignature,keyEncipherment\nextendedKeyUsage=serverAuth\n");
+  execFileSync("openssl", ["x509", "-req", "-in", csr, "-CA", ca, "-CAkey", caKey, "-CAcreateserial",
+    "-out", cert, "-days", "1", "-extfile", extension], { stdio: "ignore" });
   const scope = { tenant_id: "tenant", organization_id: "organization", repo_id: "repo", objective_id: "task" };
   const objectReads: { kind: string; oid: string }[] = [];
   const repository = {
@@ -545,7 +554,7 @@ test("native materialization hydrates pinned Artifacts objects over an authentic
   const output = await new Promise<string>((resolve, reject) => {
     const child = execFile("cargo", ["run", "--quiet", "-p", "klocgit-engine", "--bin", "klocgit-engine"], {
       cwd: root, encoding: "utf8", timeout: 180000, maxBuffer: 8 * 1024 * 1024,
-      env: { ...process.env, SSL_CERT_FILE: cert },
+      env: { ...process.env, SSL_CERT_FILE: ca },
     }, (error, stdout) => error ? reject(error) : resolve(stdout));
     child.stdin!.end(JSON.stringify(input));
   });
