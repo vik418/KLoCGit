@@ -193,7 +193,7 @@ export function authorize(
 
 export interface InternalGrant {
   schema_version: 1;
-  aud: "objective" | "ref" | "queue";
+  aud: "objective" | "ref" | "queue" | "engine" | "native-container";
   scope: Scope;
   action: string;
   subject_digest: string;
@@ -203,7 +203,7 @@ export interface InternalGrant {
 
 export async function verifyInternal(
   request: Request,
-  env: Bindings,
+  env: Pick<Bindings, "INTERNAL_SIGNING_KEY">,
   audience: InternalGrant["aud"],
   action: string,
   subjectDigest: string,

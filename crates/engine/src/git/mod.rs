@@ -292,3 +292,17 @@ fn encode_tree(
 
 pub mod objects;
 pub mod workspace;
+
+pub struct Snapshot {
+    pub tree_oid: Oid,
+    pub parent_oids: Vec<Oid>,
+    pub entries: BTreeMap<String, Entry>,
+}
+
+/// Read pinned tree metadata without hydrating blobs or changing any refs.
+pub fn snapshot(source: &dyn objects::ObjectSource, commit_oid: Oid, limits: Limits) -> Result<Snapshot> {
+    let commit = objects::verified_commit(source, commit_oid)?;
+    let mut budget = Budget { entries: 0, bytes: 0, limits };
+    let entries = objects::read_entries(source, commit.tree_oid, &mut budget)?;
+    Ok(Snapshot { tree_oid: commit.tree_oid, parent_oids: commit.parent_oids, entries })
+}

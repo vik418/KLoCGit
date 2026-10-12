@@ -8,6 +8,11 @@ use std::io::{self, Read};
 #[derive(Deserialize)]
 #[serde(tag = "operation", rename_all = "snake_case", deny_unknown_fields)]
 enum Request {
+    EvaluateVm {
+        workspace: String, trusted_suite: String, candidate: klocgit_engine::contracts::Candidate,
+        repo_id: String, policy: klocgit_engine::sandbox::EvaluationPolicy,
+        environment: klocgit_engine::sandbox::vm::Environment,
+    },
     EvaluateObjects {
         broker_endpoint: String,
         read_capability: String,
@@ -124,6 +129,13 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     }
     let input: Request = serde_json::from_slice(&bytes)?;
     let output = match input {
+        Request::EvaluateVm { workspace, trusted_suite, candidate, repo_id, policy, environment } => {
+            let result = klocgit_engine::sandbox::vm::evaluate(
+                std::path::Path::new(&workspace), std::path::Path::new(&trusted_suite),
+                &candidate, &repo_id, &policy, &environment,
+            )?;
+            serde_json::json!({ "schema_version": 1, "evidence": result.evidence, "payload": result.payload, "receipt": result.receipt })
+        }
         Request::EvaluateObjects {
             broker_endpoint,
             read_capability,

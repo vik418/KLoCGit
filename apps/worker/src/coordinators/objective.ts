@@ -50,6 +50,7 @@ type FutureRow = {
   version: number;
   record: string;
   effects: string | null;
+  analysis_paths: string | null;
 };
 
 export class ObjectiveCoordinator extends DurableObject<Bindings> {
@@ -64,6 +65,9 @@ export class ObjectiveCoordinator extends DurableObject<Bindings> {
     ctx.storage.sql.exec(
       "CREATE TABLE IF NOT EXISTS futures (revision_id TEXT PRIMARY KEY, ref TEXT NOT NULL, version INTEGER NOT NULL, schema_version INTEGER NOT NULL, record TEXT NOT NULL, effects TEXT)",
     );
+    const columns = ctx.storage.sql.exec<{ name: string }>("PRAGMA table_info(futures)").toArray();
+    if (!columns.some(column => column.name === "analysis_paths"))
+      ctx.storage.sql.exec("ALTER TABLE futures ADD COLUMN analysis_paths TEXT");
     ctx.storage.sql.exec(
       "CREATE TABLE IF NOT EXISTS current_refs (ref TEXT PRIMARY KEY, revision_id TEXT NOT NULL)",
     );
@@ -368,6 +372,7 @@ export class ObjectiveCoordinator extends DurableObject<Bindings> {
         const payload = {
           schema_version: 1,
           scope: command.scope,
+          base_oid: this.ctx.storage.sql.exec<{ value: string }>("SELECT value FROM metadata WHERE key = ?", "base_oid").one().value,
           state,
           revision,
         };
@@ -454,10 +459,11 @@ export class ObjectiveCoordinator extends DurableObject<Bindings> {
     revision_id?: string;
     version?: number;
     effects?: EffectSet;
+    changed_paths?: string[];
   }): Promise<Response> {
     const row = this.ctx.storage.sql
       .exec<FutureRow>(
-        "SELECT revision_id, ref, version, record, effects FROM futures WHERE revision_id = ?",
+        "SELECT revision_id, ref, version, record, effects, analysis_paths FROM futures WHERE revision_id = ?",
         command.revision_id ?? "",
       )
       .toArray()[0];
@@ -468,6 +474,12 @@ export class ObjectiveCoordinator extends DurableObject<Bindings> {
       command.effects.future_revision_id !== row.revision_id
     )
       throw new Failure("INVALID_ANALYSIS", 409, "Analysis inputs differ");
+    if (!Array.isArray(command.changed_paths) || command.changed_paths.length > 4096 ||
+        command.changed_paths.some(path => typeof path !== "string" || !path || path.length > 4096 ||
+          path.normalize("NFC") !== path || path.startsWith("/") || path.includes("\\") ||
+          path.split("/").some(part => !part || part === "." || part === "..")))
+      throw new Failure("INVALID_ANALYSIS", 409, "Observed paths are invalid");
+    const changed_paths = [...new Set(command.changed_paths)].sort();
     const sealed = await sealEffectSet(command.effects);
     if (sealed.effect_digest !== command.effects.effect_digest)
       throw new Failure("INVALID_ANALYSIS", 409, "Effect digest differs");
@@ -483,8 +495,9 @@ export class ObjectiveCoordinator extends DurableObject<Bindings> {
     if (!row.effects) {
       this.ctx.storage.transactionSync(() => {
         this.ctx.storage.sql.exec(
-          "UPDATE futures SET effects = ? WHERE revision_id = ?",
+          "UPDATE futures SET effects = ?, analysis_paths = ? WHERE revision_id = ?",
           JSON.stringify(sealed),
+          JSON.stringify(changed_paths),
           row.revision_id,
         );
         const version = this.version() + 1;
@@ -541,7 +554,7 @@ export class ObjectiveCoordinator extends DurableObject<Bindings> {
       throw new Failure("OUTDATED_VERSION", 409, "Objective inputs changed");
     const rows = this.ctx.storage.sql
       .exec<FutureRow>(
-        "SELECT f.revision_id, f.ref, f.version, f.record, f.effects FROM current_refs c JOIN futures f ON c.revision_id = f.revision_id WHERE f.revision_id > ? ORDER BY f.revision_id LIMIT 64",
+        "SELECT f.revision_id, f.ref, f.version, f.record, f.effects, f.analysis_paths FROM current_refs c JOIN futures f ON c.revision_id = f.revision_id WHERE f.revision_id > ? ORDER BY f.revision_id LIMIT 64",
         command.cursor ?? "",
       )
       .toArray();
@@ -564,6 +577,7 @@ export class ObjectiveCoordinator extends DurableObject<Bindings> {
       records: rows.map((row) => ({
         ...JSON.parse(row.record),
         effects: JSON.parse(row.effects!),
+        changed_paths: JSON.parse(row.analysis_paths ?? "[]"),
       })),
       next_cursor:
         rows.length === 64 ? rows[rows.length - 1].revision_id : null,

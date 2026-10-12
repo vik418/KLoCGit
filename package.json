@@ -16,7 +16,7 @@
     "test:materialization": "tsx services/evaluator/test-materialization.ts",
     "test:policy": "tsx packages/policy/test-policy.ts",
     "test:e2e": "tsx tests/e2e/test-full-lifecycle.ts",
-    "test:sandbox": "node --test apps/worker/tests/sandbox.integration.ts"
+    "test:sandbox": "node --test apps/worker/tests/sandbox.integration.ts apps/worker/tests/vm.integration.ts"
   },
   "dependencies": {
     "@google/genai": "^2.4.0",

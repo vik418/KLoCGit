@@ -49,6 +49,11 @@ jobs:
           docker build -f tests/fixtures/sandbox/Dockerfile -t klocgit-evaluator-fixture tests/fixtures/sandbox
           image_oid=$(docker image inspect --format '{{.Id}}' klocgit-evaluator-fixture)
           echo "KLOCGIT_SANDBOX_IMAGE=$image_oid" >> "$GITHUB_ENV"
+      - name: Build the native execution image
+        run: |
+          docker build --build-arg KLOCGIT_IMAGE_TARGET=evaluation -f crates/engine/Dockerfile -t klocgit-native-evaluator .
+          image_oid=$(docker image inspect --format '{{.Id}}' klocgit-native-evaluator)
+          echo "KLOCGIT_NATIVE_IMAGE=$image_oid" >> "$GITHUB_ENV"
       - name: Sandbox gate
         run: npm run test:sandbox
       - name: Coordination gate

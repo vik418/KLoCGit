@@ -210,7 +210,7 @@ async function fixture(t: { after: (fn: () => unknown) => void }) {
       return new WorkerResponse("not found", { status: 404 });
     },
     ENGINE: async (request: Request) => {
-      const input = (await request.json()) as any;
+      let input = (await request.json()) as any;
       if (new URL(request.url).pathname === "/reduce") {
         const bucket = await mf.getR2Bucket("PAYLOADS");
         const manifestObject = await bucket.get(input.input_payload_ref);
@@ -291,6 +291,10 @@ async function fixture(t: { after: (fn: () => unknown) => void }) {
           },
         });
       }
+      const command = input;
+      input = JSON.parse(command.original_payload);
+      assert.equal(await (await import("../../../packages/contracts/src/index.ts")).payloadDigest(
+        new TextEncoder().encode(command.original_payload)), command.input_payload_digest);
       const paths = git([
         "--git-dir",
         remote,
@@ -336,8 +340,9 @@ async function fixture(t: { after: (fn: () => unknown) => void }) {
       engineCalls++;
       return WorkerResponse.json({
         schema_version: 1,
-        input_payload_digest: input.input_payload_digest,
+        input_payload_digest: command.input_payload_digest,
         effects,
+        changed_paths: paths,
       });
     },
   };

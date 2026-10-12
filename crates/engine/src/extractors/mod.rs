@@ -2,6 +2,7 @@
 //! syntax coverage; it does not certify behavioral compatibility.
 
 mod manifests;
+pub mod repository;
 
 use crate::contracts::{AnalysisStatus, CanonicalEffectSet, Capability, EffectSet, Language};
 use crate::{Error, Result};

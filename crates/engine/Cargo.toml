@@ -23,3 +23,6 @@ semver = "1"
 pep440_rs = "0.7"
 
 ureq = { version = "2.12", features = ["native-certs"] }
+
+tiny_http = "0.12"
+libc = "0.2"

@@ -82,6 +82,16 @@ export async function callObjective(
   });
 }
 
+export async function callEngine(env: Bindings, action: string, body: { scope: Scope } & Record<string, unknown>): Promise<Response> {
+  const subject_digest = await hashProjection("klocgit.engine-command", body);
+  const token = await signToken({ schema_version: 1, aud: "engine", action, scope: body.scope,
+    subject_digest, actor_id: "coordinator", expires_at: Date.now() + 900000 }, env.INTERNAL_SIGNING_KEY);
+  return env.ENGINE.fetch("https://engine.internal/" + action, {
+    method: "POST", headers: { "content-type": "application/json", "x-klocgit-internal": token },
+    body: JSON.stringify(body), signal: AbortSignal.timeout(900000),
+  });
+}
+
 app.get(prefix, async (context) => {
   const target = scope(context.req.param());
   const principal = await authenticate(context.req.raw, context.env);
@@ -149,6 +159,7 @@ async function analyze(env: Bindings, envelope: EventEnvelope): Promise<void> {
     scope: Scope;
     state: Parameters<typeof sealFutureRevision>[0];
     revision: Awaited<ReturnType<typeof sealFutureRevision>>;
+    base_oid: string;
   };
   if (envelope.type === "objective.reduce") {
     await reduceObjective(env, envelope);
@@ -169,18 +180,11 @@ async function analyze(env: Bindings, envelope: EventEnvelope): Promise<void> {
     payload.state.repo_id !== envelope.scope.repo_id
   )
     throw new Failure("INVALID_EVENT", 409, "Future record differs");
-  const result = await env.ENGINE.fetch("https://engine.internal/analyze", {
-    method: "POST",
-    headers: { "content-type": "application/json" },
-    body: JSON.stringify({
-      schema_version: 1,
+  const original_payload = JSON.stringify(payload);
+  const result = await callEngine(env, "analyze", {
+      schema_version: 1, scope: payload.scope, original_payload,
       input_payload_digest: envelope.payload_digest,
-      state: payload.state,
-      revision: payload.revision,
-      scope: payload.scope,
-    }),
-    signal: AbortSignal.timeout(60_000),
-  });
+    });
   if (!result.ok)
     throw new Failure(
       "ENGINE_UNAVAILABLE",
@@ -191,6 +195,7 @@ async function analyze(env: Bindings, envelope: EventEnvelope): Promise<void> {
     schema_version: number;
     input_payload_digest: string;
     effects: EffectSet;
+    changed_paths: string[];
   }>(
     new Request("https://response.internal", {
       method: "POST",
@@ -217,6 +222,7 @@ async function analyze(env: Bindings, envelope: EventEnvelope): Promise<void> {
       revision_id: payload.revision.id,
       version: envelope.subject_version,
       effects: analysis.effects,
+      changed_paths: analysis.changed_paths,
     },
     "engine",
   );
@@ -320,18 +326,9 @@ async function reduceObjective(
       "Reduction budget is not configured",
     );
   }
-  const result = await env.ENGINE.fetch("https://engine.internal/reduce", {
-    method: "POST",
-    headers: { "content-type": "application/json" },
-    body: JSON.stringify({
-      schema_version: 1,
-      scope: envelope.scope,
-      base_revisions: { [envelope.scope.repo_id]: base_oid },
-      input_payload_ref,
-      input_payload_digest,
-      budget,
-    }),
-    signal: AbortSignal.timeout(60_000),
+  const result = await callEngine(env, "reduce", {
+    schema_version: 1, scope: envelope.scope, base_revisions: { [envelope.scope.repo_id]: base_oid },
+    input_payload_ref, input_payload_digest, budget,
   });
   if (!result.ok)
     throw new Failure(

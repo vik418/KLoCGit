@@ -1,0 +1,43 @@
+name = "klocgit-engine"
+main = "src/native/gateway.ts"
+compatibility_date = "2026-08-06"
+compatibility_flags = ["nodejs_compat"]
+
+[[durable_objects.bindings]]
+name = "ANALYSIS"
+class_name = "AnalysisContainer"
+
+[[durable_objects.bindings]]
+name = "EVALUATIONS"
+class_name = "EvaluationContainer"
+
+[[migrations]]
+tag = "v1"
+new_sqlite_classes = ["AnalysisContainer", "EvaluationContainer"]
+
+[[containers]]
+class_name = "AnalysisContainer"
+image = "../../crates/engine/Dockerfile"
+image_build_context = "../.."
+image_vars = { KLOCGIT_IMAGE_TARGET = "analysis" }
+instance_type = "standard-1"
+max_instances = 8
+
+[[containers]]
+class_name = "EvaluationContainer"
+image = "../../crates/engine/Dockerfile"
+image_build_context = "../.."
+image_vars = { KLOCGIT_IMAGE_TARGET = "evaluation" }
+instance_type = "standard-1"
+max_instances = 8
+
+[[services]]
+binding = "CONTROL_PLANE"
+service = "klocgit"
+
+[[r2_buckets]]
+binding = "PAYLOADS"
+bucket_name = "klocgit-payloads"
+
+[observability]
+enabled = true

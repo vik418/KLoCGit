@@ -87,7 +87,7 @@ impl Drop for Container {
     }
 }
 
-fn drain(mut reader: impl Read, limit: usize) -> (Vec<u8>, bool) {
+pub(crate) fn drain(mut reader: impl Read, limit: usize) -> (Vec<u8>, bool) {
     let mut captured = Vec::new();
     let mut truncated = false;
     let mut buffer = [0; 4096];
@@ -238,63 +238,8 @@ pub fn evaluate(
     repo_id: &str,
     policy: &EvaluationPolicy,
 ) -> Result<Evaluation> {
-    let mut sealed = candidate.clone();
-    sealed.seal()?;
-    if sealed.id != candidate.id
-        || sealed.candidate_digest != candidate.candidate_digest
-        || candidate.repo_tree_oids.len() != 1
-    {
-        return Err(Error::RevisionMismatch);
-    }
-    let actual_tree = crate::git::workspace::tree_oid(
-        source,
-        crate::git::Limits::default(),
-        crate::git::workspace::HydrationBudget {
-            max_blob_bytes: 16 * 1024 * 1024,
-            max_total_bytes: 64 * 1024 * 1024,
-        },
-    )?;
-    if candidate.repo_tree_oids.get(repo_id) != Some(&actual_tree.to_string()) {
-        return Err(Error::RevisionMismatch);
-    }
-    let suite_tree = crate::git::workspace::tree_oid(
-        suite,
-        crate::git::Limits::default(),
-        crate::git::workspace::HydrationBudget {
-            max_blob_bytes: 16 * 1024 * 1024,
-            max_total_bytes: 64 * 1024 * 1024,
-        },
-    )?;
-    if canonical::hash_projection(
-        "klocgit.trusted-suite",
-        &serde_json::json!({ "tree_oid": suite_tree.to_string() }),
-    )? != policy.trusted_suite_state_digest
-    {
-        return Err(Error::RevisionMismatch);
-    }
+    let toolchain = validate(source, suite, candidate, repo_id, policy)?;
     let subject_digest = &candidate.candidate_digest;
-    crate::contracts::validate_digest(&policy.trusted_suite_state_digest)?;
-    crate::contracts::validate_digest(&policy.image_oid)?;
-    if policy.schema_version != 1
-        || !policy.image_oid.starts_with("sha256:")
-        || policy.image_oid.len() != 71
-        || policy.evaluator_id.is_empty()
-        || policy.evaluator_version.is_empty()
-        || policy.checks.is_empty()
-        || policy.timeout_ms == 0
-        || policy.memory_bytes == 0
-        || policy.pids_limit == 0
-        || policy.max_log_bytes == 0
-        || policy.max_log_bytes > 1024 * 1024
-    {
-        return Err(Error::InvalidInput("invalid evaluation policy".into()));
-    }
-    let toolchain = toolchains::select(source, &policy.language, &policy.supported_toolchains)?;
-    if toolchain.image_oid != policy.image_oid {
-        return Err(Error::InvalidInput(
-            "UNSUPPORTED: evaluator image differs from the selected toolchain".into(),
-        ));
-    }
     // Environment and policy are separate from execution timing and payload location.
     let config_digest = canonical::hash_projection("klocgit.evaluator.config", policy)?;
     let environment_digest = canonical::hash_projection(
@@ -310,6 +255,10 @@ pub fn evaluate(
     for check in &policy.checks {
         checks.push(run_check(source, suite, policy, check)?);
     }
+    evidence(subject_digest, policy, config_digest, environment_digest, checks)
+}
+
+pub(crate) fn evidence(subject_digest: &str, policy: &EvaluationPolicy, config_digest: String, environment_digest: String, checks: Vec<CheckReceipt>) -> Result<Evaluation> {
     let result = if checks
         .iter()
         .any(|check| check.timed_out || check.exit_code.is_none())
@@ -351,3 +300,68 @@ pub fn evaluate(
         payload,
     })
 }
+
+pub(crate) fn validate(
+    source: &Path, suite: &Path, candidate: &crate::contracts::Candidate, repo_id: &str, policy: &EvaluationPolicy,
+) -> Result<toolchains::SupportedToolchain> {
+    let mut sealed = candidate.clone();
+    sealed.seal()?;
+    if sealed.id != candidate.id
+        || sealed.candidate_digest != candidate.candidate_digest
+        || candidate.repo_tree_oids.len() != 1
+    {
+        return Err(Error::RevisionMismatch);
+    }
+    let actual_tree = crate::git::workspace::tree_oid(
+        source,
+        crate::git::Limits::default(),
+        crate::git::workspace::HydrationBudget {
+            max_blob_bytes: 16 * 1024 * 1024,
+            max_total_bytes: 64 * 1024 * 1024,
+        },
+    )?;
+    if candidate.repo_tree_oids.get(repo_id) != Some(&actual_tree.to_string()) {
+        return Err(Error::RevisionMismatch);
+    }
+    let suite_tree = crate::git::workspace::tree_oid(
+        suite,
+        crate::git::Limits::default(),
+        crate::git::workspace::HydrationBudget {
+            max_blob_bytes: 16 * 1024 * 1024,
+            max_total_bytes: 64 * 1024 * 1024,
+        },
+    )?;
+    if canonical::hash_projection(
+        "klocgit.trusted-suite",
+        &serde_json::json!({ "tree_oid": suite_tree.to_string() }),
+    )? != policy.trusted_suite_state_digest
+    {
+        return Err(Error::RevisionMismatch);
+    }
+    crate::contracts::validate_digest(&policy.trusted_suite_state_digest)?;
+    crate::contracts::validate_digest(&policy.image_oid)?;
+    if policy.schema_version != 1
+        || !policy.image_oid.starts_with("sha256:")
+        || policy.image_oid.len() != 71
+        || policy.evaluator_id.is_empty()
+        || policy.evaluator_version.is_empty()
+        || policy.checks.is_empty()
+        || policy.timeout_ms == 0
+        || policy.memory_bytes == 0
+        || policy.pids_limit == 0
+        || policy.max_log_bytes == 0
+        || policy.max_log_bytes > 1024 * 1024
+    {
+        return Err(Error::InvalidInput("invalid evaluation policy".into()));
+    }
+    let toolchain = toolchains::select(source, &policy.language, &policy.supported_toolchains)?;
+    if toolchain.image_oid != policy.image_oid {
+        return Err(Error::InvalidInput(
+            "UNSUPPORTED: evaluator image differs from the selected toolchain".into(),
+        ));
+    }
+
+    Ok(toolchain)
+}
+
+pub mod vm;
