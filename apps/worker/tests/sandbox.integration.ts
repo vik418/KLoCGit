@@ -78,6 +78,7 @@ async function snapshot(
   const tree_oid = execFileSync("git", ["-C", location, "write-tree"], {
     encoding: "utf8",
   }).trim();
+  rmSync(join(location, ".git"), { recursive: true, force: true });
   return {
     location,
     tree_oid,
@@ -140,7 +141,8 @@ async function evaluate(
             operation: "evaluate",
             workspace: code.location,
             trusted_suite: trusted.location,
-            subject_digest: candidate.candidate_digest,
+            candidate,
+            repo_id: "repo",
             policy,
           }),
           timeout: 180_000,
@@ -565,4 +567,30 @@ test("native materialization hydrates pinned Artifacts objects over an authentic
   assert(objectReads.some(read => read.kind === "tree"));
   assert(result.hydrated_bytes < 1024 * 1024);
   assert.equal(git(["rev-parse", "HEAD"]), oid);
+});
+
+test("changed source or trusted checks cannot reuse an exact-state authorization", async (t) => {
+  const code = await snapshot(join(fixtures, "typescript"));
+  const suite = await snapshot(join(fixtures, "typescript-checks"));
+  t.after(() => { code.dispose(); suite.dispose(); });
+  const candidate = await sealCandidate({
+    candidate_spec_id: await hashProjection("klocgit.fixture-spec", { tree: code.tree_oid }),
+    repo_tree_oids: { repo: code.tree_oid }, materialization_record: {
+      executor_id: "fixture", materialized_at: new Date().toISOString(), conflicts_encountered: [],
+    },
+  });
+  const input = { operation: "evaluate", workspace: code.location, trusted_suite: suite.location, candidate, repo_id: "repo",
+    policy: { schema_version: 1, evaluator_id: "trusted-checks", evaluator_version: "1", image_oid,
+      language: "typescript", supported_toolchains: fixtureMatrix,
+      trusted_suite_state_digest: await hashProjection("klocgit.trusted-suite", { tree_oid: suite.tree_oid }),
+      checks: [{ id: "trusted-check", command: ["node", "-e", "process.exit(0)"] }],
+      timeout_ms: 1000, memory_bytes: 536870912, pids_limit: 256, max_log_bytes: 65536 } };
+  const run = () => execFileSync("cargo", ["run", "--quiet", "-p", "klocgit-engine", "--bin", "klocgit-engine"],
+    { cwd: root, input: JSON.stringify(input), encoding: "utf8", stdio: ["pipe", "pipe", "pipe"], timeout: 30000 });
+  const original = readFileSync(join(code.location, "api.ts"));
+  writeFileSync(join(code.location, "api.ts"), "export function retries() { return 2; }\n");
+  assert.throws(run, /RevisionMismatch/);
+  writeFileSync(join(code.location, "api.ts"), original);
+  writeFileSync(join(suite.location, "api.test.ts"), "test('unchecked', () => {});\n");
+  assert.throws(run, /RevisionMismatch/);
 });

@@ -62,7 +62,10 @@ pub fn materialize(
         repo_id,
         composition,
         |_path, oid, max| {
-            let source = sources.iter().map(|source| source.repository).chain(std::iter::once(base))
+            let source = sources
+                .iter()
+                .map(|source| source.repository)
+                .chain(std::iter::once(base))
                 .find(|repository| repository.odb().is_ok_and(|odb| odb.exists(oid)))
                 .ok_or(Error::RevisionMismatch)?;
             hydrate_blob(source, oid, max)
@@ -75,32 +78,58 @@ pub fn materialize(
 /// Fetch tree metadata first, then only blobs present in the composed tree.
 /// This path never clones a repository or publishes candidate Git objects.
 pub fn materialize_from_objects(
-    specification: &CandidateSpec, base: &dyn super::objects::ObjectSource, repo_id: &str,
-    sources: &[super::objects::ObjectFuture<'_>], limits: Limits,
-    hydration: HydrationBudget, metadata: MaterializationRecord,
+    specification: &CandidateSpec,
+    base: &dyn super::objects::ObjectSource,
+    repo_id: &str,
+    sources: &[super::objects::ObjectFuture<'_>],
+    limits: Limits,
+    hydration: HydrationBudget,
+    metadata: MaterializationRecord,
 ) -> Result<Workspace> {
     let mut verified = specification.clone();
     verified.seal()?;
-    if verified.spec_digest != specification.spec_digest || verified.id != specification.id ||
-        specification.base_revisions.len() != 1 || !specification.base_revisions.contains_key(repo_id) {
+    if verified.spec_digest != specification.spec_digest
+        || verified.id != specification.id
+        || specification.base_revisions.len() != 1
+        || !specification.base_revisions.contains_key(repo_id)
+    {
         return Err(Error::RevisionMismatch);
     }
-    let composition = super::compose_from_objects(base, repo_id, Oid::from_str(&specification.base_revisions[repo_id])?, sources, limits)?;
-    if composition.spec.selected_future_revisions != specification.selected_future_revisions ||
-        composition.spec.composition_manifest != specification.composition_manifest ||
-        composition.spec.effect_summary_digest != specification.effect_summary_digest {
+    let composition = super::compose_from_objects(
+        base,
+        repo_id,
+        Oid::from_str(&specification.base_revisions[repo_id])?,
+        sources,
+        limits,
+    )?;
+    if composition.spec.selected_future_revisions != specification.selected_future_revisions
+        || composition.spec.composition_manifest != specification.composition_manifest
+        || composition.spec.effect_summary_digest != specification.effect_summary_digest
+    {
         return Err(Error::RevisionMismatch);
     }
-    checkout(specification, repo_id, composition,
+    checkout(
+        specification,
+        repo_id,
+        composition,
         |path, oid, max| {
-            let owner = specification.composition_manifest.iter().find(|slice| slice.path == path);
+            let owner = specification
+                .composition_manifest
+                .iter()
+                .find(|slice| slice.path == path);
             let source = match owner {
-                Some(owner) => sources.iter().find(|source| source.revision.id == owner.source_future_id)
-                    .map(|source| source.objects).ok_or(Error::RevisionMismatch)?,
+                Some(owner) => sources
+                    .iter()
+                    .find(|source| source.revision.id == owner.source_future_id)
+                    .map(|source| source.objects)
+                    .ok_or(Error::RevisionMismatch)?,
                 None => base,
             };
             super::objects::verified_blob(source, oid, max)
-        }, hydration, metadata)
+        },
+        hydration,
+        metadata,
+    )
 }
 
 fn checkout(
@@ -214,4 +243,58 @@ fn validate_symlink(parent: &Path, target: &Path) -> Result<()> {
         }
     }
     Ok(())
+}
+
+/// Hash the actual files presented to a checker. No Git index or producer
+/// metadata is used to assert that an execution workspace matches its subject.
+pub fn tree_oid(directory: &Path, limits: Limits, hydration: HydrationBudget) -> Result<Oid> {
+    fn visit(root: &Path, current: &Path, depth: usize, limits: Limits, hydration: HydrationBudget,
+        entries: &mut BTreeMap<String, super::Entry>, total: &mut usize) -> Result<()> {
+        use std::io::Read;
+        if depth > limits.max_depth { return Err(Error::LimitExceeded("workspace depth")); }
+        let children = fs::read_dir(current).map_err(|error| Error::InvalidInput(error.to_string()))?;
+        for child in children {
+            let child = child.map_err(|error| Error::InvalidInput(error.to_string()))?;
+            let path = child.path();
+            let name = child.file_name().into_string().map_err(|_| Error::InvalidInput("non-UTF8 workspace path".into()))?;
+            if name.eq_ignore_ascii_case(".git") || crate::canonical::nfc(&name) != name || name.contains('\\') {
+                return Err(Error::InvalidInput("unsafe execution workspace path".into()));
+            }
+            let metadata = fs::symlink_metadata(&path).map_err(|error| Error::InvalidInput(error.to_string()))?;
+            if metadata.is_dir() {
+                visit(root, &path, depth + 1, limits, hydration, entries, total)?;
+                continue;
+            }
+            if entries.len() >= limits.max_entries { return Err(Error::LimitExceeded("workspace entries")); }
+            let relative = path.strip_prefix(root).map_err(|_| Error::RevisionMismatch)?;
+            let key = relative.to_str().ok_or_else(|| Error::InvalidInput("non-UTF8 workspace path".into()))?.to_string();
+            let (contents, mode) = if metadata.file_type().is_symlink() {
+                let target = fs::read_link(&path).map_err(|error| Error::InvalidInput(error.to_string()))?;
+                validate_symlink(relative.parent().unwrap_or(Path::new("")), &target)?;
+                (target.to_str().ok_or_else(|| Error::InvalidInput("non-UTF8 symlink".into()))?.as_bytes().to_vec(), 0o120000)
+            } else if metadata.is_file() {
+                let maximum = hydration.max_blob_bytes.min(hydration.max_total_bytes.saturating_sub(*total));
+                if metadata.len() > maximum as u64 { return Err(Error::LimitExceeded("workspace blob bytes")); }
+                let mut bytes = Vec::new();
+                fs::File::open(&path).map_err(|error| Error::InvalidInput(error.to_string()))?.take(maximum as u64 + 1)
+                    .read_to_end(&mut bytes).map_err(|error| Error::InvalidInput(error.to_string()))?;
+                if bytes.len() > maximum { return Err(Error::LimitExceeded("workspace blob bytes")); }
+                #[cfg(unix)]
+                let mode = {
+                    use std::os::unix::fs::PermissionsExt;
+                    if metadata.permissions().mode() & 0o111 != 0 { 0o100755 } else { 0o100644 }
+                };
+                #[cfg(not(unix))]
+                let mode = 0o100644;
+                (bytes, mode)
+            } else { return Err(Error::InvalidInput("unsupported execution file type".into())); };
+            *total = total.checked_add(contents.len()).ok_or(Error::LimitExceeded("workspace bytes"))?;
+            if *total > hydration.max_total_bytes { return Err(Error::LimitExceeded("workspace bytes")); }
+            entries.insert(key, super::Entry { oid: Oid::hash_object(git2::ObjectType::Blob, &contents)?, mode });
+        }
+        Ok(())
+    }
+    let mut entries = BTreeMap::new();
+    visit(directory, directory, 0, limits, hydration, &mut entries, &mut 0)?;
+    super::synthesize_tree(&entries, &mut BTreeMap::new(), limits)
 }

@@ -234,10 +234,26 @@ fn run_check(
 pub fn evaluate(
     source: &Path,
     suite: &Path,
-    subject_digest: &str,
+    candidate: &crate::contracts::Candidate,
+    repo_id: &str,
     policy: &EvaluationPolicy,
 ) -> Result<Evaluation> {
-    crate::contracts::validate_digest(subject_digest)?;
+    let mut sealed = candidate.clone();
+    sealed.seal()?;
+    if sealed.id != candidate.id || sealed.candidate_digest != candidate.candidate_digest || candidate.repo_tree_oids.len() != 1 {
+        return Err(Error::RevisionMismatch);
+    }
+    let actual_tree = crate::git::workspace::tree_oid(source, crate::git::Limits::default(),
+        crate::git::workspace::HydrationBudget { max_blob_bytes: 16 * 1024 * 1024, max_total_bytes: 64 * 1024 * 1024 })?;
+    if candidate.repo_tree_oids.get(repo_id) != Some(&actual_tree.to_string()) {
+        return Err(Error::RevisionMismatch);
+    }
+    let suite_tree = crate::git::workspace::tree_oid(suite, crate::git::Limits::default(),
+        crate::git::workspace::HydrationBudget { max_blob_bytes: 16 * 1024 * 1024, max_total_bytes: 64 * 1024 * 1024 })?;
+    if canonical::hash_projection("klocgit.trusted-suite", &serde_json::json!({ "tree_oid": suite_tree.to_string() }))? != policy.trusted_suite_state_digest {
+        return Err(Error::RevisionMismatch);
+    }
+    let subject_digest = &candidate.candidate_digest;
     crate::contracts::validate_digest(&policy.trusted_suite_state_digest)?;
     crate::contracts::validate_digest(&policy.image_oid)?;
     if policy.schema_version != 1

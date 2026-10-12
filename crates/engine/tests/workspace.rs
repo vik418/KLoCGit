@@ -247,7 +247,7 @@ fn hydration_is_bounded_before_the_blob_reaches_execution() {
 
 #[test]
 fn object_source_reads_only_selected_candidate_blobs_and_detects_substitution() {
-    use klocgit_engine::git::objects::{ObjectSource, ObjectFuture, CommitHeader};
+    use klocgit_engine::git::objects::{CommitHeader, ObjectFuture, ObjectSource};
     use klocgit_engine::git::workspace::materialize_from_objects;
     use std::cell::RefCell;
     struct Metered<'a> {
@@ -256,31 +256,123 @@ fn object_source_reads_only_selected_candidate_blobs_and_detects_substitution() 
         substitute: bool,
     }
     impl ObjectSource for Metered<'_> {
-        fn commit(&self, oid: Oid) -> klocgit_engine::Result<CommitHeader> { ObjectSource::commit(self.repository, oid) }
-        fn tree(&self, oid: Oid, max: usize) -> klocgit_engine::Result<Vec<u8>> { ObjectSource::tree(self.repository, oid, max) }
+        fn commit(&self, oid: Oid) -> klocgit_engine::Result<CommitHeader> {
+            ObjectSource::commit(self.repository, oid)
+        }
+        fn tree(&self, oid: Oid, max: usize) -> klocgit_engine::Result<Vec<u8>> {
+            ObjectSource::tree(self.repository, oid, max)
+        }
         fn blob(&self, oid: Oid, max: usize) -> klocgit_engine::Result<Vec<u8>> {
             self.blobs.borrow_mut().push(oid);
-            if self.substitute { Ok(b"substituted".to_vec()) } else { ObjectSource::blob(self.repository, oid, max) }
+            if self.substitute {
+                Ok(b"substituted".to_vec())
+            } else {
+                ObjectSource::blob(self.repository, oid, max)
+            }
         }
     }
     let directory = tempfile::tempdir().unwrap();
     let repository = Repository::init_bare(directory.path()).unwrap();
-    let base = commit(&repository, None, &[("removed", &[0; 65536], 0o100644), ("keep", b"same", 0o100644)]);
-    let head = commit(&repository, Some(base), &[("keep", b"same", 0o100644), ("api.ts", b"export const A = 2;", 0o100644)]);
+    let base = commit(
+        &repository,
+        None,
+        &[
+            ("removed", &[0; 65536], 0o100644),
+            ("keep", b"same", 0o100644),
+        ],
+    );
+    let head = commit(
+        &repository,
+        Some(base),
+        &[
+            ("keep", b"same", 0o100644),
+            ("api.ts", b"export const A = 2;", 0o100644),
+        ],
+    );
     let (state, revision, effects) = revision(&repository, head);
-    let source = Metered { repository: &repository, blobs: RefCell::new(vec![]), substitute: false };
-    let futures = [ObjectFuture { state: &state, revision: &revision, effects: &effects, objects: &source }];
-    let composition = klocgit_engine::git::compose_from_objects(&source, "repo", base, &futures, Limits::default()).unwrap();
+    let source = Metered {
+        repository: &repository,
+        blobs: RefCell::new(vec![]),
+        substitute: false,
+    };
+    let futures = [ObjectFuture {
+        state: &state,
+        revision: &revision,
+        effects: &effects,
+        objects: &source,
+    }];
+    let composition = klocgit_engine::git::compose_from_objects(
+        &source,
+        "repo",
+        base,
+        &futures,
+        Limits::default(),
+    )
+    .unwrap();
     assert!(source.blobs.borrow().is_empty());
     let original = objects(&repository);
-    let workspace = materialize_from_objects(&composition.spec, &source, "repo", &futures, Limits::default(),
-        HydrationBudget { max_blob_bytes: 100, max_total_bytes: 100 }, metadata()).unwrap();
+    let workspace = materialize_from_objects(
+        &composition.spec,
+        &source,
+        "repo",
+        &futures,
+        Limits::default(),
+        HydrationBudget {
+            max_blob_bytes: 100,
+            max_total_bytes: 100,
+        },
+        metadata(),
+    )
+    .unwrap();
     assert_eq!(workspace.files_hydrated, 2);
     assert_eq!(source.blobs.borrow().len(), 2);
-    assert!(!source.blobs.borrow().contains(&repository.blob(&[0; 65536]).unwrap()));
+    assert!(!source
+        .blobs
+        .borrow()
+        .contains(&repository.blob(&[0; 65536]).unwrap()));
     assert_eq!(objects(&repository), original);
-    let bad = Metered { repository: &repository, blobs: RefCell::new(vec![]), substitute: true };
-    let bad_futures = [ObjectFuture { state: &state, revision: &revision, effects: &effects, objects: &bad }];
-    assert!(materialize_from_objects(&composition.spec, &bad, "repo", &bad_futures, Limits::default(),
-        HydrationBudget { max_blob_bytes: 100, max_total_bytes: 100 }, metadata()).is_err());
+    let bad = Metered {
+        repository: &repository,
+        blobs: RefCell::new(vec![]),
+        substitute: true,
+    };
+    let bad_futures = [ObjectFuture {
+        state: &state,
+        revision: &revision,
+        effects: &effects,
+        objects: &bad,
+    }];
+    assert!(materialize_from_objects(
+        &composition.spec,
+        &bad,
+        "repo",
+        &bad_futures,
+        Limits::default(),
+        HydrationBudget {
+            max_blob_bytes: 100,
+            max_total_bytes: 100
+        },
+        metadata()
+    )
+    .is_err());
+}
+
+#[test]
+fn execution_tree_detects_changed_bytes_permissions_and_unsafe_paths() {
+    use klocgit_engine::git::workspace::tree_oid;
+    let directory = tempfile::tempdir().unwrap();
+    let file = directory.path().join("api.ts");
+    std::fs::write(&file, b"export const value = 1;").unwrap();
+    let budget = HydrationBudget { max_blob_bytes: 1024, max_total_bytes: 4096 };
+    let original = tree_oid(directory.path(), Limits::default(), budget).unwrap();
+    std::fs::write(&file, b"export const value = 2;").unwrap();
+    let changed = tree_oid(directory.path(), Limits::default(), budget).unwrap();
+    assert_ne!(original, changed);
+    #[cfg(unix)] {
+        use std::os::unix::fs::PermissionsExt;
+        std::fs::set_permissions(&file, std::fs::Permissions::from_mode(0o755)).unwrap();
+        assert_ne!(changed, tree_oid(directory.path(), Limits::default(), budget).unwrap());
+        std::os::unix::fs::symlink("/etc/passwd", directory.path().join("escape")).unwrap();
+        assert!(tree_oid(directory.path(), Limits::default(), budget).is_err());
+    }
 }

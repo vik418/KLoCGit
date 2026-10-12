@@ -28,7 +28,8 @@ enum Request {
     Evaluate {
         workspace: String,
         trusted_suite: String,
-        subject_digest: String,
+        candidate: klocgit_engine::contracts::Candidate,
+        repo_id: String,
         policy: klocgit_engine::sandbox::EvaluationPolicy,
     },
     Analyze {
@@ -103,7 +104,8 @@ fn evaluate_candidate(
     let result = klocgit_engine::sandbox::evaluate(
         workspace.path(),
         std::path::Path::new(&trusted_suite),
-        &workspace.candidate.candidate_digest,
+        &workspace.candidate,
+        &repo_id,
         &policy,
     )?;
     Ok(serde_json::json!({
@@ -122,18 +124,53 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     }
     let input: Request = serde_json::from_slice(&bytes)?;
     let output = match input {
-        Request::EvaluateObjects { broker_endpoint, read_capability, scope, candidate_spec, sources, trusted_suite, policy } => {
+        Request::EvaluateObjects {
+            broker_endpoint,
+            read_capability,
+            scope,
+            candidate_spec,
+            sources,
+            trusted_suite,
+            policy,
+        } => {
             let repo_id = scope.repo_id.clone();
-            let broker = klocgit_engine::git::objects::broker::BrokerSource::new(broker_endpoint, read_capability, scope)?;
-            let observed: Vec<_> = sources.iter().map(|source| klocgit_engine::git::objects::ObjectFuture {
-                state: &source.state, revision: &source.revision, effects: &source.effects, objects: &broker,
-            }).collect();
-            let workspace = klocgit_engine::git::workspace::materialize_from_objects(
-                &candidate_spec, &broker, &repo_id, &observed, klocgit_engine::git::Limits::default(),
-                klocgit_engine::git::workspace::HydrationBudget { max_blob_bytes: 16 * 1024 * 1024, max_total_bytes: 64 * 1024 * 1024 },
-                klocgit_engine::contracts::MaterializationRecord { executor_id: "sandbox-host".into(), materialized_at: String::new(), conflicts_encountered: vec![] },
+            let broker = klocgit_engine::git::objects::broker::BrokerSource::new(
+                broker_endpoint,
+                read_capability,
+                scope,
             )?;
-            let result = klocgit_engine::sandbox::evaluate(workspace.path(), std::path::Path::new(&trusted_suite), &workspace.candidate.candidate_digest, &policy)?;
+            let observed: Vec<_> = sources
+                .iter()
+                .map(|source| klocgit_engine::git::objects::ObjectFuture {
+                    state: &source.state,
+                    revision: &source.revision,
+                    effects: &source.effects,
+                    objects: &broker,
+                })
+                .collect();
+            let workspace = klocgit_engine::git::workspace::materialize_from_objects(
+                &candidate_spec,
+                &broker,
+                &repo_id,
+                &observed,
+                klocgit_engine::git::Limits::default(),
+                klocgit_engine::git::workspace::HydrationBudget {
+                    max_blob_bytes: 16 * 1024 * 1024,
+                    max_total_bytes: 64 * 1024 * 1024,
+                },
+                klocgit_engine::contracts::MaterializationRecord {
+                    executor_id: "sandbox-host".into(),
+                    materialized_at: String::new(),
+                    conflicts_encountered: vec![],
+                },
+            )?;
+            let result = klocgit_engine::sandbox::evaluate(
+                workspace.path(),
+                std::path::Path::new(&trusted_suite),
+                &workspace.candidate,
+                &repo_id,
+                &policy,
+            )?;
             serde_json::json!({
                 "schema_version": 1, "candidate": workspace.candidate, "evidence": result.evidence,
                 "payload": result.payload, "receipt": result.receipt,
@@ -158,13 +195,15 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         Request::Evaluate {
             workspace,
             trusted_suite,
-            subject_digest,
+            candidate,
+            repo_id,
             policy,
         } => {
             let result = klocgit_engine::sandbox::evaluate(
                 std::path::Path::new(&workspace),
                 std::path::Path::new(&trusted_suite),
-                &subject_digest,
+                &candidate,
+                &repo_id,
                 &policy,
             )?;
             serde_json::json!({ "schema_version": 1, "evidence": result.evidence, "payload": result.payload, "receipt": result.receipt })
