@@ -92,9 +92,21 @@ test("resolution needs a matching promotion receipt and never mutates history", 
 test("changing only expected heads or omitting selected-future analysis never preserves authorization", async () => {
   const f = await fixture(), evaluator = new PolicyEvaluator(f.policy);
   const moved = await sealDecisionBasis({ ...f.basis, canonical_ref_oids: { repo: "3".repeat(40) } });
-  assert(!(await evaluator.canReview(moved, f.context)).allowed);
+  assert(!(await evaluator.evaluateRequirements(moved, f.context)).allowed);
   const spec = await sealCandidateSpec({ ...f.spec, selected_future_revisions: [f.effect.future_revision_id, "unobserved-future"] });
   const candidate = await sealCandidate({ ...f.candidate, candidate_spec_id: spec.id });
   const basis = await sealDecisionBasis({ ...f.basis, candidate_digests: [candidate.candidate_digest] });
-  assert(!(await evaluator.canReview(basis, { ...f.context, spec, candidate })).allowed);
+  assert(!(await evaluator.evaluateRequirements(basis, { ...f.context, spec, candidate })).allowed);
+});
+
+test("policy results bind an immutable input snapshot and cannot authorize another basis", async () => {
+  const f = await fixture(), evaluator = new PolicyEvaluator(f.policy);
+  const pending = evaluator.canResolve(f.basis, f.context);
+  f.context.candidate.repo_tree_oids.repo = "9".repeat(40);
+  const result = await pending;
+  assert(result.allowed);
+  assert.equal(result.basis_digest, f.basis.basis_digest);
+  const changed = await sealDecisionBasis({ ...f.basis, canonical_ref_oids: { repo: "3".repeat(40) } });
+  const decision: Decision = { id: "decision", objective_id: "objective", basis: changed, state: "REVIEWABLE", conditional_predicates: [] };
+  assert.throws(() => DecisionLifecycle.ready(decision, result), DecisionConflict);
 });

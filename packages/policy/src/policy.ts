@@ -40,6 +40,8 @@ export interface EvaluationContext {
 }
 
 export interface PolicyResult {
+  basis_digest: string;
+  candidate_digest: string;
   allowed: boolean;
   blockers: { code: string; subject: string }[];
 }
@@ -98,11 +100,13 @@ export class PolicyEvaluator {
     return this.evaluate(basis, context, true);
   }
 
-  canReview(basis: DecisionBasis, context: EvaluationContext): Promise<PolicyResult> {
+  evaluateRequirements(basis: DecisionBasis, context: EvaluationContext): Promise<PolicyResult> {
     return this.evaluate(basis, context, false);
   }
 
   private async evaluate(basis: DecisionBasis, context: EvaluationContext, requireReviews: boolean): Promise<PolicyResult> {
+    basis = structuredClone(basis);
+    context = structuredClone(context);
     const blockers: PolicyResult["blockers"] = [];
     const block = (code: string, subject: string) => blockers.push({ code, subject });
     try {
@@ -116,7 +120,8 @@ export class PolicyEvaluator {
         block("SPEC_CHANGED", context.spec.id);
       if (await hashProjection("klocgit.review-base", spec.base_revisions) !==
           await hashProjection("klocgit.review-base", basis.canonical_ref_oids) ||
-          Object.keys(spec.base_revisions).sort().join("\\0") !== Object.keys(context.candidate.repo_tree_oids).sort().join("\\0"))
+          (Object.keys(spec.base_revisions).length !== Object.keys(context.candidate.repo_tree_oids).length ||
+           Object.keys(spec.base_revisions).some(repo => !Object.hasOwn(context.candidate.repo_tree_oids, repo))))
         block("BASE_CHANGED", context.candidate.candidate_digest);
       const observedFutures = new Set(context.effects.map(effect => effect.future_revision_id));
       if (observedFutures.size !== spec.selected_future_revisions.length ||
@@ -182,7 +187,7 @@ export class PolicyEvaluator {
           block("REVIEW_REQUIRED", context.candidate.candidate_digest);
       }
     } catch { block("INVALID_POLICY_INPUT", basis.basis_digest); }
-    return { allowed: blockers.length === 0, blockers };
+    return { basis_digest: basis.basis_digest, candidate_digest: context.candidate.candidate_digest, allowed: blockers.length === 0, blockers };
   }
 }
 
@@ -199,6 +204,8 @@ export class DecisionLifecycle {
 
   static ready(decision: Decision, result: PolicyResult): Decision {
     if (!["REVIEWABLE", "RESOLVABLE"].includes(decision.state)) throw new Error("Decision cannot be evaluated from this state");
+    if (result.basis_digest !== decision.basis.basis_digest || !decision.basis.candidate_digests.includes(result.candidate_digest))
+      throw new DecisionConflict("Policy result belongs to another reviewed state");
     return { ...decision, state: result.allowed ? "RESOLVABLE" : "REVIEWABLE" };
   }
 

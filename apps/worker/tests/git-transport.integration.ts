@@ -110,6 +110,7 @@ test("native receive-pack CAS rejects stale and concurrent promotions and retain
     { stdio: "ignore" },
   );
   const transportToken = randomBytes(32).toString("hex");
+  const initialReads: (() => void)[] = [];
   const server = createServer(
     { key: readFileSync(key), cert: readFileSync(cert) },
     (request, response) => {
@@ -166,7 +167,11 @@ test("native receive-pack CAS rejects stale and concurrent promotions and retain
             status = Number(value.split(" ")[0]);
           else response.setHeader(name, value);
         }
-        response.writeHead(status).end(bytes.subarray(boundary + 4));
+        const finish = () => response.writeHead(status).end(bytes.subarray(boundary + 4));
+      if (url.pathname.endsWith("/info/refs") && url.searchParams.get("service") === "git-upload-pack" && initialReads.length < 2) {
+        initialReads.push(finish);
+        if (initialReads.length === 2) initialReads.forEach(finish => finish());
+      } else finish();
       });
       backend.on("error", () => response.writeHead(502).end());
     },
@@ -266,6 +271,7 @@ test("native receive-pack CAS rejects stale and concurrent promotions and retain
     .filter(({ outcome }) => outcome.body.status === "APPLIED");
   assert.equal(applied.length, 1, JSON.stringify(outcomes));
   const winner = applied[0].index;
+  assert.equal(outcomes[1 - winner].body.status, "NO_EFFECT", JSON.stringify(outcomes));
   assert.equal(
     git(["--git-dir", remote, "rev-parse", "refs/heads/main"]),
     targets[winner],

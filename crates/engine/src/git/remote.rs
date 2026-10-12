@@ -54,7 +54,7 @@ impl Executor {
         let scratch = tempfile::tempdir().map_err(|error| Error::InvalidInput(error.to_string()))?;
         let directory = scratch.path();
         let deadline = Instant::now() + Duration::from_secs(90);
-        let run = |args: &[&str]| -> Result<String> {
+        let transport = |args: &[&str]| -> Result<ProcessOutcome> {
             let mut command = Command::new("/usr/bin/git");
             command.env_clear().env("PATH", "/usr/local/bin:/usr/bin:/bin")
                 .env("GIT_TERMINAL_PROMPT", "0").env("GIT_CONFIG_NOSYSTEM", "1").env("GIT_CONFIG_GLOBAL", "/dev/null")
@@ -71,7 +71,11 @@ impl Executor {
             command.current_dir(directory).args(args);
             let remaining = deadline.checked_duration_since(Instant::now())
                 .ok_or_else(|| Error::InvalidInput("Git command outcome requires reconciliation".into()))?;
-            bounded_output(&mut command, remaining)
+            bounded_command(&mut command, remaining)
+        };
+        let run = |args: &[&str]| -> Result<String> {
+            let result = transport(args)?;
+            if result.success { Ok(result.output) } else { Err(Error::InvalidInput("Git command outcome requires reconciliation".into())) }
         };
         run(&["check-ref-format", &input.ref_name])?;
         let observed = run(&["ls-remote", "--refs", "--exit-code", &input.remote, &input.ref_name])?;
@@ -116,16 +120,30 @@ impl Executor {
         }
         // receive-pack atomically asserts the exact old ref. No independent
         // read followed by an unconditional push can provide this guarantee.
-        run(&["push", "--porcelain", &format!("--force-with-lease={}:{}", input.ref_name, input.expected_oid),
+        let pushed = transport(&["push", "--porcelain", &format!("--force-with-lease={}:{}", input.ref_name, input.expected_oid),
             "origin", &format!("{}:{}", input.target_oid, input.ref_name)])?;
-        let receipt = Receipt { schema_version: 1, status: "APPLIED".into(), expected_oid: input.expected_oid,
+        let rejected = pushed.output.lines().any(|line| {
+            let fields: Vec<_> = line.split('\t').collect();
+            fields.len() == 3 && fields[0] == "!" && fields[1] == format!("{}:{}", input.target_oid, input.ref_name) &&
+                (fields[2] == "[rejected] (stale info)" || fields[2].starts_with("[remote rejected] "))
+        });
+        if !pushed.success && !rejected { return Err(Error::InvalidInput("Git push outcome requires reconciliation".into())); }
+        let receipt = Receipt { schema_version: 1, status: if pushed.success { "APPLIED" } else { "NO_EFFECT" }.into(), expected_oid: input.expected_oid,
             target_oid: input.target_oid, operation_digest: input.operation_digest };
         self.receipts.insert(input.idempotency_key, receipt.clone());
         Ok(receipt)
     }
 }
 
+struct ProcessOutcome { success: bool, output: String }
+
+#[cfg(test)]
 fn bounded_output(command: &mut Command, timeout: Duration) -> Result<String> {
+    let result = bounded_command(command, timeout)?;
+    if result.success { Ok(result.output) } else { Err(Error::InvalidInput("Git command outcome requires reconciliation".into())) }
+}
+
+fn bounded_command(command: &mut Command, timeout: Duration) -> Result<ProcessOutcome> {
     command.stdin(Stdio::null()).stdout(Stdio::piped()).stderr(Stdio::piped());
     #[cfg(unix)] {
         use std::os::unix::process::CommandExt;
@@ -149,10 +167,11 @@ fn bounded_output(command: &mut Command, timeout: Duration) -> Result<String> {
     #[cfg(unix)] unsafe { libc::kill(-(child.id() as i32), libc::SIGKILL); }
     let (output, truncated) = stdout.join().map_err(|_| Error::RevisionMismatch)?;
     let _ = stderr.join().map_err(|_| Error::RevisionMismatch)?;
-    if !status.is_some_and(|status| status.success()) || truncated {
+    if status.is_none() || truncated {
         return Err(Error::InvalidInput("Git command outcome requires reconciliation".into()));
     }
-    String::from_utf8(output).map(|value| value.trim().to_string()).map_err(|_| Error::RevisionMismatch)
+    Ok(ProcessOutcome { success: status.is_some_and(|status| status.success()),
+        output: String::from_utf8(output).map(|value| value.trim().to_string()).map_err(|_| Error::RevisionMismatch)? })
 }
 
 #[cfg(test)]
