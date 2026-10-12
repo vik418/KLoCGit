@@ -44,15 +44,16 @@ export class ObjectiveCoordinator extends DurableObject<Bindings> {
   async fetch(request: Request): Promise<Response> {
     try {
       if (request.method !== 'POST') throw new Failure('METHOD_NOT_ALLOWED', 405, 'POST is required');
-      const body = await readJson<IngestCommand & { effects?: EffectSet; revision_id?: string; version?: number; payload_ref?: string; payload_digest?: string; summary?: unknown }>(request);
+      const body = await readJson<IngestCommand & { effects?: EffectSet; revision_id?: string; version?: number; payload_ref?: string; payload_digest?: string; summary?: unknown; cursor?: string }>(request);
       validateScope(body.scope);
       const action = new URL(request.url).pathname.slice(1);
-      if (!['ingest', 'status', 'analysis', 'reduction'].includes(action)) throw new Failure('NOT_FOUND', 404, 'Unknown operation');
+      if (!['ingest', 'status', 'analysis', 'reduction', 'reduction-page'].includes(action)) throw new Failure('NOT_FOUND', 404, 'Unknown operation');
       const subject = await hashProjection('klocgit.objective-command', body);
       const grant = await verifyInternal(request, this.env, 'objective', action, subject);
       if (!sameScope(grant.scope, body.scope)
         || this.ctx.id.toString() !== this.env.OBJECTIVES.idFromName(await objectiveName(body.scope)).toString()) throw new Failure('FORBIDDEN', 403, 'Objective scope differs');
       if (action === 'status') return this.status();
+      if (action === 'reduction-page') return this.reductionPage(body);
       if (action === 'analysis') return await this.analysis(body);
       if (action === 'reduction') return this.reduction(body);
       if (grant.actor_id !== body.principal.sub || body.principal.exp * 1000 <= Date.now()) throw new Failure('FORBIDDEN', 403, 'Ingestion authorization expired');
@@ -67,7 +68,7 @@ export class ObjectiveCoordinator extends DurableObject<Bindings> {
       futures: this.ctx.storage.sql.exec<FutureRow>('SELECT revision_id, ref, version, record, effects FROM futures ORDER BY version DESC LIMIT 100').toArray().map((row) => ({
         ...JSON.parse(row.record), effects: row.effects ? JSON.parse(row.effects) : null,
       })),
-      reduction: this.ctx.storage.sql.exec<{ summary: string }>('SELECT summary FROM reductions ORDER BY version DESC LIMIT 1').toArray().map((row) => JSON.parse(row.summary))[0] ?? null,
+      reduction: this.ctx.storage.sql.exec<{ summary: string }>('SELECT summary FROM reductions WHERE version = ? LIMIT 1', this.version()).toArray().map((row) => JSON.parse(row.summary))[0] ?? null,
     });
   }
 
@@ -87,7 +88,11 @@ export class ObjectiveCoordinator extends DurableObject<Bindings> {
       await this.flush();
       return Response.json(JSON.parse(prior.response));
     }
-    const observed = await new GitStore(this.env.GIT_EXECUTOR).observe(command.scope, command.ref);
+    const store = new GitStore(this.env.GIT_EXECUTOR);
+    const capturedBase = this.ctx.storage.sql.exec<{ value: string }>('SELECT value FROM metadata WHERE key = ?', 'base_oid').toArray()[0];
+    if (!this.env.CANONICAL_REF?.startsWith('refs/heads/')) throw new Failure('CONFIGURATION_REQUIRED', 503, 'Canonical ref is not configured');
+    const baseline = capturedBase?.value ?? (await store.observe(command.scope, this.env.CANONICAL_REF)).commit_oid;
+    const observed = await store.observe(command.scope, command.ref);
     const state = { repo_id: command.scope.repo_id, ...observed };
     const revision = await sealFutureRevision(state, {
       system_id: command.system_id, ref: command.ref, producer: command.producer,
@@ -101,6 +106,8 @@ export class ObjectiveCoordinator extends DurableObject<Bindings> {
       const system = this.ctx.storage.sql.exec<{ value: string }>('SELECT value FROM metadata WHERE key = ?', 'system_id').toArray()[0];
       if (system && system.value !== command.system_id) throw new Failure('SYSTEM_SCOPE_MISMATCH', 409, 'Objective belongs to a different system');
       this.ctx.storage.sql.exec('INSERT OR IGNORE INTO metadata (key, value) VALUES (?, ?)', 'system_id', command.system_id);
+      this.ctx.storage.sql.exec('INSERT OR IGNORE INTO metadata (key, value) VALUES (?, ?)', 'base_oid', baseline);
+      this.ctx.storage.sql.exec('INSERT OR IGNORE INTO metadata (key, value) VALUES (?, ?)', 'scope', JSON.stringify(command.scope));
       // The network observation can interleave with another request. Recheck
       // receipt identity within the same transaction that spends the budget.
       const existing = this.ctx.storage.sql.exec<{ command_digest: string; response: string }>('SELECT command_digest, response FROM receipts WHERE idempotency_key = ?', command.idempotency_key).toArray()[0];
@@ -139,7 +146,7 @@ export class ObjectiveCoordinator extends DurableObject<Bindings> {
     for (const job of pending) {
       const payload = JSON.parse(job.payload);
       const envelope = await packEvent(this.env, {
-        type: 'future.analyze', scope: payload.scope, subject_version: job.version, payload,
+        type: payload.operation === 'reduce' ? 'objective.reduce' : 'future.analyze', scope: payload.scope, subject_version: job.version, payload,
         idempotency_key: job.job_id, trace_id: job.job_id, actor_id: job.actor_id, expires_at: job.expires_at,
       });
       await this.env.ANALYSIS_QUEUE.send(envelope);
@@ -159,8 +166,37 @@ export class ObjectiveCoordinator extends DurableObject<Bindings> {
     const sealed = await sealEffectSet(command.effects);
     if (sealed.effect_digest !== command.effects.effect_digest) throw new Failure('INVALID_ANALYSIS', 409, 'Effect digest differs');
     if (row.effects && JSON.parse(row.effects).effect_digest !== sealed.effect_digest) throw new Failure('IMMUTABLE_RECORD_CHANGED', 409, 'Analysis record already exists');
-    this.ctx.storage.sql.exec('UPDATE futures SET effects = ? WHERE revision_id = ?', JSON.stringify(sealed), row.revision_id);
+    if (!row.effects) {
+      this.ctx.storage.transactionSync(() => {
+        this.ctx.storage.sql.exec('UPDATE futures SET effects = ? WHERE revision_id = ?', JSON.stringify(sealed), row.revision_id);
+        const version = this.version() + 1;
+        this.ctx.storage.sql.exec('UPDATE metadata SET value = ? WHERE key = ?', String(version), 'version');
+        const incomplete = this.ctx.storage.sql.exec('SELECT 1 FROM current_refs c JOIN futures f ON c.revision_id = f.revision_id WHERE f.effects IS NULL LIMIT 1').toArray().length;
+        if (!incomplete) {
+          const scope = JSON.parse(this.ctx.storage.sql.exec<{ value: string }>('SELECT value FROM metadata WHERE key = ?', 'scope').one().value);
+          const payload = { schema_version: 1, operation: 'reduce', scope, version };
+          this.ctx.storage.sql.exec('INSERT INTO outbox (job_id, version, payload, actor_id, expires_at, status) VALUES (?, ?, ?, ?, ?, ?)', 'reduce-' + version, version, JSON.stringify(payload), 'engine', Date.now() + 86400000, 'PENDING');
+        }
+      });
+      await this.ctx.storage.setAlarm(Date.now() + 5000);
+      await this.flush();
+    }
     return Response.json({ schema_version: 1, effect_digest: sealed.effect_digest });
+  }
+
+  private reductionPage(command: { version?: number; cursor?: string }): Response {
+    if (command.version !== this.version()) throw new Failure('OUTDATED_VERSION', 409, 'Objective inputs changed');
+    const rows = this.ctx.storage.sql.exec<FutureRow>(
+      'SELECT f.revision_id, f.ref, f.version, f.record, f.effects FROM current_refs c JOIN futures f ON c.revision_id = f.revision_id WHERE f.revision_id > ? ORDER BY f.revision_id LIMIT 64',
+      command.cursor ?? '',
+    ).toArray();
+    if (rows.some((row) => !row.effects)) throw new Failure('ANALYSIS_PENDING', 409, 'Required structural analysis is pending');
+    const base_oid = this.ctx.storage.sql.exec<{ value: string }>('SELECT value FROM metadata WHERE key = ?', 'base_oid').one().value;
+    return Response.json({
+      schema_version: 1, version: command.version, base_oid,
+      records: rows.map((row) => ({ ...JSON.parse(row.record), effects: JSON.parse(row.effects!) })),
+      next_cursor: rows.length === 64 ? rows[rows.length - 1].revision_id : null,
+    });
   }
 
   private reduction(command: { version?: number; payload_ref?: string; payload_digest?: string; summary?: unknown }): Response {

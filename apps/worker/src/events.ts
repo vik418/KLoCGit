@@ -1,7 +1,7 @@
 import { hashProjection, payloadDigest } from '../../../packages/contracts/src/index.ts';
 import { sameScope, signToken, verifyToken } from './auth.ts';
 import type { InternalGrant } from './auth.ts';
-import { Failure, validateScope } from './runtime.ts';
+import { Failure, strictUtf8, validateScope } from './runtime.ts';
 import type { Bindings, Scope } from './runtime.ts';
 
 const encoder = new TextEncoder();
@@ -98,6 +98,6 @@ export async function unpackEvent(env: Bindings, envelope: EventEnvelope): Promi
     bytes = encoder.encode(JSON.stringify(envelope.payload));
   }
   if (await payloadDigest(bytes) !== envelope.payload_digest) throw new Failure('PAYLOAD_CORRUPT', 409, 'Claim-check digest verification failed');
-  try { return JSON.parse(new TextDecoder('utf-8', { fatal: true }).decode(bytes)); }
+  try { return JSON.parse(strictUtf8(bytes)); }
   catch { throw new Failure('INVALID_EVENT', 400, 'Invalid event payload'); }
 }

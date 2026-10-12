@@ -1,5 +1,5 @@
 import { Hono } from 'hono';
-import { hashProjection, sealFutureRevision } from '../../../packages/contracts/src/index.ts';
+import { hashProjection, payloadDigest, sealFutureRevision } from '../../../packages/contracts/src/index.ts';
 import type { EffectSet, Producer } from '../../../packages/contracts/src/index.ts';
 import { authenticate, authorize, signToken } from './auth.ts';
 import { unpackEvent } from './events.ts';
@@ -70,6 +70,7 @@ async function analyze(env: Bindings, envelope: EventEnvelope): Promise<void> {
     state: Parameters<typeof sealFutureRevision>[0];
     revision: Awaited<ReturnType<typeof sealFutureRevision>>;
   };
+  if (envelope.type === 'objective.reduce') { await reduceObjective(env, envelope); return; }
   if (envelope.type !== 'future.analyze' || payload.schema_version !== 1
     || await objectiveName(payload.scope) !== await objectiveName(envelope.scope)) throw new Failure('INVALID_EVENT', 400, 'Analysis event scope differs');
   const expected = await sealFutureRevision(payload.state, payload.revision);
@@ -90,6 +91,56 @@ async function analyze(env: Bindings, envelope: EventEnvelope): Promise<void> {
     version: envelope.subject_version, effects: analysis.effects,
   }, 'engine');
   if (!response.ok) throw new Failure('ANALYSIS_REJECTED', response.status, 'Analysis result was rejected');
+}
+
+async function reduceObjective(env: Bindings, envelope: EventEnvelope): Promise<void> {
+  const segments: { payload_ref: string; payload_digest: string }[] = [];
+  let cursor: string | null = '';
+  let base_oid = '';
+  do {
+    const response = await callObjective(env, envelope.scope, 'reduction-page', {
+      schema_version: 1, scope: envelope.scope, version: envelope.subject_version, cursor,
+    }, 'engine');
+    if (response.status === 409) return;
+    if (!response.ok) throw new Failure('REDUCTION_INPUT_UNAVAILABLE', 503, 'Reduction input snapshot is unavailable');
+    const page = await readJson<{ schema_version: number; version: number; base_oid: string; records: unknown[]; next_cursor: string | null }>(
+      new Request('https://response.internal', { method: 'POST', body: response.body }), 8 * 1024 * 1024,
+    );
+    if (page.version !== envelope.subject_version || (base_oid && page.base_oid !== base_oid)) throw new Failure('INVALID_REDUCTION', 409, 'Reduction base changed');
+    base_oid = page.base_oid;
+    const bytes = new TextEncoder().encode(JSON.stringify(page.records));
+    const payload_digest = await payloadDigest(bytes);
+    const payload_ref = 'analysis/' + envelope.scope.tenant_id + '/' + payload_digest.slice(7);
+    await env.PAYLOADS.put(payload_ref, bytes, { customMetadata: { retention_class: 'REBUILDABLE', payload_digest, schema_version: '1' } });
+    segments.push({ payload_ref, payload_digest });
+    if (segments.length > 1024) throw new Failure('REDUCTION_BUDGET_EXCEEDED', 409, 'Reduction input exceeds configured transport budget');
+    cursor = page.next_cursor;
+  } while (cursor);
+  const bytes = new TextEncoder().encode(JSON.stringify({ schema_version: 1, segments }));
+  const input_payload_digest = await payloadDigest(bytes);
+  const input_payload_ref = 'analysis/' + envelope.scope.tenant_id + '/' + input_payload_digest.slice(7);
+  await env.PAYLOADS.put(input_payload_ref, bytes, { customMetadata: { retention_class: 'REBUILDABLE', payload_digest: input_payload_digest, schema_version: '1' } });
+  let budget: unknown;
+  try { budget = JSON.parse(env.REDUCTION_BUDGET); }
+  catch { throw new Failure('CONFIGURATION_REQUIRED', 503, 'Reduction budget is not configured'); }
+  const result = await env.ENGINE.fetch('https://engine.internal/reduce', {
+    method: 'POST', headers: { 'content-type': 'application/json' },
+    body: JSON.stringify({ schema_version: 1, scope: envelope.scope, base_revisions: { [envelope.scope.repo_id]: base_oid }, input_payload_ref, input_payload_digest, budget }),
+    signal: AbortSignal.timeout(60_000),
+  });
+  if (!result.ok) throw new Failure('ENGINE_UNAVAILABLE', 503, 'Reduction execution is unavailable');
+  const output = await readJson<{ schema_version: number; input_payload_digest: string; payload_ref: string; payload_digest: string; summary: unknown }>(
+    new Request('https://response.internal', { method: 'POST', body: result.body }),
+  );
+  if (output.schema_version !== 1 || output.input_payload_digest !== input_payload_digest
+    || !output.payload_ref.startsWith('reductions/' + envelope.scope.tenant_id + '/')) throw new Failure('INVALID_REDUCTION', 409, 'Reduction input binding differs');
+  const object = await env.PAYLOADS.get(output.payload_ref);
+  if (!object || object.size > 8 * 1024 * 1024 || await payloadDigest(new Uint8Array(await object.arrayBuffer())) !== output.payload_digest) throw new Failure('INVALID_REDUCTION', 409, 'Reduction payload verification failed');
+  const response = await callObjective(env, envelope.scope, 'reduction', {
+    schema_version: 1, scope: envelope.scope, version: envelope.subject_version,
+    payload_ref: output.payload_ref, payload_digest: output.payload_digest, summary: output.summary,
+  }, 'engine');
+  if (!response.ok) throw new Failure('REDUCTION_REJECTED', response.status, 'Reduction result was rejected');
 }
 
 export default {

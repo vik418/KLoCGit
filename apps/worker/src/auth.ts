@@ -1,4 +1,4 @@
-import { Failure, validateScope } from './runtime.ts';
+import { Failure, strictUtf8, validateScope } from './runtime.ts';
 import type { Bindings, Scope } from './runtime.ts';
 
 export type Action = 'read' | 'ingest' | 'agent:mint' | 'promote';
@@ -45,12 +45,12 @@ export async function verifyToken<T>(token: string, secret: string): Promise<T> 
   const parts = token.split('.');
   if (parts.length !== 3) throw new Failure('UNAUTHENTICATED', 401, 'Invalid token');
   let header: { alg?: string; typ?: string };
-  try { header = JSON.parse(new TextDecoder('utf-8', { fatal: true }).decode(decode(parts[0]))); }
+  try { header = JSON.parse(strictUtf8(decode(parts[0]))); }
   catch { throw new Failure('UNAUTHENTICATED', 401, 'Invalid token'); }
   if (header.alg !== 'HS256' || header.typ !== 'JWT') throw new Failure('UNAUTHENTICATED', 401, 'Unsupported token algorithm');
   const valid = await crypto.subtle.verify('HMAC', await key(secret), decode(parts[2]), encoder.encode(parts[0] + '.' + parts[1]));
   if (!valid) throw new Failure('UNAUTHENTICATED', 401, 'Invalid token signature');
-  try { return JSON.parse(new TextDecoder('utf-8', { fatal: true }).decode(decode(parts[1]))); }
+  try { return JSON.parse(strictUtf8(decode(parts[1]))); }
   catch { throw new Failure('UNAUTHENTICATED', 401, 'Invalid token'); }
 }
 

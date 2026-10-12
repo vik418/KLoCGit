@@ -5,6 +5,8 @@ compatibility_date = "2026-10-01"
 [vars]
 AUTH_ISSUER = "klocgit"
 AUTH_AUDIENCE = "klocgit-api"
+CANONICAL_REF = "refs/heads/main"
+REDUCTION_BUDGET = '{"max_candidates":128,"max_futures":10000,"max_footprint_entries":100000,"max_output_bytes":4194304}'
 
 [[durable_objects.bindings]]
 name = "OBJECTIVES"

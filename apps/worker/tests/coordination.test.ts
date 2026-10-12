@@ -92,7 +92,40 @@ async function fixture(t: { after: (fn: () => unknown) => void }) {
       return new WorkerResponse('not found', { status: 404 });
     },
     ENGINE: async (request: Request) => {
-      const input = await request.json() as { input_payload_digest: string; state: { commit_oid: string }; revision: { id: string } };
+      const input = await request.json() as any;
+      if (new URL(request.url).pathname === '/reduce') {
+        const bucket = await mf.getR2Bucket('PAYLOADS');
+        const manifestObject = await bucket.get(input.input_payload_ref);
+        assert.ok(manifestObject);
+        const manifestBytes = new Uint8Array(await manifestObject.arrayBuffer());
+        const { payloadDigest } = await import('../../../packages/contracts/src/index.ts');
+        assert.equal(await payloadDigest(manifestBytes), input.input_payload_digest);
+        const manifest = JSON.parse(new TextDecoder().decode(manifestBytes));
+        const records: any[] = [];
+        for (const segment of manifest.segments) {
+          const object = await bucket.get(segment.payload_ref);
+          assert.ok(object);
+          const bytes = new Uint8Array(await object.arrayBuffer());
+          assert.equal(await payloadDigest(bytes), segment.payload_digest);
+          records.push(...JSON.parse(new TextDecoder().decode(bytes)));
+        }
+        const futures = records.map((record) => ({
+          state: record.state, revision: record.revision, effects: record.effects,
+          changed_paths: git(['--git-dir', remote, 'diff', '--name-only', input.base_revisions.repo, record.state.commit_oid]).split('\n').filter(Boolean),
+          required_future_ids: [],
+        }));
+        const output = JSON.parse(execFileSync('cargo', ['run', '--quiet', '-p', 'klocgit-engine', '--bin', 'klocgit-engine'], {
+          cwd: root, input: JSON.stringify({ operation: 'reduce', base_revisions: input.base_revisions, futures, budget: input.budget }), encoding: 'utf8',
+        }));
+        const bytes = new TextEncoder().encode(JSON.stringify(output));
+        const payload_digest = await payloadDigest(bytes);
+        const payload_ref = 'reductions/' + scope.tenant_id + '/' + payload_digest.slice(7);
+        await bucket.put(payload_ref, bytes);
+        return WorkerResponse.json({
+          schema_version: 1, input_payload_digest: input.input_payload_digest, payload_ref, payload_digest,
+          summary: { status: output.status, group_count: output.groups.length, candidate_spec_digests: output.candidate_specs.map((spec: any) => spec.spec_digest) },
+        });
+      }
       const paths = git(['--git-dir', remote, 'diff', '--name-only', base, input.state.commit_oid]).split('\n').filter(Boolean);
       const changes = paths.map((path) => {
         let before: string | null = null;
@@ -116,7 +149,7 @@ async function fixture(t: { after: (fn: () => unknown) => void }) {
     r2Persist: join(directory, 'r2'),
     queueProducers: { ANALYSIS_QUEUE: 'analysis', DEAD_LETTER_QUEUE: 'dlq' },
     queueConsumers: { analysis: { maxBatchSize: 5, maxBatchTimeout: 1, maxRetries: 5, deadLetterQueue: 'dlq' } },
-    bindings: { AUTH_SIGNING_KEY: authKey, INTERNAL_SIGNING_KEY: internalKey, AUTH_ISSUER: 'klocgit', AUTH_AUDIENCE: 'klocgit-api' },
+    bindings: { AUTH_SIGNING_KEY: authKey, INTERNAL_SIGNING_KEY: internalKey, AUTH_ISSUER: 'klocgit', AUTH_AUDIENCE: 'klocgit-api', CANONICAL_REF: 'refs/heads/main', REDUCTION_BUDGET: JSON.stringify({ max_candidates: 16, max_futures: 100, max_footprint_entries: 1000, max_output_bytes: 1_000_000 }) },
     serviceBindings,
   };
   let mf = new Miniflare(options);
@@ -157,18 +190,10 @@ test('five concurrent Git pushes are ingested, analyzed and clustered without sc
   const responses = await Promise.all(f.actorRefs.map((ref, index) => f.request(endpoint + '/futures', 'POST', { system_id: 'product', ref, producer: { actor_id: 'producer-' + index } })));
   for (const response of responses) assert.equal(response.status, 200, await response.text());
   await until(async () => (await f.status()).futures.filter((future: any) => future.effects).length === 5);
+  await until(async () => (await f.status()).reduction?.candidate_spec_digests.length === 2);
   const observed = await f.status();
-  const inputs = observed.futures.map((future: any) => ({
-    state: future.state, revision: future.revision, effects: future.effects,
-    changed_paths: f.git(['--git-dir', join(f.directory, 'remote.git'), 'diff', '--name-only', f.base, future.state.commit_oid]).split('\n').filter(Boolean),
-    required_future_ids: [],
-  }));
-  const result = JSON.parse(execFileSync('cargo', ['run', '--quiet', '-p', 'klocgit-engine', '--bin', 'klocgit-engine'], {
-    cwd: root, encoding: 'utf8', input: JSON.stringify({ operation: 'reduce', base_revisions: { repo: f.base }, futures: inputs, budget: { max_candidates: 16, max_futures: 100, max_footprint_entries: 1000, max_output_bytes: 1_000_000 } }),
-  }));
-  assert.equal(result.status, 'COMPLETE');
-  assert.equal(result.candidate_specs.length, 2);
-  assert.equal(result.groups.reduce((count: number, group: any) => count + Object.values(group.duplicate_members).reduce((sum: number, members: any) => sum + members.length, 0), 0), 5);
+  assert.equal(observed.reduction.status, 'COMPLETE');
+  assert.equal(observed.reduction.group_count, 3);
   await f.restart();
   assert.equal((await f.status()).futures.length, 5);
 });

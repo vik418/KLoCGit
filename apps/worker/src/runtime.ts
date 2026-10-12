@@ -19,6 +19,8 @@ export interface Bindings {
   INTERNAL_SIGNING_KEY: string;
   AUTH_ISSUER: string;
   AUTH_AUDIENCE: string;
+  CANONICAL_REF: string;
+  REDUCTION_BUDGET: string;
 }
 
 export interface ObservedRevision {
@@ -63,6 +65,15 @@ export async function readJson<T>(request: Request, maxBytes = 32 * 1024): Promi
   const bytes = new Uint8Array(size);
   let offset = 0;
   for (const chunk of chunks) { bytes.set(chunk, offset); offset += chunk.length; }
-  try { return JSON.parse(new TextDecoder('utf-8', { fatal: true }).decode(bytes)); }
+  try { return JSON.parse(strictUtf8(bytes)); }
   catch { throw new Failure('INVALID_INPUT', 400, 'Invalid JSON'); }
+}
+
+/** Workers do not expose fatal decoding on every supported runtime. Round-trip
+ * validation rejects malformed UTF-8 without accepting replacement characters. */
+export function strictUtf8(bytes: Uint8Array): string {
+  const decoded = new TextDecoder('utf-8', { ignoreBOM: true }).decode(bytes);
+  const encoded = new TextEncoder().encode(decoded);
+  if (encoded.length !== bytes.length || encoded.some((byte, index) => byte !== bytes[index])) throw new Failure('INVALID_INPUT', 400, 'Malformed UTF-8');
+  return decoded;
 }
