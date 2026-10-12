@@ -288,8 +288,8 @@ test("native receive-pack CAS rejects stale and concurrent promotions and retain
   writeFileSync(join(workspace, "state.txt"), "novel composed state");
   const localObjects = join(directory, "candidate-objects.git");
   git(["init", "--bare", localObjects]);
-  const blob = git(["--git-dir", localObjects, "hash-object", "-w", "--stdin"], "novel composed state");
-  const scratchTree = git(["--git-dir", localObjects, "mktree"], "100644 blob " + blob + "\tstate.txt\n");
+  const novelBlob = git(["--git-dir", localObjects, "hash-object", "-w", "--stdin"], "novel composed state");
+  const scratchTree = git(["--git-dir", localObjects, "mktree"], "100644 blob " + novelBlob + "\tstate.txt\n");
   const candidate = await sealCandidate({ candidate_spec_id: await hashProjection("test.novel-spec", {}), repo_tree_oids: { repo: scratchTree },
     materialization_record: { executor_id: "test", materialized_at: new Date().toISOString(), conflicts_encountered: [] } });
   const basis_digest = await hashProjection("test.novel-basis", { candidate_digest: candidate.candidate_digest });

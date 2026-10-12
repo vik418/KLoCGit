@@ -34,6 +34,9 @@ jobs:
           gofmt -w tests/fixtures/sandbox/go tests/fixtures/sandbox/go-checks
       - name: Format worker source
         run: npx --yes prettier@3.9.9 --write apps/worker/src/**/*.ts apps/worker/src/*.ts apps/worker/tests/*.ts apps/worker/package.json apps/worker/tsconfig.json packages/policy/src/*.ts packages/policy/tests/*.ts packages/policy/tsconfig.json
+      - name: Check test syntax
+        run: |
+          for source in apps/worker/tests/*.ts packages/policy/tests/*.ts; do node --check "$source"; done
       - name: Check worker types
         run: npm run check --prefix apps/worker
       - name: Check contract types
