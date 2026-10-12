@@ -29,7 +29,13 @@ export interface ObservedRevision {
 }
 
 export class Failure extends Error {
-  constructor(public code: string, public status: number, message: string) { super(message); }
+  public code: string;
+  public status: number;
+  constructor(code: string, status: number, message: string) {
+    super(message);
+    this.code = code;
+    this.status = status;
+  }
 }
 
 export function identifier(value: unknown): string {
