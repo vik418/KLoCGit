@@ -1,134 +1,214 @@
-/**
- * CODEX OPERATING CONTRACT: Phase 5 Policy Decision Engine
- * Multi-Role Authorization, Predicate Validation, and Promotion Gating
- * Strictly enforces Invariant 5: Incomplete analysis strictly blocks resolution.
- */
+import {
+  hashProjection, sealCandidate, sealCandidateSpec, sealDecisionBasis, sealEffectSet, sealEvidence,
+} from "../../contracts/src/index.ts";
+import type {
+  Candidate, CandidateSpec, Decision, DecisionBasis, EffectSet, Evidence, Predicate,
+} from "../../contracts/src/index.ts";
 
-import { Decision, Predicate } from '../../contracts/src/types.ts';
-
-export interface PolicyRule {
-  id: string;
-  name: string;
-  require_human_signoff: boolean;
-  min_approvals: number;
-  allowed_roles: string[];
+export interface EvidenceRequirement {
+  evaluator_id: string;
+  evaluator_version: string;
+  config_digest: string;
+  environment_digests: string[];
 }
 
-export interface PolicyEvaluationResult {
+export interface ReviewPolicy {
+  schema_version: 1;
+  required_capability: EffectSet["capability"];
+  evidence_requirements: EvidenceRequirement[];
+  reviewer_actor_ids: string[];
+  minimum_reviewers: number;
+}
+
+export interface Review {
+  schema_version: 1;
+  actor_id: string;
+  actor_type: "human";
+  candidate_digest: string;
+  basis_digest: string;
+  policy_digest: string;
+  material_effect_digest: string;
+  predicates: Predicate[];
+}
+
+export interface EvaluationContext {
+  spec: CandidateSpec;
+  candidate: Candidate;
+  effects: EffectSet[];
+  evidence: Evidence[];
+  reviews: Review[];
+}
+
+export interface PolicyResult {
   allowed: boolean;
-  blocked_reason?: string;
-  satisfied_predicates: string[];
-  failed_predicates: string[];
+  blockers: { code: string; subject: string }[];
 }
 
-export class PolicyDecisionEngine {
-  private defaultRule: PolicyRule;
+export async function policyDigest(policy: ReviewPolicy): Promise<string> {
+  const capabilities = ["PATH", "STRUCTURAL", "SEMANTIC"];
+  if (policy.schema_version !== 1 || !capabilities.includes(policy.required_capability) ||
+      !Number.isSafeInteger(policy.minimum_reviewers) || policy.minimum_reviewers < 1 ||
+      !policy.reviewer_actor_ids.length || !policy.evidence_requirements.length)
+    throw new Error("Review policy is incomplete");
+  const requirements = policy.evidence_requirements.map(requirement => {
+    if (!requirement.evaluator_id || !requirement.evaluator_version ||
+        !/^sha256:[0-9a-f]{64}$/.test(requirement.config_digest) ||
+        !requirement.environment_digests.length ||
+        requirement.environment_digests.some(value => !/^sha256:[0-9a-f]{64}$/.test(value)))
+      throw new Error("Evidence requirement is incomplete");
+    return { ...requirement, environment_digests: [...new Set(requirement.environment_digests)].sort() };
+  });
+  const keyed = await Promise.all(requirements.map(async requirement => ({
+    requirement, identity: await hashProjection("klocgit.policy.evidence-requirement", requirement),
+  })));
+  keyed.sort((a, b) => a.identity < b.identity ? -1 : a.identity > b.identity ? 1 : 0);
+  return hashProjection("klocgit.review-policy", {
+    schema_version: 1, required_capability: policy.required_capability,
+    evidence_requirements: keyed.map(item => item.requirement),
+    reviewer_actor_ids: [...new Set(policy.reviewer_actor_ids)].sort(),
+    minimum_reviewers: policy.minimum_reviewers,
+  });
+}
 
-  constructor(rule?: Partial<PolicyRule>) {
-    this.defaultRule = {
-      id: rule?.id ?? 'rule_production_default',
-      name: rule?.name ?? 'Standard Production Convergence Policy',
-      require_human_signoff: rule?.require_human_signoff ?? true,
-      min_approvals: rule?.min_approvals ?? 1,
-      allowed_roles: rule?.allowed_roles ?? ['SUPER_ADMIN', 'ORG_ADMIN', 'REPO_ADMIN', 'TECH_LEAD'],
-    };
-  }
-
-  /**
-   * Evaluate decision basis against policy rules and typed predicates.
-   * Strictly enforces Invariant 5: PARTIAL, FAILED, or UNSUPPORTED analysis blocks resolution.
-   */
-  evaluate(decision: Decision, actorRole: string, actorId: string): PolicyEvaluationResult {
-    const basis = decision.basis;
-
-    // INVARIANT 5 CHECK: Incomplete analysis strictly blocks resolution
-    for (const [analysisName, status] of Object.entries(basis.required_analysis_status)) {
-      if (status !== 'COMPLETE') {
-        return {
-          allowed: false,
-          blocked_reason: `INVARIANT_5_VIOLATION: Required analysis '${analysisName}' has status '${status}' (must be COMPLETE)`,
-          satisfied_predicates: [],
-          failed_predicates: [`ANALYSIS_INCOMPLETE:${analysisName}:${status}`],
-        };
-      }
-    }
-
-    const satisfied: string[] = [];
-    const failed: string[] = [];
-
-    // Evaluate typed conditional predicates
-    for (const pred of decision.conditional_predicates) {
-      switch (pred.kind) {
-        case 'ANALYSIS_COMPLETE':
-          satisfied.push(`ANALYSIS_COMPLETE:${pred.subject}`);
-          break;
-        case 'EVIDENCE_PASSED':
-          // Must have at least 1 evidence digest and no error/failure in basis
-          if (basis.evidence_digests.length > 0) {
-            satisfied.push(`EVIDENCE_PASSED:${pred.subject}`);
-          } else {
-            failed.push(`EVIDENCE_PASSED:${pred.subject}:no_evidence_digests`);
-          }
-          break;
-        case 'CANDIDATE_UNCHANGED':
-        case 'EFFECTS_UNCHANGED':
-          satisfied.push(`${pred.kind}:${pred.subject}`);
-          break;
-      }
-    }
-
-    if (failed.length > 0) {
-      return {
-        allowed: false,
-        blocked_reason: `Predicate failure: ${failed.join(', ')}`,
-        satisfied_predicates: satisfied,
-        failed_predicates: failed,
-      };
-    }
-
-    // Role-based human sign-off validation
-    if (this.defaultRule.require_human_signoff) {
-      if (!this.defaultRule.allowed_roles.includes(actorRole)) {
-        return {
-          allowed: false,
-          blocked_reason: `Role '${actorRole}' is not authorized to sign off. Required: ${this.defaultRule.allowed_roles.join(', ')}`,
-          satisfied_predicates: satisfied,
-          failed_predicates: [`UNAUTHORIZED_ROLE:${actorRole}`],
-        };
-      }
-    }
-
-    return {
-      allowed: true,
-      satisfied_predicates: satisfied,
-      failed_predicates: [],
-    };
-  }
-
-  /**
-   * Transition decision to RESOLVED after successful policy evaluation
-   */
-  resolveDecision(decision: Decision, actorRole: string, actorId: string): Decision {
-    const evalResult = this.evaluate(decision, actorRole, actorId);
-    if (!evalResult.allowed) {
-      throw new Error(`RESOLUTION_BLOCKED: ${evalResult.blocked_reason}`);
-    }
-
-    decision.state = 'RESOLVED';
-    decision.resolved_by = `${actorId} (${actorRole})`;
-    decision.resolved_at = new Date().toISOString();
-    return decision;
+function predicateSatisfied(predicate: Predicate, basis: DecisionBasis, context: EvaluationContext): boolean {
+  switch (predicate.kind) {
+    case "ANALYSIS_COMPLETE":
+      return basis.required_analysis_status[predicate.subject] === "COMPLETE" &&
+        (predicate.expected === undefined || predicate.expected === "COMPLETE");
+    case "EVIDENCE_PASSED":
+      return basis.evidence_digests.includes(predicate.subject) &&
+        context.evidence.some(evidence => evidence.evidence_digest === predicate.subject &&
+          evidence.subject_digest === context.candidate.candidate_digest && evidence.result === "PASSED") &&
+        (predicate.expected === undefined || predicate.expected === "PASSED");
+    case "CANDIDATE_UNCHANGED":
+      return context.candidate.candidate_digest === (predicate.expected ?? predicate.subject);
+    case "EFFECTS_UNCHANGED":
+      return basis.material_effect_digest === (predicate.expected ?? predicate.subject);
+    default:
+      return false;
   }
 }
 
-export class PromotionGate {
-  /**
-   * Asserts promotion can release Git push CAS lock.
-   * Only permits promotion if decision is in RESOLVED state.
-   */
-  static assertPromotionAllowed(decision: Decision): void {
-    if (decision.state !== 'RESOLVED') {
-      throw new Error(`PROMOTION_BLOCKED: Decision ${decision.id} is in '${decision.state}' state (must be RESOLVED)`);
-    }
+/** Required facts are supplied from authoritative records, never producer claims. */
+export class PolicyEvaluator {
+  private policy: ReviewPolicy;
+  constructor(policy: ReviewPolicy) { this.policy = structuredClone(policy); }
+
+  canResolve(basis: DecisionBasis, context: EvaluationContext): Promise<PolicyResult> {
+    return this.evaluate(basis, context, true);
+  }
+
+  canReview(basis: DecisionBasis, context: EvaluationContext): Promise<PolicyResult> {
+    return this.evaluate(basis, context, false);
+  }
+
+  private async evaluate(basis: DecisionBasis, context: EvaluationContext, requireReviews: boolean): Promise<PolicyResult> {
+    const blockers: PolicyResult["blockers"] = [];
+    const block = (code: string, subject: string) => blockers.push({ code, subject });
+    try {
+      if ((await sealDecisionBasis(basis)).basis_digest !== basis.basis_digest)
+        block("BASIS_CORRUPT", basis.basis_digest);
+      if (await policyDigest(this.policy) !== basis.policy_digest)
+        block("POLICY_CHANGED", basis.policy_digest);
+      const spec = await sealCandidateSpec(context.spec);
+      if (spec.id !== context.spec.id || spec.spec_digest !== context.spec.spec_digest ||
+          context.candidate.candidate_spec_id !== spec.id || context.spec.effect_summary_digest !== basis.material_effect_digest)
+        block("SPEC_CHANGED", context.spec.id);
+      const observedFutures = new Set(context.effects.map(effect => effect.future_revision_id));
+      if (observedFutures.size !== spec.selected_future_revisions.length ||
+          spec.selected_future_revisions.some(id => !observedFutures.has(id)))
+        block("ANALYSIS_MISSING", context.spec.id);
+      const sealed = await sealCandidate(context.candidate);
+      if (sealed.candidate_digest !== context.candidate.candidate_digest || sealed.id !== context.candidate.id ||
+          !basis.candidate_digests.includes(sealed.candidate_digest))
+        block("CANDIDATE_CHANGED", context.candidate.candidate_digest);
+      if (!Object.keys(basis.required_analysis_status).length || !context.effects.length)
+        block("ANALYSIS_MISSING", context.candidate.candidate_digest);
+      for (const [subject, status] of Object.entries(basis.required_analysis_status)) {
+        if (status !== "COMPLETE") block("ANALYSIS_" + status, subject);
+      }
+      const effectDigests: string[] = [];
+      const levels = ["PATH", "STRUCTURAL", "SEMANTIC"];
+      for (const effect of context.effects) {
+        const sealed = await sealEffectSet(effect);
+        if (sealed.effect_digest !== effect.effect_digest)
+          block("EFFECT_CORRUPT", effect.future_revision_id);
+        effectDigests.push(effect.effect_digest);
+        if (basis.required_analysis_status[effect.effect_digest] !== effect.status)
+          block("ANALYSIS_BINDING_CHANGED", effect.future_revision_id);
+        if (effect.status !== "COMPLETE") block("ANALYSIS_" + effect.status, effect.future_revision_id);
+        if (levels.indexOf(effect.capability) < levels.indexOf(this.policy.required_capability))
+          block("CAPABILITY_REQUIRED", effect.future_revision_id);
+      }
+      if (await hashProjection("klocgit.effect-summary", [...new Set(effectDigests)].sort()) !== basis.material_effect_digest)
+        block("EFFECTS_CHANGED", basis.material_effect_digest);
+      for (const evidence of context.evidence) {
+        const sealed = await sealEvidence(evidence);
+        if (sealed.evidence_digest !== evidence.evidence_digest || sealed.id !== evidence.id)
+          block("EVIDENCE_CORRUPT", evidence.evidence_digest);
+      }
+      for (const requirement of this.policy.evidence_requirements) {
+        const matching = context.evidence.filter(evidence =>
+          basis.evidence_digests.includes(evidence.evidence_digest) &&
+          evidence.subject_digest === context.candidate.candidate_digest &&
+          evidence.evaluator_id === requirement.evaluator_id && evidence.evaluator_version === requirement.evaluator_version &&
+          evidence.config_digest === requirement.config_digest && requirement.environment_digests.includes(evidence.environment_digest));
+        if (!matching.length) block("EVIDENCE_MISSING", requirement.evaluator_id);
+        else if (matching.some(evidence => evidence.result !== "PASSED"))
+          block("EVIDENCE_NOT_PASSED", requirement.evaluator_id);
+      }
+      if (requireReviews) {
+        const reviewers = new Set<string>();
+        for (const review of context.reviews) {
+          if (review.schema_version !== 1 || review.actor_type !== "human" ||
+              !this.policy.reviewer_actor_ids.includes(review.actor_id) ||
+              review.candidate_digest !== context.candidate.candidate_digest ||
+              review.policy_digest !== basis.policy_digest ||
+              review.material_effect_digest !== basis.material_effect_digest)
+            continue;
+          const current = review.basis_digest === basis.basis_digest;
+          const conditionallyValid = review.predicates.length > 0 &&
+            review.predicates.some(predicate => predicate.kind === "CANDIDATE_UNCHANGED") &&
+            review.predicates.some(predicate => predicate.kind === "EFFECTS_UNCHANGED");
+          if ((current || conditionallyValid) &&
+              review.predicates.every(predicate => predicateSatisfied(predicate, basis, context)))
+            reviewers.add(review.actor_id);
+        }
+        if (reviewers.size < this.policy.minimum_reviewers)
+          block("REVIEW_REQUIRED", context.candidate.candidate_digest);
+      }
+    } catch { block("INVALID_POLICY_INPUT", basis.basis_digest); }
+    return { allowed: blockers.length === 0, blockers };
+  }
+}
+
+export class DecisionConflict extends Error {
+  readonly code = "STALE_BASIS";
+}
+
+/** Promotion receipts, not button clicks, finalize resolution. */
+export class DecisionLifecycle {
+  static inspect(decision: Decision): Decision {
+    if (decision.state !== "DISCOVERED") throw new Error("Decision cannot become reviewable from this state");
+    return { ...decision, state: "REVIEWABLE" };
+  }
+
+  static ready(decision: Decision, result: PolicyResult): Decision {
+    if (!["REVIEWABLE", "RESOLVABLE"].includes(decision.state)) throw new Error("Decision cannot be evaluated from this state");
+    return { ...decision, state: result.allowed ? "RESOLVABLE" : "REVIEWABLE" };
+  }
+
+  static resolve(decision: Decision, expectedBasis: string, actor: string, receipt: {
+    status: "APPLIED"; decision_id: string; basis_digest: string;
+  }): Decision {
+    if (decision.state !== "RESOLVABLE" || decision.basis.basis_digest !== expectedBasis ||
+        receipt.status !== "APPLIED" || receipt.decision_id !== decision.id || receipt.basis_digest !== expectedBasis)
+      throw new DecisionConflict("Reviewed and promoted states differ");
+    return { ...decision, state: "RESOLVED", resolved_by: actor, resolved_at: new Date().toISOString() };
+  }
+
+  static stale(decision: Decision): Decision {
+    if (decision.state === "RESOLVED") throw new Error("Resolved history cannot be made stale");
+    return { ...decision, state: "STALE" };
   }
 }

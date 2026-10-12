@@ -14,7 +14,7 @@
     "test:canonical-cross-language": "node --test packages/contracts/tests/cross-language.test.ts",
     "test:coordination": "npm test --prefix apps/worker",
     "test:materialization": "tsx services/evaluator/test-materialization.ts",
-    "test:policy": "tsx packages/policy/test-policy.ts",
+    "test:policy": "node --test packages/policy/tests/*.test.ts",
     "test:e2e": "tsx tests/e2e/test-full-lifecycle.ts",
     "test:sandbox": "node --test apps/worker/tests/sandbox.integration.ts apps/worker/tests/vm.integration.ts apps/worker/tests/git-transport.integration.ts"
   },

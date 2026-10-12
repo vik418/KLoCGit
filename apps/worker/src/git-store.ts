@@ -18,17 +18,33 @@ function oid(value: unknown): string {
 export class GitStore {
   private binding: Bindings["GIT_EXECUTOR"];
   private signingKey: string;
-  constructor(binding: Bindings["GIT_EXECUTOR"], signingKey: string) { this.binding = binding; this.signingKey = signingKey; }
+  constructor(binding: Bindings["GIT_EXECUTOR"], signingKey: string) {
+    this.binding = binding;
+    this.signingKey = signingKey;
+  }
 
   private async call<T>(path: string, command: unknown): Promise<T> {
     let response: Response;
     try {
       const body = command as { scope: Scope };
-      const authorization = await signToken({ schema_version: 1, aud: "git-executor", scope: body.scope, action: path.slice(1),
-        subject_digest: await hashProjection("klocgit.git-command", command), actor_id: "coordinator", expires_at: Date.now() + 120000 }, this.signingKey);
+      const authorization = await signToken(
+        {
+          schema_version: 1,
+          aud: "git-executor",
+          scope: body.scope,
+          action: path.slice(1),
+          subject_digest: await hashProjection("klocgit.git-command", command),
+          actor_id: "coordinator",
+          expires_at: Date.now() + 120000,
+        },
+        this.signingKey,
+      );
       response = await this.binding.fetch("https://git.internal" + path, {
         method: "POST",
-        headers: { "content-type": "application/json", "x-klocgit-internal": authorization },
+        headers: {
+          "content-type": "application/json",
+          "x-klocgit-internal": authorization,
+        },
         body: JSON.stringify(command),
         signal: AbortSignal.timeout(180_000),
       });
@@ -40,11 +56,17 @@ export class GitStore {
       );
     }
     if (!response.ok) {
-      const failure = await response.json<{ error?: { code?: string } }>().catch(() => ({} as { error?: { code?: string } }));
+      const failure = await response
+        .json<{ error?: { code?: string } }>()
+        .catch(() => ({}) as { error?: { code?: string } });
       if (response.status === 409 && failure.error?.code === "STALE_BASIS")
         throw new Failure("STALE_BASIS", 409, "Canonical Git head changed");
       if (path === "/cas" || path === "/operation")
-        throw new Failure("GIT_OUTCOME_UNKNOWN", 503, "Git mutation requires reconciliation");
+        throw new Failure(
+          "GIT_OUTCOME_UNKNOWN",
+          503,
+          "Git mutation requires reconciliation",
+        );
     }
     if (!response.ok)
       throw new Failure(

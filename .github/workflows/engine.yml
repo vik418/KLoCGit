@@ -33,7 +33,7 @@ jobs:
           python -m black tests/fixtures/sandbox/python tests/fixtures/sandbox/python-checks
           gofmt -w tests/fixtures/sandbox/go tests/fixtures/sandbox/go-checks
       - name: Format worker source
-        run: npx --yes prettier@3.9.9 --write apps/worker/src/**/*.ts apps/worker/src/*.ts apps/worker/tests/*.ts apps/worker/package.json apps/worker/tsconfig.json
+        run: npx --yes prettier@3.9.9 --write apps/worker/src/**/*.ts apps/worker/src/*.ts apps/worker/tests/*.ts apps/worker/package.json apps/worker/tsconfig.json packages/policy/src/*.ts packages/policy/tests/*.ts packages/policy/tsconfig.json
       - name: Check worker types
         run: npm run check --prefix apps/worker
       - name: Check contract types
@@ -46,6 +46,10 @@ jobs:
         run: npm run test:canonical-cross-language
       - name: Coordination gate
         run: npm run test:coordination
+      - name: Policy gate
+        run: |
+          npx --yes --package typescript@5.9.3 tsc -p packages/policy/tsconfig.json
+          npm run test:policy
       - name: Build the isolated evaluator fixture
         run: |
           docker build -f tests/fixtures/sandbox/Dockerfile -t klocgit-evaluator-fixture tests/fixtures/sandbox
@@ -75,6 +79,9 @@ jobs:
           walk('crates/engine/tests');
           for (const path of ['packages/contracts/src/index.ts', 'packages/contracts/src/canonical.ts', 'packages/contracts/tsconfig.json']) files.push(path);
           walk('packages/contracts/tests');
+          walk('packages/policy/src');
+          walk('packages/policy/tests');
+          files.push('packages/policy/tsconfig.json');
           walk('tests/fixtures');
           walk('apps/worker/src');
           walk('apps/worker/tests');

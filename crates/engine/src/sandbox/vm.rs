@@ -29,7 +29,9 @@ pub fn evaluate(
     let toolchain = super::validate(source, suite, candidate, repo_id, policy)?;
     let measured_version = toolchain_version(&policy.language)?;
     if measured_version != toolchain.version {
-        return Err(Error::InvalidInput("UNSUPPORTED: installed toolchain differs from its registry entry".into()));
+        return Err(Error::InvalidInput(
+            "UNSUPPORTED: installed toolchain differs from its registry entry".into(),
+        ));
     }
     if environment.schema_version != 1
         || environment.network != "DENIED"
@@ -222,20 +224,40 @@ fn toolchain_version(language: &str) -> Result<String> {
         "typescript" => ("/usr/local/bin/node", &["--version"]),
         "python" => ("/usr/local/bin/python", &["--version"]),
         "go" => ("/usr/local/go/bin/go", &["version"]),
-        _ => return Err(Error::InvalidInput("UNSUPPORTED: unknown execution language".into())),
+        _ => {
+            return Err(Error::InvalidInput(
+                "UNSUPPORTED: unknown execution language".into(),
+            ))
+        }
     };
-    let output = Command::new(executable).env_clear().env("PATH", "/usr/local/go/bin:/usr/local/bin:/usr/bin:/bin")
-        .env("GOTOOLCHAIN", "local").args(args).output()
-        .map_err(|_| Error::InvalidInput("UNSUPPORTED: installed toolchain is unavailable".into()))?;
+    let output = Command::new(executable)
+        .env_clear()
+        .env("PATH", "/usr/local/go/bin:/usr/local/bin:/usr/bin:/bin")
+        .env("GOTOOLCHAIN", "local")
+        .args(args)
+        .output()
+        .map_err(|_| {
+            Error::InvalidInput("UNSUPPORTED: installed toolchain is unavailable".into())
+        })?;
     if !output.status.success() || output.stdout.len() > 1024 {
-        return Err(Error::InvalidInput("UNSUPPORTED: installed toolchain cannot be measured".into()));
+        return Err(Error::InvalidInput(
+            "UNSUPPORTED: installed toolchain cannot be measured".into(),
+        ));
     }
-    let output = std::str::from_utf8(&output.stdout).map_err(|_| Error::RevisionMismatch)?.trim();
+    let output = std::str::from_utf8(&output.stdout)
+        .map_err(|_| Error::RevisionMismatch)?
+        .trim();
     let version = match language {
         "typescript" => output.strip_prefix('v'),
         "python" => output.strip_prefix("Python "),
-        "go" => output.split_whitespace().nth(2).and_then(|value| value.strip_prefix("go")),
+        "go" => output
+            .split_whitespace()
+            .nth(2)
+            .and_then(|value| value.strip_prefix("go")),
         _ => None,
-    }.ok_or_else(|| Error::InvalidInput("UNSUPPORTED: unexpected toolchain version output".into()))?;
+    }
+    .ok_or_else(|| {
+        Error::InvalidInput("UNSUPPORTED: unexpected toolchain version output".into())
+    })?;
     Ok(version.into())
 }

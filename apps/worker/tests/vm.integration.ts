@@ -31,7 +31,12 @@ const docker = (args: string[]) =>
 function files(
   directory: string,
 ): { path: string; bytes: Uint8Array; oid: string; mode: number }[] {
-  const result: { path: string; bytes: Uint8Array; oid: string; mode: number }[] = [];
+  const result: {
+    path: string;
+    bytes: Uint8Array;
+    oid: string;
+    mode: number;
+  }[] = [];
   const visit = (current: string, prefix: string) => {
     for (const entry of readdirSync(current, { withFileTypes: true })) {
       const path = prefix + entry.name;
@@ -255,7 +260,12 @@ test("ephemeral VM runs each supported toolchain without a Docker daemon or cred
           call("/stage", transfer);
           // Redelivery acknowledges identical chunks without charging or rewriting.
           call("/stage", transfer);
-          assert.throws(() => call("/stage", { ...transfer, payload_hex: transfer.payload_hex + "00" }));
+          assert.throws(() =>
+            call("/stage", {
+              ...transfer,
+              payload_hex: transfer.payload_hex + "00",
+            }),
+          );
         }
       }
     const measured = docker(["exec", id, ...item.version]);
