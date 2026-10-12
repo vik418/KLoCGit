@@ -3,6 +3,7 @@ pub mod contracts;
 pub mod extractors;
 pub mod git;
 pub mod reduction;
+pub mod sandbox;
 
 #[derive(Debug, thiserror::Error)]
 pub enum Error {

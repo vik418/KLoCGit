@@ -364,3 +364,5 @@ fn encode_tree(
     objects.insert(oid, output);
     Ok(oid)
 }
+
+pub mod workspace;

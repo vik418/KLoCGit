@@ -8,6 +8,13 @@ use std::io::{self, Read};
 #[derive(Deserialize)]
 #[serde(tag = "operation", rename_all = "snake_case", deny_unknown_fields)]
 enum Request {
+    EvaluateCandidate {
+        base_repository: String, repo_id: String,
+        candidate_spec: klocgit_engine::contracts::CandidateSpec,
+        sources: Vec<SourceRepository>,
+        trusted_suite: String, policy: klocgit_engine::sandbox::EvaluationPolicy,
+    },
+    Evaluate { workspace: String, trusted_suite: String, subject_digest: String, policy: klocgit_engine::sandbox::EvaluationPolicy },
     Analyze {
         future_revision_id: String,
         language: Language,
@@ -20,6 +27,40 @@ enum Request {
     },
 }
 
+#[derive(Deserialize)]
+#[serde(deny_unknown_fields)]
+struct SourceRepository {
+    repository_path: String,
+    state: klocgit_engine::contracts::CanonicalFutureRevisionState,
+    revision: klocgit_engine::contracts::FutureRevision,
+    effects: klocgit_engine::contracts::EffectSet,
+}
+
+fn evaluate_candidate(
+    base_repository: String, repo_id: String,
+    candidate_spec: klocgit_engine::contracts::CandidateSpec,
+    sources: Vec<SourceRepository>, trusted_suite: String,
+    policy: klocgit_engine::sandbox::EvaluationPolicy,
+) -> Result<serde_json::Value, Box<dyn std::error::Error>> {
+    let base = git2::Repository::open(base_repository)?;
+    let repositories: Result<Vec<_>, _> = sources.iter().map(|source| git2::Repository::open(&source.repository_path)).collect();
+    let repositories = repositories?;
+    let observed: Vec<_> = sources.iter().zip(&repositories).map(|(source, repository)| klocgit_engine::git::FutureSource {
+        repository, state: &source.state, revision: &source.revision, effects: &source.effects,
+    }).collect();
+    let workspace = klocgit_engine::git::workspace::materialize(
+        &candidate_spec, &base, &repo_id, &observed, klocgit_engine::git::Limits::default(),
+        klocgit_engine::git::workspace::HydrationBudget { max_blob_bytes: 16 * 1024 * 1024, max_total_bytes: 64 * 1024 * 1024 },
+        klocgit_engine::contracts::MaterializationRecord { executor_id: "sandbox-host".into(), materialized_at: String::new(), conflicts_encountered: vec![] },
+    )?;
+    let result = klocgit_engine::sandbox::evaluate(workspace.path(), std::path::Path::new(&trusted_suite), &workspace.candidate.candidate_digest, &policy)?;
+    Ok(serde_json::json!({
+        "schema_version": 1, "candidate": workspace.candidate,
+        "evidence": result.evidence, "payload": result.payload, "receipt": result.receipt,
+        "hydrated_bytes": workspace.bytes_hydrated, "hydrated_files": workspace.files_hydrated,
+    }))
+}
+
 fn main() -> Result<(), Box<dyn std::error::Error>> {
     let mut bytes = Vec::new();
     let max_bytes = 32 * 1024 * 1024;
@@ -29,6 +70,12 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     }
     let input: Request = serde_json::from_slice(&bytes)?;
     let output = match input {
+        Request::EvaluateCandidate { base_repository, repo_id, candidate_spec, sources, trusted_suite, policy } =>
+            evaluate_candidate(base_repository, repo_id, candidate_spec, sources, trusted_suite, policy)?,
+        Request::Evaluate { workspace, trusted_suite, subject_digest, policy } => {
+            let result = klocgit_engine::sandbox::evaluate(std::path::Path::new(&workspace), std::path::Path::new(&trusted_suite), &subject_digest, &policy)?;
+            serde_json::json!({ "schema_version": 1, "evidence": result.evidence, "payload": result.payload, "receipt": result.receipt })
+        },
         Request::Analyze {
             future_revision_id,
             language,
