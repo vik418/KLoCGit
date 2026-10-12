@@ -74,13 +74,7 @@ export class GitStore {
         503,
         "Git executor is unavailable",
       );
-    return readJson<T>(
-      new Request("https://response.internal", {
-        method: "POST",
-        body: response.body,
-      }),
-      32 * 1024,
-    );
+    return readJson<T>(response, 32 * 1024);
   }
 
   async observe(scope: Scope, ref: string): Promise<GitObservation> {

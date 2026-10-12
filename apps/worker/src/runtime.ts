@@ -75,7 +75,7 @@ export function failureResponse(error: unknown): Response {
 }
 
 export async function readJson<T>(
-  request: Request,
+  request: Request | Response,
   maxBytes = 32 * 1024,
 ): Promise<T> {
   if (Number(request.headers.get("content-length") ?? 0) > maxBytes)
