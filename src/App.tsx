@@ -43,6 +43,8 @@ import {
   ShieldAlert,
   SlidersHorizontal,
   FolderGit2,
+  Menu,
+  Info,
 } from 'lucide-react';
 import {
   computeFutureRevisionStateDigest,
@@ -89,7 +91,8 @@ const SAMPLE_EFFECT_SET: CanonicalEffectSet = {
 export default function App() {
   const [darkMode, setDarkMode] = useState(false);
   const [activeTab, setActiveTab] = useState<'overview' | 'dag' | 'repos' | 'diff' | 'policy' | 'digest' | 'audit'>('overview');
-  const [inspectorOpen, setInspectorOpen] = useState(true);
+  const [inspectorOpen, setInspectorOpen] = useState(false); // collapsed by default on mobile, toggled on desktop
+  const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [copiedText, setCopiedText] = useState<string | null>(null);
 
   // Selected DAG Node
@@ -121,22 +124,6 @@ export default function App() {
     return Array.from(bytes).map(b => b.toString(16).padStart(2, '0')).join(' ');
   });
 
-  // Extractor State
-  const [sourceCode, setSourceCode] = useState<string>(
-`import express from 'express';
-import { z } from 'zod';
-
-export function handleUserLogin(req: Request) {
-  return "token_issued";
-}
-
-export const API_VERSION = 2;
-
-// Security check
-eval("console.log('danger')");`
-  );
-  const [extractedEffects, setExtractedEffects] = useState<any>(null);
-
   // CAS Simulator State
   const [casExpected, setCasExpected] = useState('4b825dc642cb6eb9a060e54bf8d69288fbee4904');
   const [casRemote, setCasRemote] = useState('4b825dc642cb6eb9a060e54bf8d69288fbee4904');
@@ -146,7 +133,6 @@ eval("console.log('danger')");`
     message: 'Ready to assert Compare-And-Swap invariant against remote Git reference.',
   });
 
-  // Search filter
   const [searchQuery, setSearchQuery] = useState('');
 
   const copyToClipboard = (text: string, label: string) => {
@@ -179,44 +165,6 @@ eval("console.log('danger')");`
     }
   };
 
-  const handleRunExtractor = () => {
-    const lines = sourceCode.split('\n');
-    const exports: string[] = [];
-    const deps: Record<string, string> = {};
-    const security: string[] = [];
-
-    for (const line of lines) {
-      const trimmed = line.trim();
-      if (trimmed.startsWith('export function ')) {
-        const name = trimmed.replace('export function ', '').split('(')[0]?.trim();
-        if (name) exports.push(name);
-      } else if (trimmed.startsWith('export const ')) {
-        const name = trimmed.replace('export const ', '').split(/[:=]/)[0]?.trim();
-        if (name) exports.push(name);
-      }
-      if (trimmed.includes("from '") || trimmed.includes('from "')) {
-        const pkg = trimmed.split(/from ['"]/)[1]?.split(/['"]/)[0];
-        if (pkg && !pkg.startsWith('.')) deps[pkg] = '*';
-      }
-      if (trimmed.includes('eval(')) security.push('EXEC:eval');
-      if (trimmed.includes('crypto')) security.push('CRYPTO:usage');
-    }
-
-    const effectSet: CanonicalEffectSet = {
-      future_revision_id: 'fut-sample-live',
-      extractor_id: 'tree-sitter-structural-v1',
-      extractor_version: '1.0.0',
-      capability: 'STRUCTURAL',
-      status: 'COMPLETE',
-      modified_exports: exports.sort(),
-      added_dependencies: deps,
-      db_migrations_detected: false,
-      security_effects: security.sort(),
-    };
-
-    setExtractedEffects(effectSet);
-  };
-
   const handleRunCas = () => {
     if (casExpected === casRemote) {
       setCasResult({
@@ -234,21 +182,23 @@ eval("console.log('danger')");`
   const allPredicatesPassing = predicates.every(p => p.checked);
 
   return (
-    <div className={`min-h-screen p-3 md:p-6 flex flex-col justify-center items-center transition-colors duration-200 select-none ${
+    <div className={`min-h-screen flex flex-col justify-start md:justify-center items-center transition-colors duration-200 ${
       darkMode ? 'bg-[#0E0F12]' : 'bg-[#E5E7EB]'
-    }`}>
-      {/* Authentic macOS Window Container (Apple Design Resources) */}
-      <div className={`w-full max-w-[1400px] h-[92vh] max-h-[980px] rounded-2xl shadow-[0_25px_70px_-15px_rgba(0,0,0,0.35)] ring-1 ring-black/10 dark:ring-white/10 flex flex-col overflow-hidden transition-colors ${
+    } p-0 md:p-6 pb-20 md:pb-6`}>
+      
+      {/* Universal Container (Adapts from Full-Bleed iOS on Mobile to Floating Window on macOS) */}
+      <div className={`w-full max-w-[1440px] min-h-screen md:min-h-0 md:h-[92vh] md:max-h-[980px] md:rounded-2xl shadow-none md:shadow-[0_25px_70px_-15px_rgba(0,0,0,0.35)] ring-0 md:ring-1 ring-black/10 dark:ring-white/10 flex flex-col overflow-hidden transition-colors ${
         darkMode ? 'bg-[#1E1E20] text-[#F5F5F7]' : 'bg-[#FFFFFF] text-[#1D1D1F]'
       }`}>
         
-        {/* macOS Unified Titlebar & Toolbar */}
-        <header className={`h-13 px-4 flex items-center justify-between border-b shrink-0 transition-colors ${
+        {/* Titlebar / Navigation Header */}
+        <header className={`h-14 px-4 flex items-center justify-between border-b shrink-0 z-20 sticky top-0 transition-colors ${
           darkMode ? 'bg-[#28282A] border-black/40' : 'bg-[#F6F6F6] border-black/[0.08]'
         }`}>
-          {/* Left: Window Controls (Traffic Lights) */}
-          <div className="flex items-center space-x-4">
-            <div className="flex items-center space-x-2 group">
+          {/* Left: Window Controls on Desktop, Menu toggle on Mobile */}
+          <div className="flex items-center space-x-3">
+            {/* Desktop Traffic Lights */}
+            <div className="hidden md:flex items-center space-x-2 group">
               <span className="w-3 h-3 rounded-full bg-[#FF5F56] border border-[#E0443E] flex items-center justify-center cursor-pointer shadow-sm">
                 <X className="w-2 h-2 text-[#7F1713] opacity-0 group-hover:opacity-100 transition-opacity" />
               </span>
@@ -260,34 +210,36 @@ eval("console.log('danger')");`
               </span>
             </div>
 
+            {/* Mobile Drawer Trigger (min 44px touch target) */}
             <button
-              onClick={() => setInspectorOpen(!inspectorOpen)}
-              className={`p-1.5 rounded-md text-xs transition-colors ${
-                darkMode ? 'hover:bg-white/[0.08] text-[#86868B]' : 'hover:bg-black/[0.06] text-[#6E6E73]'
+              onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
+              className={`md:hidden min-h-[44px] min-w-[44px] flex items-center justify-center rounded-lg ${
+                darkMode ? 'text-white' : 'text-black'
               }`}
-              title="Toggle Inspector Sidebar"
+              aria-label="Toggle Navigation Menu"
             >
-              <SidebarIcon className="w-4 h-4" />
+              <Menu className="w-5 h-5" />
             </button>
 
+            {/* Title / App Brand */}
             <div className="flex items-center space-x-2">
-              <FolderGit2 className="w-4 h-4 text-[#0071E3]" />
-              <span className="font-semibold text-[13px] tracking-tight">KLoCGit v1</span>
-              <span className={`text-[11px] ${darkMode ? 'text-[#86868B]' : 'text-[#86868B]'}`}>
+              <FolderGit2 className="w-4 h-4 text-[#0071E3] shrink-0" />
+              <span className="font-semibold text-[14px] tracking-tight whitespace-nowrap">KLoCGit v1</span>
+              <span className="hidden sm:inline text-[11px] text-[#86868B] truncate">
                 — Convergence Platform
               </span>
             </div>
           </div>
 
-          {/* Center: Search Field */}
-          <div className="hidden md:flex items-center relative w-72">
+          {/* Center Search (Hidden on small mobile screens to prevent overflow) */}
+          <div className="hidden lg:flex items-center relative w-64">
             <Search className={`w-3.5 h-3.5 absolute left-2.5 ${darkMode ? 'text-[#86868B]' : 'text-[#8E8E93]'}`} />
             <input
               type="text"
-              placeholder="Search revisions, DAG, OIDs..."
+              placeholder="Search DAG, OIDs..."
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
-              className={`w-full h-7 pl-8 pr-12 rounded-lg text-[12px] border outline-none transition-all ${
+              className={`w-full h-7 pl-8 pr-12 rounded-lg text-[12px] border outline-none ${
                 darkMode
                   ? 'bg-[#18181A] border-white/[0.08] text-white focus:border-[#0071E3]'
                   : 'bg-white border-black/[0.12] text-black focus:border-[#0071E3]'
@@ -300,33 +252,79 @@ eval("console.log('danger')");`
             </span>
           </div>
 
-          {/* Right: Actions & Theme Toggle */}
-          <div className="flex items-center space-x-2">
-            <div className="flex items-center space-x-1.5 text-[11px] font-medium text-[#34C759] mr-2">
-              <span className="w-2 h-2 rounded-full bg-[#34C759]"></span>
-              <span>All 7 Gates Passed</span>
-            </div>
+          {/* Right Header Controls */}
+          <div className="flex items-center space-x-1.5">
+            <span className="text-[11px] font-mono px-2 py-0.5 rounded-full bg-[#34C759]/10 text-[#34C759] border border-[#34C759]/20 font-medium">
+              P1–P7
+            </span>
 
+            {/* Inspector Toggle Trigger */}
+            <button
+              onClick={() => setInspectorOpen(!inspectorOpen)}
+              className={`min-h-[44px] min-w-[44px] flex items-center justify-center rounded-lg transition-colors ${
+                darkMode ? 'text-[#AEAEB2] hover:text-white' : 'text-[#6E6E73] hover:text-black'
+              }`}
+              title="Toggle Inspector"
+            >
+              <Info className="w-4 h-4" />
+            </button>
+
+            {/* Dark Mode Toggle */}
             <button
               onClick={() => setDarkMode(!darkMode)}
-              className={`p-1.5 rounded-md transition-colors ${
-                darkMode ? 'hover:bg-white/[0.08] text-white' : 'hover:bg-black/[0.06] text-black'
+              className={`min-h-[44px] min-w-[44px] flex items-center justify-center rounded-lg transition-colors ${
+                darkMode ? 'text-amber-300' : 'text-slate-700'
               }`}
-              title="Toggle Dark / Light Appearance"
+              title="Toggle Appearance"
             >
-              {darkMode ? <Sun className="w-3.5 h-3.5 text-amber-300" /> : <Moon className="w-3.5 h-3.5 text-slate-700" />}
+              {darkMode ? <Sun className="w-4 h-4" /> : <Moon className="w-4 h-4" />}
             </button>
           </div>
         </header>
 
-        {/* macOS Three-Pane Layout */}
-        <div className="flex-1 flex overflow-hidden">
-          {/* PANE 1: Sidebar Navigation (macOS HIG Style) */}
-          <nav className={`w-56 border-r shrink-0 p-3 flex flex-col justify-between transition-colors ${
+        {/* Mobile Navigation Dropdown Drawer */}
+        {mobileMenuOpen && (
+          <div className={`md:hidden border-b px-4 py-3 z-30 transition-all ${
+            darkMode ? 'bg-[#28282A] border-black/40' : 'bg-[#F2F2F7] border-black/[0.08]'
+          }`}>
+            <div className="grid grid-cols-2 gap-2 text-xs font-medium">
+              {[
+                { id: 'overview', label: 'Overview' },
+                { id: 'dag', label: 'Convergence DAG' },
+                { id: 'repos', label: 'Repositories' },
+                { id: 'diff', label: 'Diff Studio' },
+                { id: 'policy', label: 'Policy Portal' },
+                { id: 'digest', label: 'Digest Engine' },
+                { id: 'audit', label: 'Audit Trail' },
+              ].map((tab) => (
+                <button
+                  key={tab.id}
+                  onClick={() => {
+                    setActiveTab(tab.id as any);
+                    setMobileMenuOpen(false);
+                  }}
+                  className={`min-h-[44px] px-3 py-2 rounded-xl text-left flex items-center justify-between ${
+                    activeTab === tab.id
+                      ? 'bg-[#0071E3] text-white'
+                      : darkMode ? 'bg-white/[0.06] text-slate-200' : 'bg-white text-slate-800'
+                  }`}
+                >
+                  <span>{tab.label}</span>
+                  {activeTab === tab.id && <Check className="w-3.5 h-3.5" />}
+                </button>
+              ))}
+            </div>
+          </div>
+        )}
+
+        {/* Main Body (Split View on Desktop, Stack on Mobile) */}
+        <div className="flex-1 flex overflow-hidden relative">
+          
+          {/* Desktop Left Sidebar (hidden on mobile, uses bottom nav / drawer instead) */}
+          <nav className={`hidden md:flex w-56 border-r shrink-0 p-3 flex-col justify-between transition-colors ${
             darkMode ? 'bg-[#18181A] border-black/40' : 'bg-[#F2F2F7]/70 border-black/[0.08]'
           }`}>
             <div className="space-y-4">
-              {/* Group 1: CONVERGENCE */}
               <div>
                 <span className={`px-2 text-[10px] font-semibold tracking-wider ${
                   darkMode ? 'text-[#86868B]' : 'text-[#8E8E93]'
@@ -342,7 +340,7 @@ eval("console.log('danger')");`
                     <button
                       key={item.id}
                       onClick={() => setActiveTab(item.id as any)}
-                      className={`w-full px-2.5 py-1.5 rounded-lg text-[13px] flex items-center space-x-2.5 font-medium transition-colors ${
+                      className={`w-full min-h-[40px] px-2.5 py-1.5 rounded-lg text-[13px] flex items-center space-x-2.5 font-medium transition-colors ${
                         activeTab === item.id
                           ? 'bg-[#0071E3] text-white shadow-sm'
                           : darkMode
@@ -357,7 +355,6 @@ eval("console.log('danger')");`
                 </div>
               </div>
 
-              {/* Group 2: ENGINEERING */}
               <div>
                 <span className={`px-2 text-[10px] font-semibold tracking-wider ${
                   darkMode ? 'text-[#86868B]' : 'text-[#8E8E93]'
@@ -372,7 +369,7 @@ eval("console.log('danger')");`
                     <button
                       key={item.id}
                       onClick={() => setActiveTab(item.id as any)}
-                      className={`w-full px-2.5 py-1.5 rounded-lg text-[13px] flex items-center space-x-2.5 font-medium transition-colors ${
+                      className={`w-full min-h-[40px] px-2.5 py-1.5 rounded-lg text-[13px] flex items-center space-x-2.5 font-medium transition-colors ${
                         activeTab === item.id
                           ? 'bg-[#0071E3] text-white shadow-sm'
                           : darkMode
@@ -387,7 +384,6 @@ eval("console.log('danger')");`
                 </div>
               </div>
 
-              {/* Group 3: GOVERNANCE */}
               <div>
                 <span className={`px-2 text-[10px] font-semibold tracking-wider ${
                   darkMode ? 'text-[#86868B]' : 'text-[#8E8E93]'
@@ -402,7 +398,7 @@ eval("console.log('danger')");`
                     <button
                       key={item.id}
                       onClick={() => setActiveTab(item.id as any)}
-                      className={`w-full px-2.5 py-1.5 rounded-lg text-[13px] flex items-center space-x-2.5 font-medium transition-colors ${
+                      className={`w-full min-h-[40px] px-2.5 py-1.5 rounded-lg text-[13px] flex items-center space-x-2.5 font-medium transition-colors ${
                         activeTab === item.id
                           ? 'bg-[#0071E3] text-white shadow-sm'
                           : darkMode
@@ -418,7 +414,6 @@ eval("console.log('danger')");`
               </div>
             </div>
 
-            {/* Sidebar Bottom Status */}
             <div className={`p-2.5 rounded-xl border text-[11px] font-mono ${
               darkMode ? 'bg-black/30 border-white/[0.06] text-[#86868B]' : 'bg-white border-black/[0.06] text-[#6E6E73]'
             }`}>
@@ -430,52 +425,53 @@ eval("console.log('danger')");`
             </div>
           </nav>
 
-          {/* PANE 2: Center Content Viewport */}
-          <div className="flex-1 overflow-y-auto p-6 space-y-6">
+          {/* Center Scrollable Work Area */}
+          <div className="flex-1 overflow-y-auto p-4 md:p-6 space-y-6">
+            
             {/* OVERVIEW */}
             {activeTab === 'overview' && (
               <div className="space-y-6">
                 <div>
-                  <h1 className="text-2xl font-semibold tracking-tight">System Overview</h1>
-                  <p className={`text-[13px] mt-0.5 ${darkMode ? 'text-[#86868B]' : 'text-[#6E6E73]'}`}>
+                  <h1 className="text-xl md:text-2xl font-semibold tracking-tight">System Overview</h1>
+                  <p className={`text-[12px] md:text-[13px] mt-0.5 ${darkMode ? 'text-[#86868B]' : 'text-[#6E6E73]'}`}>
                     KLoCGit v1 Enterprise Convergence Platform — 7/7 Phases Shipped & Verified
                   </p>
                 </div>
 
-                {/* 7 Verification Gates Matrix */}
-                <div className="grid grid-cols-2 sm:grid-cols-4 lg:grid-cols-7 gap-3">
+                {/* Verification Gates (Responsive Grid) */}
+                <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-7 gap-2.5 md:gap-3">
                   {[
                     { phase: 'Phase 1', title: 'Engine Core', status: '8/8 Passed' },
                     { phase: 'Phase 2', title: 'Coordinators', status: 'Zero Races' },
                     { phase: 'Phase 3', title: 'ArtifactFS', status: 'Hermetic' },
                     { phase: 'Phase 4', title: 'Reduction', status: 'Deduplicated' },
                     { phase: 'Phase 5', title: 'Policy Gate', status: 'Verified' },
-                    { phase: 'Phase 6', title: 'Apple Console', status: 'HIG Native' },
+                    { phase: 'Phase 6', title: 'Apple HIG', status: 'Mobile Ready' },
                     { phase: 'Phase 7', title: 'Full E2E', status: '100% Passed' },
                   ].map((g, idx) => (
                     <div
                       key={idx}
-                      className={`p-3 rounded-xl border transition-all ${
+                      className={`p-3 rounded-xl border ${
                         darkMode ? 'bg-[#28282A] border-white/[0.06]' : 'bg-[#F9F9FA] border-black/[0.06]'
                       }`}
                     >
                       <div className="text-[10px] font-mono text-[#0071E3] font-semibold">{g.phase}</div>
                       <div className="text-[12px] font-semibold mt-0.5 truncate">{g.title}</div>
                       <div className="text-[11px] text-[#34C759] font-medium flex items-center space-x-1 mt-1">
-                        <Check className="w-3 h-3" />
-                        <span>{g.status}</span>
+                        <Check className="w-3 h-3 shrink-0" />
+                        <span className="truncate">{g.status}</span>
                       </div>
                     </div>
                   ))}
                 </div>
 
-                {/* Architecture Invariants */}
+                {/* 6 Invariants Highlights */}
                 <div className="space-y-3">
-                  <h2 className="text-[15px] font-semibold tracking-tight">Frozen Architecture Invariants</h2>
-                  <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+                  <h2 className="text-[14px] md:text-[15px] font-semibold tracking-tight">Core Invariants</h2>
+                  <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
                     {[
                       { num: '01', title: 'Canonical Projections', desc: 'Identities bind to immutable RFC 8949 projections.' },
-                      { num: '02', title: 'Compare-And-Swap (CAS)', desc: 'Canonical Git mutation asserts expected OID.' },
+                      { num: '02', title: 'Compare-And-Swap (CAS)', desc: 'Canonical Git mutation asserts expected remote OID.' },
                       { num: '03', title: 'Review Validity', desc: 'Material input change revokes prior review.' },
                       { num: '04', title: 'Inferred AI Output', desc: 'AI suggestions are inferred; never trusted authorization.' },
                       { num: '05', title: 'Strict Resolution Gate', desc: 'PARTIAL, FAILED analysis blocks promotion.' },
@@ -501,39 +497,37 @@ eval("console.log('danger')");`
             {activeTab === 'dag' && (
               <div className="space-y-6">
                 <div>
-                  <h1 className="text-2xl font-semibold tracking-tight">Convergence DAG Visualizer</h1>
-                  <p className={`text-[13px] mt-0.5 ${darkMode ? 'text-[#86868B]' : 'text-[#6E6E73]'}`}>
-                    Interactive graph from autonomous agent future revisions to synthesized candidate specs and trunk promotion.
+                  <h1 className="text-xl md:text-2xl font-semibold tracking-tight">Convergence DAG</h1>
+                  <p className={`text-[12px] md:text-[13px] mt-0.5 ${darkMode ? 'text-[#86868B]' : 'text-[#6E6E73]'}`}>
+                    Flow from autonomous agent future revisions to synthesized candidate specs and trunk promotion.
                   </p>
                 </div>
 
-                <div className={`p-6 rounded-2xl border ${
+                <div className={`p-4 md:p-6 rounded-2xl border ${
                   darkMode ? 'bg-[#18181A] border-white/[0.08]' : 'bg-[#F6F6F6] border-black/[0.08]'
                 }`}>
-                  <div className="flex flex-col md:flex-row items-center justify-between gap-6 overflow-x-auto py-4">
-                    {/* Step 1: Base */}
+                  <div className="flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-4 overflow-x-auto py-2">
                     <div
                       onClick={() => setSelectedDagNode('base_trunk')}
-                      className={`p-4 rounded-xl border cursor-pointer w-44 transition-all ${
+                      className={`p-3.5 rounded-xl border cursor-pointer w-full sm:w-44 transition-all min-h-[44px] ${
                         selectedDagNode === 'base_trunk'
                           ? 'border-[#0071E3] bg-[#0071E3]/10 ring-2 ring-[#0071E3]/20'
                           : darkMode ? 'bg-[#28282A] border-white/[0.06]' : 'bg-white border-black/[0.08]'
                       }`}
                     >
-                      <GitCommit className="w-4 h-4 text-[#0071E3] mb-1.5" />
-                      <div className="text-xs font-semibold">Base Trunk</div>
+                      <GitCommit className="w-4 h-4 text-[#0071E3] mb-1" />
+                      <div className="text-xs font-semibold">1. Base Trunk</div>
                       <div className="text-[10px] font-mono text-[#86868B] truncate">c001_core_trunk_head</div>
                     </div>
 
-                    <ChevronRight className="w-4 h-4 text-[#86868B] shrink-0" />
+                    <ChevronRight className="hidden sm:block w-4 h-4 text-[#86868B] shrink-0" />
 
-                    {/* Step 2: Futures */}
-                    <div className="space-y-2">
+                    <div className="space-y-2 w-full sm:w-44">
                       {['agent-future-01', 'agent-future-02'].map((f) => (
                         <div
                           key={f}
                           onClick={() => setSelectedDagNode(f)}
-                          className={`p-2.5 rounded-lg border cursor-pointer w-44 transition-all ${
+                          className={`p-2.5 rounded-lg border cursor-pointer transition-all min-h-[44px] ${
                             selectedDagNode === f
                               ? 'border-[#0071E3] bg-[#0071E3]/10 ring-2 ring-[#0071E3]/20'
                               : darkMode ? 'bg-[#28282A] border-white/[0.06]' : 'bg-white border-black/[0.08]'
@@ -545,35 +539,33 @@ eval("console.log('danger')");`
                       ))}
                     </div>
 
-                    <ChevronRight className="w-4 h-4 text-[#86868B] shrink-0" />
+                    <ChevronRight className="hidden sm:block w-4 h-4 text-[#86868B] shrink-0" />
 
-                    {/* Step 3: Candidate */}
                     <div
                       onClick={() => setSelectedDagNode('candidate_unified')}
-                      className={`p-4 rounded-xl border cursor-pointer w-48 transition-all ${
+                      className={`p-3.5 rounded-xl border cursor-pointer w-full sm:w-48 transition-all min-h-[44px] ${
                         selectedDagNode === 'candidate_unified'
                           ? 'border-[#0071E3] bg-[#0071E3]/10 ring-2 ring-[#0071E3]/20'
                           : darkMode ? 'bg-[#28282A] border-white/[0.06]' : 'bg-white border-black/[0.08]'
                       }`}
                     >
-                      <Layers className="w-4 h-4 text-[#AF52DE] mb-1.5" />
-                      <div className="text-xs font-semibold">cand-spec-unified-01</div>
+                      <Layers className="w-4 h-4 text-[#AF52DE] mb-1" />
+                      <div className="text-xs font-semibold">3. Candidate Spec</div>
                       <div className="text-[10px] text-[#34C759]">Deduplicated (2 slices)</div>
                     </div>
 
-                    <ChevronRight className="w-4 h-4 text-[#86868B] shrink-0" />
+                    <ChevronRight className="hidden sm:block w-4 h-4 text-[#86868B] shrink-0" />
 
-                    {/* Step 4: Promoted Trunk */}
                     <div
                       onClick={() => setSelectedDagNode('promoted_trunk')}
-                      className={`p-4 rounded-xl border cursor-pointer w-44 transition-all ${
+                      className={`p-3.5 rounded-xl border cursor-pointer w-full sm:w-44 transition-all min-h-[44px] ${
                         selectedDagNode === 'promoted_trunk'
                           ? 'border-[#0071E3] bg-[#0071E3]/10 ring-2 ring-[#0071E3]/20'
                           : darkMode ? 'bg-[#28282A] border-white/[0.06]' : 'bg-white border-black/[0.08]'
                       }`}
                     >
-                      <Lock className="w-4 h-4 text-[#34C759] mb-1.5" />
-                      <div className="text-xs font-semibold">CAS Promoted Trunk</div>
+                      <Lock className="w-4 h-4 text-[#34C759] mb-1" />
+                      <div className="text-xs font-semibold">4. Promoted Head</div>
                       <div className="text-[10px] font-mono text-[#34C759] truncate">c999_promoted_head</div>
                     </div>
                   </div>
@@ -585,20 +577,19 @@ eval("console.log('danger')");`
             {activeTab === 'repos' && (
               <div className="space-y-6">
                 <div>
-                  <h1 className="text-2xl font-semibold tracking-tight">Active Repositories</h1>
-                  <p className={`text-[13px] mt-0.5 ${darkMode ? 'text-[#86868B]' : 'text-[#6E6E73]'}`}>
-                    Multi-repository status board with serialized ref locks and canonical head OIDs.
+                  <h1 className="text-xl md:text-2xl font-semibold tracking-tight">Repositories</h1>
+                  <p className={`text-[12px] md:text-[13px] mt-0.5 ${darkMode ? 'text-[#86868B]' : 'text-[#6E6E73]'}`}>
+                    Multi-repository status board with serialized ref locks.
                   </p>
                 </div>
 
-                <div className="overflow-x-auto">
-                  <table className="w-full text-left text-xs">
+                <div className="overflow-x-auto -mx-4 px-4">
+                  <table className="w-full text-left text-xs min-w-[500px]">
                     <thead>
                       <tr className={`border-b font-medium ${darkMode ? 'border-white/[0.08] text-[#86868B]' : 'border-black/[0.08] text-[#86868B]'}`}>
                         <th className="pb-2.5">REPOSITORY</th>
                         <th className="pb-2.5">CANONICAL HEAD OID</th>
                         <th className="pb-2.5">CAS LOCK</th>
-                        <th className="pb-2.5">ACTIVE BRANCHES</th>
                         <th className="pb-2.5 text-right">STATUS</th>
                       </tr>
                     </thead>
@@ -606,9 +597,8 @@ eval("console.log('danger')");`
                       {repos.map((r) => (
                         <tr key={r.id} className={darkMode ? 'hover:bg-white/[0.02]' : 'hover:bg-black/[0.02]'}>
                           <td className="py-3 font-semibold text-[#0071E3]">{r.id}</td>
-                          <td className="py-3 select-all">{r.head}</td>
+                          <td className="py-3 select-all truncate max-w-[140px]">{r.head}</td>
                           <td className="py-3 text-[#34C759]">{r.lock}</td>
-                          <td className="py-3">{r.branches} active</td>
                           <td className="py-3 text-right text-[#34C759] font-medium">{r.status}</td>
                         </tr>
                       ))}
@@ -616,63 +606,63 @@ eval("console.log('danger')");`
                   </table>
                 </div>
 
-                {/* Compare-And-Swap Simulator */}
-                <div className={`p-5 rounded-2xl border space-y-4 ${
+                {/* CAS Test Panel */}
+                <div className={`p-4 md:p-5 rounded-2xl border space-y-3 ${
                   darkMode ? 'bg-[#28282A] border-white/[0.06]' : 'bg-[#F9F9FA] border-black/[0.06]'
                 }`}>
-                  <h3 className="text-sm font-semibold">Serialized CAS Git Push Simulator</h3>
-                  <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+                  <h3 className="text-xs md:text-sm font-semibold">Serialized CAS Git Push Simulator</h3>
+                  <div className="grid grid-cols-1 md:grid-cols-3 gap-2.5">
                     <div>
-                      <label className="block text-[11px] font-medium mb-1">Expected OID</label>
+                      <label className="block text-[10px] font-medium mb-1">Expected OID</label>
                       <input
                         type="text"
                         value={casExpected}
                         onChange={(e) => setCasExpected(e.target.value)}
-                        className={`w-full p-2 rounded-lg text-xs font-mono border ${
+                        className={`w-full min-h-[44px] p-2 rounded-lg text-xs font-mono border ${
                           darkMode ? 'bg-[#18181A] border-white/[0.1]' : 'bg-white border-black/[0.1]'
                         }`}
                       />
                     </div>
                     <div>
-                      <label className="block text-[11px] font-medium mb-1">Current Remote OID</label>
+                      <label className="block text-[10px] font-medium mb-1">Current Remote OID</label>
                       <input
                         type="text"
                         value={casRemote}
                         onChange={(e) => setCasRemote(e.target.value)}
-                        className={`w-full p-2 rounded-lg text-xs font-mono border ${
+                        className={`w-full min-h-[44px] p-2 rounded-lg text-xs font-mono border ${
                           darkMode ? 'bg-[#18181A] border-white/[0.1]' : 'bg-white border-black/[0.1]'
                         }`}
                       />
                     </div>
                     <div>
-                      <label className="block text-[11px] font-medium mb-1">Target Mutation OID</label>
+                      <label className="block text-[10px] font-medium mb-1">Target Mutation OID</label>
                       <input
                         type="text"
                         value={casTarget}
                         onChange={(e) => setCasTarget(e.target.value)}
-                        className={`w-full p-2 rounded-lg text-xs font-mono border ${
+                        className={`w-full min-h-[44px] p-2 rounded-lg text-xs font-mono border ${
                           darkMode ? 'bg-[#18181A] border-white/[0.1]' : 'bg-white border-black/[0.1]'
                         }`}
                       />
                     </div>
                   </div>
-                  <div className="flex gap-2">
+                  <div className="flex flex-wrap gap-2 pt-1">
                     <button
                       onClick={handleRunCas}
-                      className="px-4 py-2 bg-[#0071E3] hover:bg-[#0077ED] text-white text-xs font-medium rounded-lg shadow-sm"
+                      className="min-h-[44px] px-4 py-2 bg-[#0071E3] hover:bg-[#0077ED] text-white text-xs font-medium rounded-lg shadow-sm"
                     >
                       Assert CAS Push
                     </button>
                     <button
                       onClick={() => setCasRemote('stale_remote_oid_race')}
-                      className={`px-3 py-2 rounded-lg text-xs border ${
+                      className={`min-h-[44px] px-3 py-2 rounded-lg text-xs border ${
                         darkMode ? 'bg-[#18181A] border-white/[0.08]' : 'bg-white border-black/[0.08]'
                       }`}
                     >
-                      Simulate Concurrent Race
+                      Inject Concurrent Race
                     </button>
                   </div>
-                  <div className={`p-3 rounded-lg border text-xs font-mono ${
+                  <div className={`p-3 rounded-lg border text-xs font-mono break-all ${
                     casResult.status === 'SUCCESS' ? 'text-[#34C759] border-[#34C759]/30 bg-[#34C759]/10' :
                     casResult.status === 'CONFLICT' ? 'text-[#FF3B30] border-[#FF3B30]/30 bg-[#FF3B30]/10' : ''
                   }`}>
@@ -682,20 +672,20 @@ eval("console.log('danger')");`
               </div>
             )}
 
-            {/* INSPECTION STUDIO */}
+            {/* DIFF STUDIO */}
             {activeTab === 'diff' && (
               <div className="space-y-6">
                 <div>
-                  <h1 className="text-2xl font-semibold tracking-tight">Candidate Inspection Studio</h1>
-                  <p className={`text-[13px] mt-0.5 ${darkMode ? 'text-[#86868B]' : 'text-[#6E6E73]'}`}>
-                    Side-by-side unified diff inspection with provenance slice origin annotations.
+                  <h1 className="text-xl md:text-2xl font-semibold tracking-tight">Inspection Studio</h1>
+                  <p className={`text-[12px] md:text-[13px] mt-0.5 ${darkMode ? 'text-[#86868B]' : 'text-[#6E6E73]'}`}>
+                    Side-by-side unified diff inspection with provenance origin annotations.
                   </p>
                 </div>
 
                 <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
                   <div>
-                    <div className="text-xs font-semibold text-rose-500 mb-1.5">Base Trunk (repo-core / src/order.ts)</div>
-                    <pre className={`p-4 rounded-xl border font-mono text-[11px] leading-relaxed overflow-x-auto ${
+                    <div className="text-xs font-semibold text-rose-500 mb-1">Base Trunk (repo-core)</div>
+                    <pre className={`p-3.5 rounded-xl border font-mono text-[11px] leading-relaxed overflow-x-auto ${
                       darkMode ? 'bg-[#18181A] border-white/[0.08] text-rose-400' : 'bg-[#FFF5F5] border-rose-200 text-rose-900'
                     }`}>
 {`- export function handleOrder(orderId: string) {
@@ -705,8 +695,8 @@ eval("console.log('danger')");`
                     </pre>
                   </div>
                   <div>
-                    <div className="text-xs font-semibold text-emerald-500 mb-1.5">Synthesized Candidate (Unified Slice)</div>
-                    <pre className={`p-4 rounded-xl border font-mono text-[11px] leading-relaxed overflow-x-auto ${
+                    <div className="text-xs font-semibold text-emerald-500 mb-1">Synthesized Candidate</div>
+                    <pre className={`p-3.5 rounded-xl border font-mono text-[11px] leading-relaxed overflow-x-auto ${
                       darkMode ? 'bg-[#18181A] border-white/[0.08] text-emerald-400' : 'bg-[#F0FDF4] border-emerald-200 text-emerald-900'
                     }`}>
 {`+ export async function handleOrder(orderId: string) {
@@ -723,27 +713,27 @@ eval("console.log('danger')");`
             {activeTab === 'policy' && (
               <div className="space-y-6">
                 <div>
-                  <h1 className="text-2xl font-semibold tracking-tight">Policy Review & Sign-Off</h1>
-                  <p className={`text-[13px] mt-0.5 ${darkMode ? 'text-[#86868B]' : 'text-[#6E6E73]'}`}>
-                    Invariant 5 enforcement and authorized human lead sign-off required for CAS lock release.
+                  <h1 className="text-xl md:text-2xl font-semibold tracking-tight">Policy Review</h1>
+                  <p className={`text-[12px] md:text-[13px] mt-0.5 ${darkMode ? 'text-[#86868B]' : 'text-[#6E6E73]'}`}>
+                    Invariant 5 enforcement and authorized human lead sign-off.
                   </p>
                 </div>
 
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                  <div className={`p-5 rounded-xl border space-y-3 ${
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  <div className={`p-4 md:p-5 rounded-xl border space-y-3 ${
                     darkMode ? 'bg-[#28282A] border-white/[0.06]' : 'bg-[#F9F9FA] border-black/[0.06]'
                   }`}>
-                    <h3 className="text-xs font-semibold text-[#0071E3]">TYPED CONDITIONAL PREDICATES</h3>
-                    <div className="space-y-2.5">
+                    <h3 className="text-xs font-semibold text-[#0071E3]">TYPED PREDICATES</h3>
+                    <div className="space-y-2">
                       {predicates.map((p) => (
-                        <label key={p.id} className="flex items-center space-x-2 text-xs font-mono cursor-pointer">
+                        <label key={p.id} className="flex items-center space-x-2.5 text-xs font-mono cursor-pointer min-h-[36px]">
                           <input
                             type="checkbox"
                             checked={p.checked}
                             onChange={(e) => {
                               setPredicates(predicates.map(item => item.id === p.id ? { ...item, checked: e.target.checked } : item));
                             }}
-                            className="w-3.5 h-3.5 rounded text-[#0071E3]"
+                            className="w-4 h-4 rounded text-[#0071E3]"
                           />
                           <span>{p.label}</span>
                         </label>
@@ -751,16 +741,16 @@ eval("console.log('danger')");`
                     </div>
                   </div>
 
-                  <div className={`p-5 rounded-xl border space-y-4 ${
+                  <div className={`p-4 md:p-5 rounded-xl border space-y-3 ${
                     darkMode ? 'bg-[#28282A] border-white/[0.06]' : 'bg-[#F9F9FA] border-black/[0.06]'
                   }`}>
-                    <h3 className="text-xs font-semibold text-[#0071E3]">HUMAN PROMOTION SIGN-OFF</h3>
+                    <h3 className="text-xs font-semibold text-[#0071E3]">PROMOTION SIGN-OFF</h3>
                     <div>
                       <label className="block text-[11px] font-medium mb-1">Authorized Role</label>
                       <select
                         value={policyRole}
                         onChange={(e) => setPolicyRole(e.target.value as any)}
-                        className={`w-full p-2 rounded-lg text-xs border ${
+                        className={`w-full min-h-[44px] p-2 rounded-lg text-xs border ${
                           darkMode ? 'bg-[#18181A] border-white/[0.1] text-white' : 'bg-white border-black/[0.1]'
                         }`}
                       >
@@ -782,7 +772,7 @@ eval("console.log('danger')");`
                         }
                         setDecisionState('RESOLVED');
                       }}
-                      className={`w-full py-2.5 rounded-lg text-xs font-medium text-white shadow-sm ${
+                      className={`w-full min-h-[44px] py-2.5 rounded-lg text-xs font-medium text-white shadow-sm ${
                         allPredicatesPassing && policyRole === 'TECH_LEAD'
                           ? 'bg-[#34C759] hover:bg-[#2FB350]'
                           : 'bg-slate-400 cursor-not-allowed'
@@ -799,42 +789,42 @@ eval("console.log('danger')");`
             {activeTab === 'digest' && (
               <div className="space-y-6">
                 <div>
-                  <h1 className="text-2xl font-semibold tracking-tight">Canonical Digest Explorer</h1>
-                  <p className={`text-[13px] mt-0.5 ${darkMode ? 'text-[#86868B]' : 'text-[#6E6E73]'}`}>
-                    Deterministic RFC 8949 CBOR serializer and SHA-256 hasher matching Rust engine.
+                  <h1 className="text-xl md:text-2xl font-semibold tracking-tight">Digest Explorer</h1>
+                  <p className={`text-[12px] md:text-[13px] mt-0.5 ${darkMode ? 'text-[#86868B]' : 'text-[#6E6E73]'}`}>
+                    RFC 8949 CBOR serialization and SHA-256 digest engine.
                   </p>
                 </div>
 
-                <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+                <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
                   <div className="space-y-3">
                     <textarea
-                      rows={12}
+                      rows={10}
                       value={jsonInput}
                       onChange={(e) => setJsonInput(e.target.value)}
-                      className={`w-full p-3.5 rounded-xl border font-mono text-[11px] ${
+                      className={`w-full p-3 rounded-xl border font-mono text-[11px] ${
                         darkMode ? 'bg-[#18181A] border-white/[0.08] text-white' : 'bg-[#F9F9FA] border-black/[0.08]'
                       }`}
                     />
                     <button
                       onClick={handleCalculateDigest}
-                      className="px-4 py-2 bg-[#0071E3] text-white text-xs font-medium rounded-lg shadow-sm"
+                      className="min-h-[44px] px-4 py-2 bg-[#0071E3] text-white text-xs font-medium rounded-lg shadow-sm"
                     >
                       Recompute Digest
                     </button>
                   </div>
 
-                  <div className="space-y-4">
-                    <div className={`p-4 rounded-xl border ${
+                  <div className="space-y-3">
+                    <div className={`p-3.5 rounded-xl border ${
                       darkMode ? 'bg-[#18181A] border-white/[0.08]' : 'bg-[#F9F9FA] border-black/[0.08]'
                     }`}>
-                      <div className="text-[11px] font-semibold text-[#0071E3] mb-1">COMPUTED DIGEST</div>
+                      <div className="text-[10px] font-semibold text-[#0071E3] mb-1">DIGEST HASH</div>
                       <div className="font-mono text-xs break-all font-semibold select-all text-[#0071E3]">{computedDigest}</div>
                     </div>
-                    <div className={`p-4 rounded-xl border ${
+                    <div className={`p-3.5 rounded-xl border ${
                       darkMode ? 'bg-[#18181A] border-white/[0.08]' : 'bg-[#F9F9FA] border-black/[0.08]'
                     }`}>
-                      <div className="text-[11px] font-semibold mb-1">CBOR HEX BYTES</div>
-                      <div className="font-mono text-[10px] break-all max-h-40 overflow-y-auto">{cborHex}</div>
+                      <div className="text-[10px] font-semibold mb-1">CBOR HEX BYTES</div>
+                      <div className="font-mono text-[10px] break-all max-h-36 overflow-y-auto">{cborHex}</div>
                     </div>
                   </div>
                 </div>
@@ -845,39 +835,35 @@ eval("console.log('danger')");`
             {activeTab === 'audit' && (
               <div className="space-y-6">
                 <div>
-                  <h1 className="text-2xl font-semibold tracking-tight">Audit Trail & Retention Ledger</h1>
-                  <p className={`text-[13px] mt-0.5 ${darkMode ? 'text-[#86868B]' : 'text-[#6E6E73]'}`}>
-                    Immutable record ledger tagged with explicit retention classes.
+                  <h1 className="text-xl md:text-2xl font-semibold tracking-tight">Audit Trail</h1>
+                  <p className={`text-[12px] md:text-[13px] mt-0.5 ${darkMode ? 'text-[#86868B]' : 'text-[#6E6E73]'}`}>
+                    Immutable records tagged with explicit policy retention classes.
                   </p>
                 </div>
 
-                <div className="overflow-x-auto">
-                  <table className="w-full text-left text-xs font-mono">
+                <div className="overflow-x-auto -mx-4 px-4">
+                  <table className="w-full text-left text-xs font-mono min-w-[500px]">
                     <thead>
                       <tr className={`border-b ${darkMode ? 'border-white/[0.08] text-[#86868B]' : 'border-black/[0.08] text-[#86868B]'}`}>
                         <th className="pb-2.5">EVENT</th>
-                        <th className="pb-2.5">SUBJECT DIGEST</th>
                         <th className="pb-2.5">RETENTION</th>
-                        <th className="pb-2.5">STORAGE REF</th>
                         <th className="pb-2.5 text-right">STATUS</th>
                       </tr>
                     </thead>
                     <tbody className={`divide-y ${darkMode ? 'divide-white/[0.04]' : 'divide-black/[0.04]'}`}>
                       {[
-                        { event: 'External CD Attestation', digest: 'e18654ed5c...', retention: 'CANONICAL', ref: 'r2://attestations/intent_8871.json', status: 'SUCCEEDED' },
-                        { event: 'Hermetic Sandbox Receipt', digest: '180a9e8977...', retention: 'DECISION_RECORD', ref: 'r2://evidence/exec_1002.json', status: 'PASSED' },
-                        { event: 'Candidate Reduction Spec', digest: 'e7e3e6b4aa...', retention: 'CANONICAL', ref: 'r2://specs/cand-spec-01.cbor', status: 'REDUCED' },
-                        { event: 'Transient Smoke Run', digest: '4a187e5fd6...', retention: 'EPHEMERAL', ref: 'r2://scratch/temp_run.json', status: 'EXPIRED' },
+                        { event: 'External CD Attestation', retention: 'CANONICAL', status: 'SUCCEEDED' },
+                        { event: 'Hermetic Sandbox Receipt', retention: 'DECISION_RECORD', status: 'PASSED' },
+                        { event: 'Candidate Reduction Spec', retention: 'CANONICAL', status: 'REDUCED' },
+                        { event: 'Transient Smoke Run', retention: 'EPHEMERAL', status: 'EXPIRED' },
                       ].map((row, idx) => (
                         <tr key={idx} className={darkMode ? 'hover:bg-white/[0.02]' : 'hover:bg-black/[0.02]'}>
                           <td className="py-3 font-semibold text-[#0071E3]">{row.event}</td>
-                          <td className="py-3 text-slate-400 select-all">{row.digest}</td>
                           <td className="py-3">
                             <span className="px-2 py-0.5 rounded text-[10px] font-medium bg-[#34C759]/10 text-[#34C759]">
                               {row.retention}
                             </span>
                           </td>
-                          <td className="py-3 text-[#86868B] truncate max-w-xs">{row.ref}</td>
                           <td className="py-3 text-right text-[#34C759] font-medium">{row.status}</td>
                         </tr>
                       ))}
@@ -888,45 +874,40 @@ eval("console.log('danger')");`
             )}
           </div>
 
-          {/* PANE 3: macOS Right Inspector Panel (Collapsible) */}
+          {/* Right Inspector Panel (Collapsible Drawer on Mobile, Side Panel on Desktop) */}
           {inspectorOpen && (
-            <aside className={`w-72 border-l shrink-0 p-4 space-y-4 overflow-y-auto transition-colors ${
-              darkMode ? 'bg-[#18181A] border-black/40' : 'bg-[#F2F2F7]/50 border-black/[0.08]'
+            <aside className={`absolute md:static top-0 right-0 bottom-0 z-30 w-72 md:w-64 border-l p-4 space-y-4 overflow-y-auto transition-all shadow-xl md:shadow-none ${
+              darkMode ? 'bg-[#18181A] border-black/40' : 'bg-[#F2F2F7] md:bg-[#F2F2F7]/50 border-black/[0.08]'
             }`}>
               <div className="flex items-center justify-between">
-                <span className={`text-[10px] font-semibold tracking-wider ${
-                  darkMode ? 'text-[#86868B]' : 'text-[#8E8E93]'
-                }`}>
+                <span className="text-[10px] font-semibold tracking-wider text-[#86868B]">
                   INSPECTOR
                 </span>
-                <span className="text-[10px] font-mono text-[#0071E3]">
-                  RFC 8949
-                </span>
+                <button
+                  onClick={() => setInspectorOpen(false)}
+                  className="min-h-[36px] min-w-[36px] flex items-center justify-center rounded-md md:hidden"
+                >
+                  <X className="w-4 h-4" />
+                </button>
               </div>
 
-              {/* Selected Target Card */}
-              <div className={`p-3.5 rounded-xl border text-xs space-y-2 ${
+              <div className={`p-3 rounded-xl border text-xs space-y-1.5 ${
                 darkMode ? 'bg-[#28282A] border-white/[0.06]' : 'bg-white border-black/[0.06] shadow-sm'
               }`}>
-                <div className="font-semibold text-[12px]">Selected Entity</div>
+                <div className="font-semibold text-[11px]">Selected Node</div>
                 <div className="text-[11px] font-mono text-[#0071E3] break-all">{selectedDagNode}</div>
-                <div className="text-[10px] text-[#86868B]">Validated via 3-tier digest hierarchy</div>
               </div>
 
-              {/* Identity Breakdown */}
-              <div className="space-y-2 text-xs">
-                <span className={`text-[10px] font-semibold tracking-wider block ${
-                  darkMode ? 'text-[#86868B]' : 'text-[#8E8E93]'
-                }`}>
+              <div className="space-y-1.5 text-xs">
+                <span className="text-[10px] font-semibold tracking-wider block text-[#86868B]">
                   PROJECTION PROVENANCE
                 </span>
-
-                <div className={`p-3 rounded-xl border text-[11px] font-mono space-y-1.5 ${
+                <div className={`p-3 rounded-xl border text-[10px] font-mono space-y-1 ${
                   darkMode ? 'bg-[#28282A] border-white/[0.06]' : 'bg-white border-black/[0.06] shadow-sm'
                 }`}>
                   <div className="flex justify-between">
                     <span className="text-[#86868B]">Domain:</span>
-                    <span className="truncate max-w-[120px]">klocgit/candidate</span>
+                    <span>klocgit/candidate</span>
                   </div>
                   <div className="flex justify-between">
                     <span className="text-[#86868B]">Schema:</span>
@@ -939,21 +920,45 @@ eval("console.log('danger')");`
                 </div>
               </div>
 
-              {/* Quick Actions */}
-              <div className="space-y-1.5 pt-2">
-                <button
-                  onClick={() => copyToClipboard(computedDigest, 'inspector')}
-                  className={`w-full py-2 px-3 rounded-lg text-xs font-medium border flex items-center justify-center space-x-2 transition-colors ${
-                    darkMode ? 'bg-[#28282A] border-white/[0.08] hover:bg-[#323235]' : 'bg-white border-black/[0.08] hover:bg-[#F2F2F7]'
-                  }`}
-                >
-                  {copiedText === 'inspector' ? <Check className="w-3.5 h-3.5 text-[#34C759]" /> : <Copy className="w-3.5 h-3.5" />}
-                  <span>{copiedText === 'inspector' ? 'Copied Digest' : 'Copy Active Digest'}</span>
-                </button>
-              </div>
+              <button
+                onClick={() => copyToClipboard(computedDigest, 'inspector')}
+                className={`w-full min-h-[44px] py-2 px-3 rounded-lg text-xs font-medium border flex items-center justify-center space-x-2 transition-colors ${
+                  darkMode ? 'bg-[#28282A] border-white/[0.08]' : 'bg-white border-black/[0.08]'
+                }`}
+              >
+                {copiedText === 'inspector' ? <Check className="w-3.5 h-3.5 text-[#34C759]" /> : <Copy className="w-3.5 h-3.5" />}
+                <span>{copiedText === 'inspector' ? 'Copied' : 'Copy Active Digest'}</span>
+              </button>
             </aside>
           )}
         </div>
+
+        {/* Mobile Fixed Bottom Navigation Bar (iOS 18 HIG Pattern) */}
+        <nav className={`md:hidden fixed bottom-0 left-0 right-0 z-40 border-t backdrop-blur-xl flex items-center justify-around h-16 pb-safe transition-colors ${
+          darkMode ? 'bg-[#1E1E20]/90 border-white/[0.08]' : 'bg-white/90 border-black/[0.08]'
+        }`}>
+          {[
+            { id: 'overview', label: 'Overview', icon: LayoutDashboardIcon },
+            { id: 'dag', label: 'DAG', icon: GitBranch },
+            { id: 'repos', label: 'Repos', icon: Database },
+            { id: 'diff', label: 'Diff', icon: FileCode2 },
+            { id: 'policy', label: 'Policy', icon: ShieldCheck },
+          ].map((item) => (
+            <button
+              key={item.id}
+              onClick={() => setActiveTab(item.id as any)}
+              className={`flex-1 min-h-[44px] flex flex-col items-center justify-center transition-colors ${
+                activeTab === item.id
+                  ? 'text-[#0071E3]'
+                  : darkMode ? 'text-[#86868B]' : 'text-[#8E8E93]'
+              }`}
+            >
+              <item.icon className="w-5 h-5 shrink-0" />
+              <span className="text-[10px] font-medium tracking-tight mt-1">{item.label}</span>
+            </button>
+          ))}
+        </nav>
+
       </div>
     </div>
   );
