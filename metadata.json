@@ -1,0 +1,6 @@
+{
+  "name": "KLoCGit v1 Enterprise Convergence Platform",
+  "description": "Enterprise convergence, provenance, policy gates, and canonical Git orchestration platform",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}

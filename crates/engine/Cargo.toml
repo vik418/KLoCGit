@@ -1,0 +1,14 @@
+[package]
+name = "klocgit-engine"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
+
+[[bin]]
+name = "klocgit-cli"
+path = "src/bin/cli.rs"
+
+[lib]
+name = "klocgit_engine"
+path = "src/lib.rs"

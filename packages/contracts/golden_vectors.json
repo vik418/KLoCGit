@@ -1,0 +1,229 @@
+[
+  {
+    "name": "future_revision_state_basic",
+    "domain_separator": "klocgit/future_revision_state",
+    "schema_version": "v1",
+    "input": {
+      "repo_id": "klocgit-core",
+      "commit_oid": "4b825dc642cb6eb9a060e54bf8d69288fbee4904",
+      "tree_oid": "0123456789abcdef0123456789abcdef01234567",
+      "parent_oids": [
+        "1111111111111111111111111111111111111111",
+        "2222222222222222222222222222222222222222"
+      ]
+    }
+  },
+  {
+    "name": "future_revision_record_basic",
+    "domain_separator": "klocgit/future_revision_record",
+    "schema_version": "v1",
+    "input": {
+      "state_digest": "4a187e5fd60ff5833446002ff2c3af1d798604d538e14619dcfaf05809aaef9f",
+      "system_id": "sys-enterprise-prod",
+      "ref": "refs/heads/candidate-omega",
+      "producer": {
+        "actor_id": "agent-orchestrator-9",
+        "agent_version": "2.4.0",
+        "prompt_digest": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "task_id": "task-convergence-102"
+      }
+    }
+  },
+  {
+    "name": "effect_set_structural",
+    "domain_separator": "klocgit/effect_set",
+    "schema_version": "v1",
+    "input": {
+      "future_revision_id": "fut-rev-901",
+      "extractor_id": "tree-sitter-structural-v1",
+      "extractor_version": "1.0.0",
+      "capability": "STRUCTURAL",
+      "status": "COMPLETE",
+      "modified_exports": [
+        "authenticateUser",
+        "createSession",
+        "verifyToken"
+      ],
+      "added_dependencies": {
+        "dotenv": "^16.0.0",
+        "express": "^4.19.0",
+        "jsonwebtoken": "^9.0.0"
+      },
+      "db_migrations_detected": false,
+      "security_effects": [
+        "AUTH:token_issue",
+        "CRYPTO:verify",
+        "NET:ingress"
+      ]
+    }
+  },
+  {
+    "name": "candidate_spec_composite",
+    "domain_separator": "klocgit/candidate_spec",
+    "schema_version": "v1",
+    "input": {
+      "base_revisions": {
+        "repo-auth": "auth_base_oid_1234",
+        "repo-gateway": "gateway_base_oid_5678"
+      },
+      "selected_future_revisions": [
+        "fut-01",
+        "fut-02"
+      ],
+      "composition_manifest": [
+        {
+          "repo_id": "repo-auth",
+          "path": "src/token.ts",
+          "selector": {
+            "type": "hunk",
+            "value": "@@ -10,5 +10,8 @@"
+          },
+          "source_future_id": "fut-01",
+          "source_commit_oid": "commit_auth_1"
+        },
+        {
+          "repo_id": "repo-gateway",
+          "path": "src/proxy.ts",
+          "selector": {
+            "type": "symbol",
+            "value": "ProxyHandler"
+          },
+          "source_future_id": "fut-02",
+          "source_commit_oid": "commit_gw_1"
+        }
+      ],
+      "creation_reason": "Automated convergence of auth and gateway changes"
+    }
+  },
+  {
+    "name": "candidate_basic",
+    "domain_separator": "klocgit/candidate",
+    "schema_version": "v1",
+    "input": {
+      "candidate_spec_id": "spec-conv-887",
+      "repo_tree_oids": {
+        "repo-auth": "tree_oid_auth_4444",
+        "repo-gateway": "tree_oid_gw_5555"
+      }
+    }
+  },
+  {
+    "name": "evidence_decision_record",
+    "domain_separator": "klocgit/evidence",
+    "schema_version": "v1",
+    "input": {
+      "subject_digest": "cand-digest-9999",
+      "evaluator_id": "container-sandbox-hermetic",
+      "evaluator_version": "1.2.0",
+      "config_digest": "config-sha256-node24",
+      "environment_digest": "env-sha256-linux-x86",
+      "result": "PASSED",
+      "payload_digest": "payload-hash-sandbox-run-42"
+    }
+  },
+  {
+    "name": "system_revision_state_multi_repo",
+    "domain_separator": "klocgit/system_revision_state",
+    "schema_version": "v1",
+    "input": {
+      "repositories": {
+        "repo-billing": "oid_billing_head",
+        "repo-core": "oid_core_head",
+        "repo-ui": "oid_ui_head"
+      },
+      "configuration_digests": {
+        "env.production": "cfg_digest_prod",
+        "helm-values": "cfg_digest_helm"
+      }
+    }
+  },
+  {
+    "name": "release_constraints_typed",
+    "domain_separator": "klocgit/release_constraints",
+    "schema_version": "v1",
+    "input": {
+      "system_revision_state_digest": "sys-state-digest-1234",
+      "ordering_constraints": [
+        {
+          "before": {
+            "repo_id": "repo-db",
+            "resource_type": "migration",
+            "resource_id": "002_add_tenants"
+          },
+          "after": {
+            "repo_id": "repo-api",
+            "resource_type": "service",
+            "resource_id": "tenant_service"
+          }
+        }
+      ],
+      "compatibility_requirements": [
+        {
+          "subject": {
+            "repo_id": "repo-ui",
+            "resource_type": "service",
+            "resource_id": "frontend"
+          },
+          "target": {
+            "repo_id": "repo-api",
+            "resource_type": "service",
+            "resource_id": "backend"
+          },
+          "relation": "COMPATIBLE"
+        }
+      ],
+      "preconditions": [
+        {
+          "target": {
+            "repo_id": "repo-db",
+            "resource_type": "database",
+            "resource_id": "main"
+          },
+          "assertion": "HEALTHY"
+        }
+      ],
+      "postconditions": [
+        {
+          "target": {
+            "repo_id": "repo-api",
+            "resource_type": "service",
+            "resource_id": "tenant_service"
+          },
+          "assertion": "HEALTHY"
+        }
+      ],
+      "forward_only_operations": [
+        {
+          "resource": {
+            "repo_id": "repo-db",
+            "resource_type": "migration",
+            "resource_id": "002_add_tenants"
+          },
+          "operation": "RUN_MIGRATION",
+          "failure_policy": "ABORT"
+        }
+      ]
+    }
+  },
+  {
+    "name": "deployment_attestation_verified",
+    "domain_separator": "klocgit/deployment_attestation",
+    "schema_version": "v1",
+    "input": {
+      "system_revision_state_digest": "sys-state-digest-1234",
+      "environment": "production",
+      "deployer_identity": "external-cd-spinnaker",
+      "observed_state": "SUCCEEDED",
+      "observed_repositories": {
+        "repo-billing": "oid_billing_head",
+        "repo-core": "oid_core_head",
+        "repo-ui": "oid_ui_head"
+      },
+      "observed_configuration_digests": {
+        "env.production": "cfg_digest_prod",
+        "helm-values": "cfg_digest_helm"
+      },
+      "payload_digest": "attestation-signature-hash-99"
+    }
+  }
+]
