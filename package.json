@@ -11,7 +11,10 @@
     "lint": "tsc --noEmit",
     "test:contracts": "tsx packages/contracts/test.ts",
     "test:canonical-cross-language": "tsx packages/contracts/test-cross-language.ts",
-    "test:coordination": "tsx apps/worker/test-coordination.ts"
+    "test:coordination": "tsx apps/worker/test-coordination.ts",
+    "test:materialization": "tsx services/evaluator/test-materialization.ts",
+    "test:policy": "tsx packages/policy/test-policy.ts",
+    "test:e2e": "tsx tests/e2e/test-full-lifecycle.ts"
   },
   "dependencies": {
     "@google/genai": "^2.4.0",

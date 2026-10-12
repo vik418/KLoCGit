@@ -6,6 +6,7 @@ pub mod digest;
 pub mod extractor;
 pub mod git;
 pub mod golden;
+pub mod reduction;
 pub mod sha256;
 pub mod types;
 
