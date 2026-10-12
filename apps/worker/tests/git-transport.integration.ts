@@ -316,6 +316,16 @@ test("native receive-pack CAS rejects stale and concurrent promotions and retain
   assert.equal(git(["--git-dir", remote, "show", "refs/heads/main:state.txt"]), "novel composed state");
   assert.equal(git(["--git-dir", remote, "rev-parse", "refs/heads/main^"]), targets[winner]);
 
+  initialReads.length = 0;
+  const sameTargetCommands = await Promise.all(instances.map(async () => {
+    const command = { scope, ref: "refs/heads/main", expected_oid: prepare.target_oid, target_oid: targets[1 - winner], idempotency_key: randomUUID() };
+    return { schema_version: 1, remote: remoteUrl, artifact_token: transportToken, ref_name: command.ref,
+      expected_oid: command.expected_oid, target_oid: command.target_oid, idempotency_key: command.idempotency_key,
+      operation_digest: await hashProjection("klocgit.git-cas", command) };
+  }));
+  const sameTarget = await Promise.all(instances.map((instance, index) => instance.call("/git/cas", sameTargetCommands[index])));
+  assert.equal(sameTarget.filter(outcome => outcome.body.status === "APPLIED").length, 1, JSON.stringify(sameTarget));
+  assert.equal(sameTarget.filter(outcome => outcome.body.status === "NO_EFFECT").length, 1, JSON.stringify(sameTarget));
   const fresh = await instances[1 - winner].call("/git/operation", {
     idempotency_key: commands[winner].idempotency_key,
     operation_digest: commands[winner].operation_digest,

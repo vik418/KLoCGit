@@ -122,13 +122,18 @@ impl Executor {
         // read followed by an unconditional push can provide this guarantee.
         let pushed = transport(&["push", "--porcelain", &format!("--force-with-lease={}:{}", input.ref_name, input.expected_oid),
             "origin", &format!("{}:{}", input.target_oid, input.ref_name)])?;
-        let rejected = pushed.output.lines().any(|line| {
+        let reference = format!("{}:{}", input.target_oid, input.ref_name);
+        let statuses: Vec<_> = pushed.output.lines().filter_map(|line| {
             let fields: Vec<_> = line.split('\t').collect();
-            fields.len() == 3 && fields[0] == "!" && fields[1] == format!("{}:{}", input.target_oid, input.ref_name) &&
-                (fields[2] == "[rejected] (stale info)" || fields[2].starts_with("[remote rejected] "))
-        });
-        if !pushed.success && !rejected { return Err(Error::InvalidInput("Git push outcome requires reconciliation".into())); }
-        let receipt = Receipt { schema_version: 1, status: if pushed.success { "APPLIED" } else { "NO_EFFECT" }.into(), expected_oid: input.expected_oid,
+            (fields.len() == 3 && fields[1] == reference).then(|| (fields[0].to_string(), fields[2].to_string()))
+        }).collect();
+        if statuses.len() != 1 { return Err(Error::InvalidInput("Git push outcome requires reconciliation".into())); }
+        let (flag, reason) = &statuses[0];
+        let applied = pushed.success && matches!(flag.as_str(), " " | "+" | "*");
+        let no_effect = (pushed.success && flag == "=") ||
+            (!pushed.success && flag == "!" && (reason == "[rejected] (stale info)" || reason.starts_with("[remote rejected] ")));
+        if !applied && !no_effect { return Err(Error::InvalidInput("Git push outcome requires reconciliation".into())); }
+        let receipt = Receipt { schema_version: 1, status: if applied { "APPLIED" } else { "NO_EFFECT" }.into(), expected_oid: input.expected_oid,
             target_oid: input.target_oid, operation_digest: input.operation_digest };
         self.receipts.insert(input.idempotency_key, receipt.clone());
         Ok(receipt)
