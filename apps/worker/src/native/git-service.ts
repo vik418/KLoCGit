@@ -67,7 +67,7 @@ export class GitContainer extends NativeContainer {
       const remote = new URL(String(payload.remote));
       if (remote.protocol !== "https:" || remote.username || remote.password) throw new Failure("INVALID_INPUT", 400, "Invalid repository transport");
       this.allowedHosts = [remote.hostname];
-      await this.setOutboundByHost(remote.hostname, "git", { remote: remote.href, expires_at: Date.now() + 120000 });
+      await this.setOutboundByHost(remote.hostname, "git", { remote: remote.href, expires_at: Date.now() + 180000 });
     }
     return undefined;
   }
@@ -93,7 +93,7 @@ async function native(env: GitBindings, command: CasCommand, action: string, pay
   const token = await signToken({ schema_version: 1, aud: "native-container", scope: command.scope, action, subject_digest,
     actor_id: "ref-coordinator", expires_at: Date.now() + 120000 }, env.INTERNAL_SIGNING_KEY);
   return env.GIT.getByName(instance).fetch("https://git.native/command", { method: "POST",
-    headers: { "content-type": "application/json", "x-klocgit-internal": token }, body: JSON.stringify(body), signal: AbortSignal.timeout(120000) });
+    headers: { "content-type": "application/json", "x-klocgit-internal": token }, body: JSON.stringify(body), signal: AbortSignal.timeout(180000) });
 }
 
 export default {
@@ -123,12 +123,12 @@ export default {
         if (action === "operation")
           return native(env, input, "git/operation", { idempotency_key: input.idempotency_key, operation_digest: input.operation_digest });
         const info = await repo.info();
-        const token = await repo.createToken("write", 120);
+        const token = await repo.createToken("write", 180);
         try {
           const result = await native(env, input, "git/cas", { schema_version: 1, remote: info.remote,
             artifact_token: token.plaintext, ref_name: input.ref, expected_oid: input.expected_oid,
             target_oid: input.target_oid, idempotency_key: input.idempotency_key, operation_digest: input.operation_digest });
-          if (!result.ok) return result;
+          if (!result.ok) throw new Failure("GIT_OUTCOME_UNKNOWN", 503, "Git transport outcome requires reconciliation");
           const receipt = await result.json<Record<string, unknown>>();
           if (receipt.status === "NO_EFFECT") return Response.json({ error: { code: "STALE_BASIS" } }, { status: 409 });
           if (receipt.status !== "APPLIED") throw new Failure("GIT_OUTCOME_UNKNOWN", 503, "Git mutation requires reconciliation");

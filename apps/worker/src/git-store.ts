@@ -30,7 +30,7 @@ export class GitStore {
         method: "POST",
         headers: { "content-type": "application/json", "x-klocgit-internal": authorization },
         body: JSON.stringify(command),
-        signal: AbortSignal.timeout(15_000),
+        signal: AbortSignal.timeout(180_000),
       });
     } catch {
       throw new Failure(
@@ -39,8 +39,13 @@ export class GitStore {
         "Git executor outcome is unknown",
       );
     }
-    if (response.status === 409)
-      throw new Failure("STALE_BASIS", 409, "Canonical Git head changed");
+    if (!response.ok) {
+      const failure = await response.json<{ error?: { code?: string } }>().catch(() => ({} as { error?: { code?: string } }));
+      if (response.status === 409 && failure.error?.code === "STALE_BASIS")
+        throw new Failure("STALE_BASIS", 409, "Canonical Git head changed");
+      if (path === "/cas" || path === "/operation")
+        throw new Failure("GIT_OUTCOME_UNKNOWN", 503, "Git mutation requires reconciliation");
+    }
     if (!response.ok)
       throw new Failure(
         "GIT_EXECUTOR_UNAVAILABLE",

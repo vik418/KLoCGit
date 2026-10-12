@@ -244,7 +244,10 @@ export class ObjectiveCoordinator extends DurableObject<Bindings> {
       await this.flush();
       return Response.json(JSON.parse(prior.response));
     }
-    const store = new GitStore(this.env.GIT_EXECUTOR, this.env.INTERNAL_SIGNING_KEY);
+    const store = new GitStore(
+      this.env.GIT_EXECUTOR,
+      this.env.INTERNAL_SIGNING_KEY,
+    );
     const capturedBase = this.ctx.storage.sql
       .exec<{ value: string }>(
         "SELECT value FROM metadata WHERE key = ?",

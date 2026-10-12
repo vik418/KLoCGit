@@ -255,10 +255,22 @@ pub fn evaluate(
     for check in &policy.checks {
         checks.push(run_check(source, suite, policy, check)?);
     }
-    evidence(subject_digest, policy, config_digest, environment_digest, checks)
+    evidence(
+        subject_digest,
+        policy,
+        config_digest,
+        environment_digest,
+        checks,
+    )
 }
 
-pub(crate) fn evidence(subject_digest: &str, policy: &EvaluationPolicy, config_digest: String, environment_digest: String, checks: Vec<CheckReceipt>) -> Result<Evaluation> {
+pub(crate) fn evidence(
+    subject_digest: &str,
+    policy: &EvaluationPolicy,
+    config_digest: String,
+    environment_digest: String,
+    checks: Vec<CheckReceipt>,
+) -> Result<Evaluation> {
     let result = if checks
         .iter()
         .any(|check| check.timed_out || check.exit_code.is_none())
@@ -302,7 +314,11 @@ pub(crate) fn evidence(subject_digest: &str, policy: &EvaluationPolicy, config_d
 }
 
 pub(crate) fn validate(
-    source: &Path, suite: &Path, candidate: &crate::contracts::Candidate, repo_id: &str, policy: &EvaluationPolicy,
+    source: &Path,
+    suite: &Path,
+    candidate: &crate::contracts::Candidate,
+    repo_id: &str,
+    policy: &EvaluationPolicy,
 ) -> Result<toolchains::SupportedToolchain> {
     let mut sealed = candidate.clone();
     sealed.seal()?;

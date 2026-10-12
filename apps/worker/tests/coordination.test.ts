@@ -293,8 +293,12 @@ async function fixture(t: { after: (fn: () => unknown) => void }) {
       }
       const command = input;
       input = JSON.parse(command.original_payload);
-      assert.equal(await (await import("../../../packages/contracts/src/index.ts")).payloadDigest(
-        new TextEncoder().encode(command.original_payload)), command.input_payload_digest);
+      assert.equal(
+        await (
+          await import("../../../packages/contracts/src/index.ts")
+        ).payloadDigest(new TextEncoder().encode(command.original_payload)),
+        command.input_payload_digest,
+      );
       const paths = git([
         "--git-dir",
         remote,

@@ -36,7 +36,10 @@ export class NativeContainer extends Container<NativeBindings> {
     return undefined;
   }
 
-  protected async complete(_input: Command, response: Response): Promise<Response> {
+  protected async complete(
+    _input: Command,
+    response: Response,
+  ): Promise<Response> {
     return response;
   }
 

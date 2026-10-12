@@ -300,11 +300,23 @@ pub struct Snapshot {
 }
 
 /// Read pinned tree metadata without hydrating blobs or changing any refs.
-pub fn snapshot(source: &dyn objects::ObjectSource, commit_oid: Oid, limits: Limits) -> Result<Snapshot> {
+pub fn snapshot(
+    source: &dyn objects::ObjectSource,
+    commit_oid: Oid,
+    limits: Limits,
+) -> Result<Snapshot> {
     let commit = objects::verified_commit(source, commit_oid)?;
-    let mut budget = Budget { entries: 0, bytes: 0, limits };
+    let mut budget = Budget {
+        entries: 0,
+        bytes: 0,
+        limits,
+    };
     let entries = objects::read_entries(source, commit.tree_oid, &mut budget)?;
-    Ok(Snapshot { tree_oid: commit.tree_oid, parent_oids: commit.parent_oids, entries })
+    Ok(Snapshot {
+        tree_oid: commit.tree_oid,
+        parent_oids: commit.parent_oids,
+        entries,
+    })
 }
 
 pub mod remote;

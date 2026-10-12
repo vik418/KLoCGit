@@ -82,13 +82,32 @@ export async function callObjective(
   });
 }
 
-export async function callEngine(env: Bindings, action: string, body: { scope: Scope } & Record<string, unknown>): Promise<Response> {
+export async function callEngine(
+  env: Bindings,
+  action: string,
+  body: { scope: Scope } & Record<string, unknown>,
+): Promise<Response> {
   const subject_digest = await hashProjection("klocgit.engine-command", body);
-  const token = await signToken({ schema_version: 1, aud: "engine", action, scope: body.scope,
-    subject_digest, actor_id: "coordinator", expires_at: Date.now() + 900000 }, env.INTERNAL_SIGNING_KEY);
+  const token = await signToken(
+    {
+      schema_version: 1,
+      aud: "engine",
+      action,
+      scope: body.scope,
+      subject_digest,
+      actor_id: "coordinator",
+      expires_at: Date.now() + 900000,
+    },
+    env.INTERNAL_SIGNING_KEY,
+  );
   return env.ENGINE.fetch("https://engine.internal/" + action, {
-    method: "POST", headers: { "content-type": "application/json", "x-klocgit-internal": token },
-    body: JSON.stringify(body), signal: AbortSignal.timeout(900000),
+    method: "POST",
+    headers: {
+      "content-type": "application/json",
+      "x-klocgit-internal": token,
+    },
+    body: JSON.stringify(body),
+    signal: AbortSignal.timeout(900000),
   });
 }
 
@@ -182,9 +201,11 @@ async function analyze(env: Bindings, envelope: EventEnvelope): Promise<void> {
     throw new Failure("INVALID_EVENT", 409, "Future record differs");
   const original_payload = JSON.stringify(payload);
   const result = await callEngine(env, "analyze", {
-      schema_version: 1, scope: payload.scope, original_payload,
-      input_payload_digest: envelope.payload_digest,
-    });
+    schema_version: 1,
+    scope: payload.scope,
+    original_payload,
+    input_payload_digest: envelope.payload_digest,
+  });
   if (!result.ok)
     throw new Failure(
       "ENGINE_UNAVAILABLE",
@@ -327,8 +348,12 @@ async function reduceObjective(
     );
   }
   const result = await callEngine(env, "reduce", {
-    schema_version: 1, scope: envelope.scope, base_revisions: { [envelope.scope.repo_id]: base_oid },
-    input_payload_ref, input_payload_digest, budget,
+    schema_version: 1,
+    scope: envelope.scope,
+    base_revisions: { [envelope.scope.repo_id]: base_oid },
+    input_payload_ref,
+    input_payload_digest,
+    budget,
   });
   if (!result.ok)
     throw new Failure(

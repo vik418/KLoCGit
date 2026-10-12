@@ -193,7 +193,13 @@ export function authorize(
 
 export interface InternalGrant {
   schema_version: 1;
-  aud: "objective" | "ref" | "queue" | "engine" | "native-container" | "git-executor";
+  aud:
+    | "objective"
+    | "ref"
+    | "queue"
+    | "engine"
+    | "native-container"
+    | "git-executor";
   scope: Scope;
   action: string;
   subject_digest: string;
