@@ -21,3 +21,5 @@ unicode-normalization = "0.1"
 tempfile = "3"
 semver = "1"
 pep440_rs = "0.7"
+
+ureq = { version = "2.12", features = ["native-certs"] }

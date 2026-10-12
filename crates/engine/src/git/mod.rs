@@ -71,13 +71,30 @@ impl Budget {
     }
 }
 
-/// Compose disjoint path deltas relative to the exact base commit. This only
-/// establishes textual composition; the resulting state still needs evaluation.
+/// Compose local Git inputs without modifying their object databases or refs.
 pub fn compose(
     base_repo: &Repository,
     repo_id: &str,
     base_oid: Oid,
     futures: &[FutureSource<'_>],
+    limits: Limits,
+) -> Result<Composition> {
+    let sources: Vec<_> = futures.iter().map(|source| objects::ObjectFuture {
+        revision: source.revision,
+        state: source.state,
+        effects: source.effects,
+        objects: source.repository,
+    }).collect();
+    compose_from_objects(base_repo, repo_id, base_oid, &sources, limits)
+}
+
+/// Compose disjoint path deltas relative to the exact base commit. This only
+/// establishes textual composition; the resulting state still needs evaluation.
+pub fn compose_from_objects(
+    base_repo: &dyn objects::ObjectSource,
+    repo_id: &str,
+    base_oid: Oid,
+    futures: &[objects::ObjectFuture<'_>],
     limits: Limits,
 ) -> Result<Composition> {
     if futures.is_empty() || repo_id.is_empty() {
@@ -90,8 +107,8 @@ pub fn compose(
         bytes: 0,
         limits,
     };
-    let base_tree = verified_commit_tree(base_repo, base_oid, &mut budget)?;
-    let baseline = read_entries(base_repo, base_tree, &mut budget)?;
+    let base_tree = objects::verified_commit(base_repo, base_oid)?.tree_oid;
+    let baseline = objects::read_entries(base_repo, base_tree, &mut budget)?;
     let mut entries = baseline.clone();
     let mut changes = BTreeMap::<String, (Option<Entry>, String, String)>::new();
     let mut selected = BTreeSet::new();
@@ -113,20 +130,16 @@ pub fn compose(
             return Err(Error::InvalidInput("duplicate Future selection".into()));
         }
         let commit_oid = Oid::from_str(&source.state.commit_oid)?;
-        let tree_oid = verified_commit_tree(source.repository, commit_oid, &mut budget)?;
-        let parents: Vec<_> = source
-            .repository
-            .find_commit(commit_oid)?
-            .parent_ids()
-            .map(|id| id.to_string())
-            .collect();
+        let commit = objects::verified_commit(source.objects, commit_oid)?;
+        let tree_oid = commit.tree_oid;
+        let parents: Vec<_> = commit.parent_oids.iter().map(ToString::to_string).collect();
         if tree_oid.to_string() != source.state.tree_oid || parents != source.state.parent_oids {
             return Err(Error::RevisionMismatch);
         }
-        if verified_commit_tree(source.repository, base_oid, &mut budget)? != base_tree {
+        if objects::verified_commit(source.objects, base_oid)?.tree_oid != base_tree {
             return Err(Error::RevisionMismatch);
         }
-        let observed = read_entries(source.repository, tree_oid, &mut budget)?;
+        let observed = objects::read_entries(source.objects, tree_oid, &mut budget)?;
         for path in baseline
             .keys()
             .chain(observed.keys())
@@ -210,97 +223,6 @@ pub fn hydrate_blob(repository: &Repository, oid: Oid, max_bytes: usize) -> Resu
     Ok(object.data().to_vec())
 }
 
-fn verify_object(
-    repository: &Repository,
-    oid: Oid,
-    kind: ObjectType,
-    budget: &mut Budget,
-) -> Result<()> {
-    let odb = repository.odb()?;
-    let (size, observed_kind) = odb.read_header(oid)?;
-    if observed_kind != kind {
-        return Err(Error::RevisionMismatch);
-    }
-    budget.charge(size)?;
-    let object = odb.read(oid)?;
-    if Oid::hash_object(kind, object.data())? != oid {
-        return Err(Error::RevisionMismatch);
-    }
-    Ok(())
-}
-
-fn verified_commit_tree(repository: &Repository, oid: Oid, budget: &mut Budget) -> Result<Oid> {
-    verify_object(repository, oid, ObjectType::Commit, budget)?;
-    Ok(repository.find_commit(oid)?.tree_id())
-}
-
-fn read_entries(
-    repository: &Repository,
-    tree: Oid,
-    budget: &mut Budget,
-) -> Result<BTreeMap<String, Entry>> {
-    let mut entries = BTreeMap::new();
-    visit_tree(repository, tree, "", 0, budget, &mut entries)?;
-    Ok(entries)
-}
-
-fn visit_tree(
-    repository: &Repository,
-    oid: Oid,
-    prefix: &str,
-    depth: usize,
-    budget: &mut Budget,
-    entries: &mut BTreeMap<String, Entry>,
-) -> Result<()> {
-    if depth > budget.limits.max_depth {
-        return Err(Error::LimitExceeded("Git tree depth"));
-    }
-    verify_object(repository, oid, ObjectType::Tree, budget)?;
-    let tree = repository.find_tree(oid)?;
-    for item in tree.iter() {
-        budget.entries += 1;
-        if budget.entries > budget.limits.max_entries {
-            return Err(Error::LimitExceeded("Git tree entries"));
-        }
-        let name = item
-            .name()
-            .ok_or_else(|| Error::InvalidInput("non-UTF8 Git path".into()))?;
-        if canonical::nfc(name) != name
-            || name.is_empty()
-            || matches!(name, "." | "..")
-            || name.contains('/')
-            || name.contains('\\')
-        {
-            return Err(Error::InvalidInput("unsafe Git tree entry".into()));
-        }
-        let path = if prefix.is_empty() {
-            name.into()
-        } else {
-            format!("{prefix}/{name}")
-        };
-        budget.charge(path.len())?;
-        if item.kind() == Some(ObjectType::Tree) {
-            visit_tree(repository, item.id(), &path, depth + 1, budget, entries)?;
-        } else if matches!(item.filemode(), 0o100644 | 0o100755 | 0o120000 | 0o160000) {
-            if entries
-                .insert(
-                    path.clone(),
-                    Entry {
-                        oid: item.id(),
-                        mode: item.filemode(),
-                    },
-                )
-                .is_some()
-            {
-                return Err(Error::Conflict(path));
-            }
-        } else {
-            return Err(Error::InvalidInput("unsupported Git tree mode".into()));
-        }
-    }
-    Ok(())
-}
-
 #[derive(Default)]
 struct Directory {
     children: BTreeMap<String, Directory>,
@@ -365,4 +287,5 @@ fn encode_tree(
     Ok(oid)
 }
 
+pub mod objects;
 pub mod workspace;

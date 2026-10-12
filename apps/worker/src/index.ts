@@ -1,4 +1,5 @@
 import { Hono } from "hono";
+import { readObject } from "./routes/objects.ts";
 import {
   hashProjection,
   payloadDigest,
@@ -130,6 +131,8 @@ app.post(prefix + "/futures", async (context) => {
     principal.exp * 1000,
   );
 });
+
+app.post("/internal/git-objects", context => readObject(context.req.raw, context.env));
 
 app.notFound(() =>
   Response.json(

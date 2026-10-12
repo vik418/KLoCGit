@@ -18,6 +18,8 @@ export interface Bindings {
   DEAD_LETTER_QUEUE: Queue;
   GIT_EXECUTOR: Fetcher;
   ENGINE: Fetcher;
+  ARTIFACTS?: Artifacts;
+  ARTIFACTS_REPOSITORIES?: string;
   AUTH_SIGNING_KEY: string;
   INTERNAL_SIGNING_KEY: string;
   AUTH_ISSUER: string;

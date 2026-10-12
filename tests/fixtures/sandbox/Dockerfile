@@ -12,7 +12,7 @@ RUN --mount=type=secret,id=proxy_ca \
     apt-get -o Acquire::https::CaInfo="$certificate" update && \
     apt-get -o Acquire::https::CaInfo="$certificate" install -y --no-install-recommends gcc libc6-dev ca-certificates passwd && \
     rm -rf /var/lib/apt/lists/* && \
-    useradd --uid 10001 --create-home klocgit
+    /usr/sbin/useradd --uid 10001 --create-home klocgit
 RUN --mount=type=secret,id=proxy_ca \
     if [ -f /run/secrets/proxy_ca ]; then export NODE_EXTRA_CA_CERTS=/run/secrets/proxy_ca; export PIP_CERT=/run/secrets/proxy_ca; fi; \
     node /usr/local/lib/node_modules/npm/bin/npm-cli.js install --prefix /opt/node-tools vitest@3.2.4 typescript@5.9.3 pyright@1.1.407 && \
