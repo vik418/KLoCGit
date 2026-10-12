@@ -142,7 +142,7 @@ async function fixture(t: { after: (fn: () => unknown) => void }) {
     },
   };
   const options = {
-    modules: true as const, script: bundle.outputFiles[0].text, compatibilityDate: '2026-10-01',
+    modules: true as const, script: bundle.outputFiles[0].text, compatibilityDate: '2026-08-06',
     durableObjects: { OBJECTIVES: { className: 'ObjectiveCoordinator', useSQLite: true }, REFS: { className: 'RefCoordinator', useSQLite: true } },
     durableObjectsPersist: join(directory, 'durable'),
     r2Buckets: ['PAYLOADS'],
