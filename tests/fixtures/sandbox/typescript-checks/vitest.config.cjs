@@ -1,1 +1,1 @@
-module.exports = { test: { globals: true, cache: false }, cacheDir: "/tmp/vite-cache" };
+module.exports = { cacheDir: "/tmp/vite-cache", test: { maxWorkers: 1, minWorkers: 1 } };
