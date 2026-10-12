@@ -31,12 +31,17 @@ export class GitContainer extends NativeContainer {
   protected role = "git";
   interceptHttps = true;
 
-  static outboundHandlers = {
-    git: async (request: Request, _env: NativeBindings, context: { params: { remote: string; expires_at: number } }): Promise<Response> => {
-      const remote = new URL(context.params.remote);
+  static outboundHandlers: typeof NativeContainer.outboundHandlers = {
+    git: async (request, _env, context): Promise<Response> => {
+      const parameters = context.params;
+      if (!parameters || typeof parameters !== "object" || !("remote" in parameters) ||
+          !("expires_at" in parameters) || typeof parameters.remote !== "string" ||
+          typeof parameters.expires_at !== "number")
+        return new Response("Forbidden", { status: 403 });
+      const remote = new URL(parameters.remote);
       const url = new URL(request.url);
       const path = remote.pathname.replace(/\/$/, "") + "/";
-      if (context.params.expires_at <= Date.now() || url.origin !== remote.origin ||
+      if (parameters.expires_at <= Date.now() || url.origin !== remote.origin ||
           ![path + "info/refs", path + "git-upload-pack", path + "git-receive-pack"].includes(url.pathname) ||
           !["GET", "POST"].includes(request.method))
         return new Response("Forbidden", { status: 403 });

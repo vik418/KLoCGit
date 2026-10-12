@@ -32,6 +32,14 @@ export class NativeContainer extends Container<NativeBindings> {
   enableInternet = false;
   protected role = "analysis";
 
+  protected async prepare(_input: Command): Promise<Response | undefined> {
+    return undefined;
+  }
+
+  protected async complete(_input: Command, response: Response): Promise<Response> {
+    return response;
+  }
+
   async fetch(request: Request): Promise<Response> {
     try {
       const input = await readJson<Command>(request, 32 * 1024 * 1024);
@@ -46,6 +54,8 @@ export class NativeContainer extends Container<NativeBindings> {
           "stage",
           "evaluate",
           "destroy",
+          "git/cas",
+          "git/operation",
         ].includes(input.action)
       )
         throw new Failure("INVALID_INPUT", 400, "Invalid native command");
@@ -62,7 +72,9 @@ export class NativeContainer extends Container<NativeBindings> {
       const permitted =
         this.role === "analysis"
           ? ["analyze", "reduce", "materialize", "workspace/blob", "destroy"]
-          : ["stage", "evaluate", "destroy"];
+          : this.role === "git"
+            ? ["git/cas", "git/operation", "destroy"]
+            : ["stage", "evaluate", "destroy"];
       if (!permitted.includes(input.action))
         throw new Failure(
           "FORBIDDEN",
@@ -123,7 +135,7 @@ export class NativeContainer extends Container<NativeBindings> {
           abort: request.signal,
         },
       });
-      return await this.containerFetch(
+      const response = await this.containerFetch(
         "http://native.internal/" + input.action,
         {
           method: "POST",
@@ -135,6 +147,7 @@ export class NativeContainer extends Container<NativeBindings> {
           signal: request.signal,
         },
       );
+      return await this.complete(input, response);
     } catch (error) {
       return failureResponse(error);
     }
