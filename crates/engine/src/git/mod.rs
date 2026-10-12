@@ -1,7 +1,10 @@
 //! Git composition returns ephemeral tree objects and never updates refs.
 
 use crate::canonical;
-use crate::contracts::{CandidateSpec, CanonicalCandidateSpec, CanonicalFutureRevisionState, EffectSet, FutureRevision, ProvenanceSlice, Selector, SelectorType};
+use crate::contracts::{
+    CandidateSpec, CanonicalCandidateSpec, CanonicalFutureRevisionState, EffectSet, FutureRevision,
+    ProvenanceSlice, Selector, SelectorType,
+};
 use crate::{Error, Result};
 use git2::{ObjectType, Oid, Repository};
 use std::collections::{BTreeMap, BTreeSet};
@@ -71,13 +74,22 @@ impl Budget {
 /// Compose disjoint path deltas relative to the exact base commit. This only
 /// establishes textual composition; the resulting state still needs evaluation.
 pub fn compose(
-    base_repo: &Repository, repo_id: &str, base_oid: Oid,
-    futures: &[FutureSource<'_>], limits: Limits,
+    base_repo: &Repository,
+    repo_id: &str,
+    base_oid: Oid,
+    futures: &[FutureSource<'_>],
+    limits: Limits,
 ) -> Result<Composition> {
     if futures.is_empty() || repo_id.is_empty() {
-        return Err(Error::InvalidInput("missing repository or selected Futures".into()));
+        return Err(Error::InvalidInput(
+            "missing repository or selected Futures".into(),
+        ));
     }
-    let mut budget = Budget { entries: 0, bytes: 0, limits };
+    let mut budget = Budget {
+        entries: 0,
+        bytes: 0,
+        limits,
+    };
     let base_tree = verified_commit_tree(base_repo, base_oid, &mut budget)?;
     let baseline = read_entries(base_repo, base_tree, &mut budget)?;
     let mut entries = baseline.clone();
@@ -86,10 +98,14 @@ pub fn compose(
     let mut effect_digests = BTreeSet::new();
     for source in futures {
         source.revision.verify(source.state)?;
-        if source.state.repo_id != repo_id { return Err(Error::RevisionMismatch); }
-        let mut sealed = source.effects.clone(); sealed.seal()?;
+        if source.state.repo_id != repo_id {
+            return Err(Error::RevisionMismatch);
+        }
+        let mut sealed = source.effects.clone();
+        sealed.seal()?;
         if sealed.effect_digest != source.effects.effect_digest
-            || source.effects.future_revision_id != source.revision.id {
+            || source.effects.future_revision_id != source.revision.id
+        {
             return Err(Error::RevisionMismatch);
         }
         effect_digests.insert(source.effects.effect_digest.clone());
@@ -98,7 +114,12 @@ pub fn compose(
         }
         let commit_oid = Oid::from_str(&source.state.commit_oid)?;
         let tree_oid = verified_commit_tree(source.repository, commit_oid, &mut budget)?;
-        let parents: Vec<_> = source.repository.find_commit(commit_oid)?.parent_ids().map(|id| id.to_string()).collect();
+        let parents: Vec<_> = source
+            .repository
+            .find_commit(commit_oid)?
+            .parent_ids()
+            .map(|id| id.to_string())
+            .collect();
         if tree_oid.to_string() != source.state.tree_oid || parents != source.state.parent_oids {
             return Err(Error::RevisionMismatch);
         }
@@ -106,19 +127,43 @@ pub fn compose(
             return Err(Error::RevisionMismatch);
         }
         let observed = read_entries(source.repository, tree_oid, &mut budget)?;
-        for path in baseline.keys().chain(observed.keys()).collect::<BTreeSet<_>>() {
-            if baseline.get(path) == observed.get(path) { continue; }
-            if changes.contains_key(path) { return Err(Error::Conflict(path.clone())); }
-            changes.insert(path.clone(), (observed.get(path).cloned(), source.revision.id.clone(), source.state.commit_oid.clone()));
+        for path in baseline
+            .keys()
+            .chain(observed.keys())
+            .collect::<BTreeSet<_>>()
+        {
+            if baseline.get(path) == observed.get(path) {
+                continue;
+            }
+            if changes.contains_key(path) {
+                return Err(Error::Conflict(path.clone()));
+            }
+            changes.insert(
+                path.clone(),
+                (
+                    observed.get(path).cloned(),
+                    source.revision.id.clone(),
+                    source.state.commit_oid.clone(),
+                ),
+            );
         }
     }
     let mut manifest = Vec::new();
     for (path, (entry, future, commit)) in changes {
-        if let Some(entry) = entry { entries.insert(path.clone(), entry); }
-        else { entries.remove(&path); }
+        if let Some(entry) = entry {
+            entries.insert(path.clone(), entry);
+        } else {
+            entries.remove(&path);
+        }
         manifest.push(ProvenanceSlice {
-            repo_id: repo_id.into(), selector: Selector { r#type: SelectorType::File, value: path.clone() },
-            path, source_future_id: future, source_commit_oid: commit,
+            repo_id: repo_id.into(),
+            selector: Selector {
+                r#type: SelectorType::File,
+                value: path.clone(),
+            },
+            path,
+            source_future_id: future,
+            source_commit_oid: commit,
         });
     }
     let mut objects = BTreeMap::new();
@@ -127,13 +172,24 @@ pub fn compose(
         canonical: CanonicalCandidateSpec {
             base_revisions: BTreeMap::from([(repo_id.into(), base_oid.to_string())]),
             selected_future_revisions: selected.into_iter().collect(),
-            composition_manifest: manifest, creation_reason: "disjoint-path-composition".into(),
+            composition_manifest: manifest,
+            creation_reason: "disjoint-path-composition".into(),
         },
-        id: String::new(), spec_digest: String::new(),
-        effect_summary_digest: canonical::hash_projection("klocgit.effect-summary", &effect_digests)?,
+        id: String::new(),
+        spec_digest: String::new(),
+        effect_summary_digest: canonical::hash_projection(
+            "klocgit.effect-summary",
+            &effect_digests,
+        )?,
     };
     spec.seal()?;
-    Ok(Composition { spec, tree_oid, tree_objects: objects, entries, metadata_bytes_read: budget.bytes })
+    Ok(Composition {
+        spec,
+        tree_oid,
+        tree_objects: objects,
+        entries,
+        metadata_bytes_read: budget.bytes,
+    })
 }
 
 /// Hydrate one blob from its pinned source. Size is checked before allocation,

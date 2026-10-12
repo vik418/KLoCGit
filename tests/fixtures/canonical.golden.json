@@ -3,18 +3,7 @@
     "name": "integers",
     "domain": "klocgit.vector",
     "projection": [
-      0,
-      23,
-      24,
-      255,
-      256,
-      65535,
-      65536,
-      4294967295,
-      4294967296,
-      -1,
-      -24,
-      -25,
+      0, 23, 24, 255, 256, 65535, 65536, 4294967295, 4294967296, -1, -24, -25,
       -1000
     ],
     "cbor_hex": "8d0017181818ff19010019ffff1a000100001affffffff1b0000000100000000203738183903e7",
@@ -41,10 +30,7 @@
   {
     "name": "ordered-array",
     "domain": "klocgit.vector",
-    "projection": [
-      "b",
-      "a"
-    ],
+    "projection": ["b", "a"],
     "cbor_hex": "8261626161",
     "expected_digest": "sha256:2a0bddca36c8b96373d03cba4ffef93371a2c5cea524adc54aa64640c70bfd3a"
   },
@@ -108,17 +94,12 @@
       "extractor_version": "1",
       "capability": "STRUCTURAL",
       "status": "COMPLETE",
-      "modified_exports": [
-        "api.ts::A",
-        "api.ts::B"
-      ],
+      "modified_exports": ["api.ts::A", "api.ts::B"],
       "added_dependencies": {
         "zod": "^3.24.0"
       },
       "db_migrations_detected": false,
-      "security_effects": [
-        "dependency-change"
-      ]
+      "security_effects": ["dependency-change"]
     },
     "cbor_hex": "a96673746174757368434f4d504c4554456a6361706162696c6974796a5354525543545552414c6c657874726163746f725f696476747265652d7369747465722e74797065736372697074706d6f6469666965645f6578706f72747382696170692e74733a3a41696170692e74733a3a427073656375726974795f656666656374738171646570656e64656e63792d6368616e676571657874726163746f725f76657273696f6e61317261646465645f646570656e64656e63696573a1637a6f64675e332e32342e30726675747572655f7265766973696f6e5f6964666675747572657664625f6d6967726174696f6e735f6465746563746564f4",
     "expected_digest": "sha256:a00ae7b8042d2192c500abab1b65d70143bab9d065ff0e6113f1200753190002"
@@ -130,9 +111,7 @@
       "base_revisions": {
         "repo": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
       },
-      "selected_future_revisions": [
-        "future"
-      ],
+      "selected_future_revisions": ["future"],
       "composition_manifest": [
         {
           "repo_id": "repo",
@@ -218,9 +197,7 @@
     "domain": "klocgit.system-revision.record",
     "projection": {
       "state_digest": "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
-      "accepted_decision_ids": [
-        "decision"
-      ],
+      "accepted_decision_ids": ["decision"],
       "composition_manifest": [
         {
           "repo_id": "repo",

@@ -51,18 +51,31 @@ pub fn analyze(
         Language::Python => "tree-sitter.python",
         Language::Go => "tree-sitter.go",
     };
-    let security_effects = changes.iter().filter(|change| change.before != change.after)
-        .filter(|change| manifests::matches(language, &change.path)
-            || change.path.split('/').any(|part| matches!(part.to_ascii_lowercase().as_str(), "auth" | "iam" | "migrations" | "migration" | "secrets" | ".github")))
-        .map(|change| format!("sensitive-path:{}", change.path)).collect();
+    let security_effects = changes
+        .iter()
+        .filter(|change| change.before != change.after)
+        .filter(|change| {
+            manifests::matches(language, &change.path)
+                || change.path.split('/').any(|part| {
+                    matches!(
+                        part.to_ascii_lowercase().as_str(),
+                        "auth" | "iam" | "migrations" | "migration" | "secrets" | ".github"
+                    )
+                })
+        })
+        .map(|change| format!("sensitive-path:{}", change.path))
+        .collect();
     let mut effects = EffectSet {
         canonical: CanonicalEffectSet {
             future_revision_id: revision_id.to_owned(),
             extractor_id: extractor_id.into(),
             extractor_version: env!("CARGO_PKG_VERSION").into(),
             capability: Capability::Structural,
-            status, modified_exports, added_dependencies,
-            db_migrations_detected: migrations, security_effects,
+            status,
+            modified_exports,
+            added_dependencies,
+            db_migrations_detected: migrations,
+            security_effects,
         },
         effect_digest: String::new(),
     };

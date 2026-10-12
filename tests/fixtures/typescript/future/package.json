@@ -1,1 +1,10 @@
-{"name":"retry-fixture","private":true,"engines":{"node":"24"},"dependencies":{"zod":"^3.24.0"}}
+{
+  "name": "retry-fixture",
+  "private": true,
+  "engines": {
+    "node": "24"
+  },
+  "dependencies": {
+    "zod": "^3.24.0"
+  }
+}
