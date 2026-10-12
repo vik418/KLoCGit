@@ -31,7 +31,7 @@ const docker = (args: string[]) =>
 function files(
   directory: string,
 ): { path: string; bytes: Uint8Array; oid: string; mode: number }[] {
-  const result: { path: string; bytes: Uint8Array; oid: string }[] = [];
+  const result: { path: string; bytes: Uint8Array; oid: string; mode: number }[] = [];
   const visit = (current: string, prefix: string) => {
     for (const entry of readdirSync(current, { withFileTypes: true })) {
       const path = prefix + entry.name;
@@ -237,17 +237,26 @@ test("ephemeral VM runs each supported toolchain without a Docker daemon or cred
       ["workspace", sourceFiles],
       ["checks", checkFiles],
     ] as const)
-      for (const file of entries)
-        call("/stage", {
-          schema_version: 1,
-          root: kind,
-          path: file.path,
-          mode: file.mode,
-          blob_oid: file.oid,
-          chunk_index: 0,
-          chunk_count: 1,
-          payload_hex: Buffer.from(file.bytes).toString("hex"),
-        });
+      for (const file of entries) {
+        const middle = Math.floor(file.bytes.length / 2);
+        const parts = [file.bytes.slice(0, middle), file.bytes.slice(middle)];
+        for (let index = 0; index < parts.length; index++) {
+          const transfer = {
+            schema_version: 1,
+            root: kind,
+            path: file.path,
+            mode: file.mode,
+            blob_oid: file.oid,
+            chunk_index: index,
+            chunk_count: parts.length,
+            payload_hex: Buffer.from(parts[index]).toString("hex"),
+          };
+          call("/stage", transfer);
+          // Redelivery acknowledges identical chunks without charging or rewriting.
+          call("/stage", transfer);
+          assert.throws(() => call("/stage", { ...transfer, payload_hex: transfer.payload_hex + "00" }));
+        }
+      }
     const measured = docker(["exec", id, ...item.version]);
     const version =
       item.language === "go"

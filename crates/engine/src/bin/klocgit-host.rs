@@ -51,10 +51,12 @@ struct Partial {
     mode: u32,
     oid: String,
     bytes: Vec<u8>,
+    chunk_hashes: Vec<[u8; 32]>,
 }
 
 struct EvaluationWorkspace {
     sources: BTreeMap<String, Partial>,
+    completed: BTreeMap<String, Partial>,
     hydrated: usize,
     sealed: bool,
 }
@@ -68,7 +70,7 @@ impl EvaluationWorkspace {
                 }
             } else { fs::create_dir(root).map_err(|error| Error::InvalidInput(error.to_string()))?; }
         }
-        Ok(Self { sources: BTreeMap::new(), hydrated: 0, sealed: false })
+        Ok(Self { sources: BTreeMap::new(), completed: BTreeMap::new(), hydrated: 0, sealed: false })
     }
 
     fn transfer(&mut self, input: Transfer) -> Result<()> {
@@ -79,26 +81,35 @@ impl EvaluationWorkspace {
         let key = format!("{}/{}", input.root, input.path);
         let bytes = decode(&input.payload_hex)?;
         let destination = PathBuf::from(format!("/{}", input.root)).join(&relative);
-        if destination.exists() || fs::symlink_metadata(&destination).is_ok() {
-            if input.chunk_index != 0 { return Err(Error::RevisionMismatch); }
-            let old = if input.mode == 0o120000 {
-                fs::read_link(&destination).map_err(|_| Error::RevisionMismatch)?.to_str().ok_or(Error::RevisionMismatch)?.as_bytes().to_vec()
-            } else { fs::read(&destination).map_err(|_| Error::RevisionMismatch)? };
-            if git2::Oid::hash_object(git2::ObjectType::Blob, &old)?.to_string() == input.blob_oid { return Ok(()); }
+        let chunk_hash: [u8; 32] = Sha256::digest(&bytes).into();
+        if let Some(record) = self.completed.get(&key) {
+            if record.chunks == input.chunk_count && record.mode == input.mode && record.oid == input.blob_oid &&
+                record.chunk_hashes.get(input.chunk_index) == Some(&chunk_hash) {
+                return Ok(());
+            }
             return Err(Error::RevisionMismatch);
         }
-        if self.sources.len() >= 100_000 { return Err(Error::LimitExceeded("transfer files")); }
+        if fs::symlink_metadata(&destination).is_ok() {
+            return Err(Error::RevisionMismatch);
+        }
+        if self.sources.len() + self.completed.len() >= 4096 && !self.sources.contains_key(&key) {
+            return Err(Error::LimitExceeded("transfer files"));
+        }
         let partial = self.sources.entry(key.clone()).or_insert_with(|| Partial {
-            next: 0, chunks: input.chunk_count, mode: input.mode, oid: input.blob_oid.clone(), bytes: vec![],
+            next: 0, chunks: input.chunk_count, mode: input.mode, oid: input.blob_oid.clone(), bytes: vec![], chunk_hashes: vec![],
         });
-        if partial.next != input.chunk_index || partial.chunks != input.chunk_count || partial.mode != input.mode || partial.oid != input.blob_oid {
+        if partial.chunks != input.chunk_count || partial.mode != input.mode || partial.oid != input.blob_oid {
             return Err(Error::RevisionMismatch);
         }
+        if input.chunk_index < partial.next {
+            return if partial.chunk_hashes.get(input.chunk_index) == Some(&chunk_hash) { Ok(()) } else { Err(Error::RevisionMismatch) };
+        }
+        if partial.next != input.chunk_index { return Err(Error::RevisionMismatch); }
         self.hydrated = self.hydrated.checked_add(bytes.len()).ok_or(Error::LimitExceeded("transfer bytes"))?;
         if self.hydrated > 64 * 1024 * 1024 || partial.bytes.len() + bytes.len() > 16 * 1024 * 1024 {
             return Err(Error::LimitExceeded("transfer bytes"));
         }
-        partial.bytes.extend(bytes); partial.next += 1;
+        partial.bytes.extend(bytes); partial.chunk_hashes.push(chunk_hash); partial.next += 1;
         if partial.next == partial.chunks {
             if git2::Oid::hash_object(git2::ObjectType::Blob, &partial.bytes)?.to_string() != partial.oid { return Err(Error::RevisionMismatch); }
             let root = PathBuf::from(format!("/{}", input.root));
@@ -130,7 +141,9 @@ impl EvaluationWorkspace {
                         .map_err(|error| Error::InvalidInput(error.to_string()))?;
                 }
             }
-            self.sources.remove(&key);
+            let mut record = self.sources.remove(&key).ok_or(Error::RevisionMismatch)?;
+            record.bytes = Vec::new();
+            self.completed.insert(key, record);
         }
         Ok(())
     }

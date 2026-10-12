@@ -2,6 +2,8 @@ use crate::{Error, Result};
 use serde::{Deserialize, Serialize};
 use std::collections::BTreeMap;
 use std::process::{Command, Stdio};
+use std::thread;
+use std::time::{Duration, Instant};
 
 #[derive(Deserialize)]
 #[serde(deny_unknown_fields)]
@@ -48,22 +50,25 @@ impl Executor {
         git2::Oid::from_str(&input.expected_oid)?; git2::Oid::from_str(&input.target_oid)?;
         let scratch = tempfile::tempdir().map_err(|error| Error::InvalidInput(error.to_string()))?;
         let directory = scratch.path();
+        let deadline = Instant::now() + Duration::from_secs(90);
         let run = |args: &[&str]| -> Result<String> {
             let mut command = Command::new("/usr/bin/git");
             command.env_clear().env("PATH", "/usr/local/bin:/usr/bin:/bin")
                 .env("GIT_TERMINAL_PROMPT", "0").env("GIT_CONFIG_NOSYSTEM", "1").env("GIT_CONFIG_GLOBAL", "/dev/null")
-                .env("GIT_CONFIG_COUNT", "5")
+                .env("GIT_CONFIG_COUNT", "7")
                 .env("GIT_CONFIG_KEY_0", format!("http.{}.extraHeader", input.remote))
                 .env("GIT_CONFIG_VALUE_0", format!("Authorization: Bearer {}", input.artifact_token))
                 .env("GIT_CONFIG_KEY_1", "http.followRedirects").env("GIT_CONFIG_VALUE_1", "false")
                 .env("GIT_CONFIG_KEY_2", "core.hooksPath").env("GIT_CONFIG_VALUE_2", "/dev/null")
                 .env("GIT_CONFIG_KEY_3", "protocol.file.allow").env("GIT_CONFIG_VALUE_3", "never")
-                .env("GIT_CONFIG_KEY_4", "protocol.ext.allow").env("GIT_CONFIG_VALUE_4", "never");
+                .env("GIT_CONFIG_KEY_4", "protocol.ext.allow").env("GIT_CONFIG_VALUE_4", "never")
+                .env("GIT_CONFIG_KEY_5", "http.lowSpeedLimit").env("GIT_CONFIG_VALUE_5", "1")
+                .env("GIT_CONFIG_KEY_6", "http.lowSpeedTime").env("GIT_CONFIG_VALUE_6", "15");
             if let Some(certificates) = std::env::var_os("SSL_CERT_FILE") { command.env("GIT_SSL_CAINFO", certificates); }
-            let output = command.current_dir(directory).args(args).stdin(Stdio::null()).output()
-                .map_err(|_| Error::InvalidInput("Git executor process failed".into()))?;
-            if !output.status.success() { return Err(Error::InvalidInput("Git command outcome requires reconciliation".into())); }
-            String::from_utf8(output.stdout).map(|value| value.trim().to_string()).map_err(|_| Error::RevisionMismatch)
+            command.current_dir(directory).args(args);
+            let remaining = deadline.checked_duration_since(Instant::now())
+                .ok_or_else(|| Error::InvalidInput("Git command outcome requires reconciliation".into()))?;
+            bounded_output(&mut command, remaining)
         };
         run(&["check-ref-format", &input.ref_name])?;
         let observed = run(&["ls-remote", "--refs", "--exit-code", &input.remote, &input.ref_name])?;
@@ -85,5 +90,59 @@ impl Executor {
             target_oid: input.target_oid, operation_digest: input.operation_digest };
         self.receipts.insert(input.idempotency_key, receipt.clone());
         Ok(receipt)
+    }
+}
+
+fn bounded_output(command: &mut Command, timeout: Duration) -> Result<String> {
+    command.stdin(Stdio::null()).stdout(Stdio::piped()).stderr(Stdio::piped());
+    #[cfg(unix)] {
+        use std::os::unix::process::CommandExt;
+        command.process_group(0);
+    }
+    let mut child = command.spawn().map_err(|_| Error::InvalidInput("Git executor process failed".into()))?;
+    let stdout = child.stdout.take().ok_or(Error::RevisionMismatch)?;
+    let stderr = child.stderr.take().ok_or(Error::RevisionMismatch)?;
+    // Drain both pipes without retaining transport diagnostics or credentials.
+    let stdout = thread::spawn(move || crate::sandbox::drain(stdout, 512 * 1024));
+    let stderr = thread::spawn(move || crate::sandbox::drain(stderr, 0));
+    let started = Instant::now();
+    let status = loop {
+        if let Some(status) = child.try_wait().map_err(|_| Error::InvalidInput("Git wait failed".into()))? { break Some(status); }
+        if started.elapsed() >= timeout {
+            #[cfg(unix)] unsafe { libc::kill(-(child.id() as i32), libc::SIGKILL); }
+            let _ = child.kill(); let _ = child.wait(); break None;
+        }
+        thread::sleep(Duration::from_millis(10));
+    };
+    #[cfg(unix)] unsafe { libc::kill(-(child.id() as i32), libc::SIGKILL); }
+    let (output, truncated) = stdout.join().map_err(|_| Error::RevisionMismatch)?;
+    let _ = stderr.join().map_err(|_| Error::RevisionMismatch)?;
+    if !status.is_some_and(|status| status.success()) || truncated {
+        return Err(Error::InvalidInput("Git command outcome requires reconciliation".into()));
+    }
+    String::from_utf8(output).map(|value| value.trim().to_string()).map_err(|_| Error::RevisionMismatch)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn transport_process_timeout_is_bounded_and_ambiguous() {
+        let mut command = Command::new("/bin/sh");
+        command.args(["-c", "sleep 30"]);
+        let started = Instant::now();
+        assert!(bounded_output(&mut command, Duration::from_millis(30)).is_err());
+        assert!(started.elapsed() < Duration::from_secs(2));
+    }
+
+    #[test]
+    fn transport_output_is_bounded_and_diagnostics_are_not_returned() {
+        let mut command = Command::new("/bin/sh");
+        command.args(["-c", "printf ok; printf private-diagnostic >&2"]);
+        assert_eq!(bounded_output(&mut command, Duration::from_secs(2)).unwrap(), "ok");
+        let mut command = Command::new("/bin/sh");
+        command.args(["-c", "head -c 600000 /dev/zero"]);
+        assert!(bounded_output(&mut command, Duration::from_secs(2)).is_err());
     }
 }
