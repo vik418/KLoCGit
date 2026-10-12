@@ -1,5 +1,8 @@
 export { ContainerProxy } from "@cloudflare/containers";
-import { hashProjection, payloadDigest } from "../../../../packages/contracts/src/index.ts";
+import {
+  hashProjection,
+  payloadDigest,
+} from "../../../../packages/contracts/src/index.ts";
 import { signToken, verifyInternal, sameScope } from "../auth.ts";
 import {
   Failure,
@@ -284,23 +287,59 @@ export default {
             idempotency_key: input.idempotency_key,
             operation_digest: input.operation_digest,
           });
-        let pack: { pack_hex: string; pack_payload_digest: string; candidate_tree_oid: string } | undefined;
+        let pack:
+          | {
+              pack_hex: string;
+              pack_payload_digest: string;
+              candidate_tree_oid: string;
+            }
+          | undefined;
         if (input.promotion_pack) {
           const locator = input.promotion_pack;
           oid(locator.tree_oid);
-          if (!/^sha256:[0-9a-f]{64}$/.test(locator.payload_digest) || !/^sha256:[0-9a-f]{64}$/.test(locator.candidate_digest))
-            throw new Failure("INVALID_INPUT", 400, "Invalid promotion pack identity");
-          const key = "promotion-packs/" + await hashProjection("klocgit.promotion-pack.scope", input.scope) + "/" + locator.payload_digest.slice(7);
+          if (
+            !/^sha256:[0-9a-f]{64}$/.test(locator.payload_digest) ||
+            !/^sha256:[0-9a-f]{64}$/.test(locator.candidate_digest)
+          )
+            throw new Failure(
+              "INVALID_INPUT",
+              400,
+              "Invalid promotion pack identity",
+            );
+          const key =
+            "promotion-packs/" +
+            (await hashProjection(
+              "klocgit.promotion-pack.scope",
+              input.scope,
+            )) +
+            "/" +
+            locator.payload_digest.slice(7);
           const object = await env.PAYLOADS.get(key);
           if (!object || object.size > 8 * 1024 * 1024)
-            throw new Failure("PROMOTION_PACK_MISSING", 409, "Authorized promotion pack is unavailable");
+            throw new Failure(
+              "PROMOTION_PACK_MISSING",
+              409,
+              "Authorized promotion pack is unavailable",
+            );
           const bytes = new Uint8Array(await object.arrayBuffer());
-          if (await payloadDigest(bytes) !== locator.payload_digest)
-            throw new Failure("PROMOTION_PACK_CORRUPT", 409, "Promotion pack bytes differ");
+          if ((await payloadDigest(bytes)) !== locator.payload_digest)
+            throw new Failure(
+              "PROMOTION_PACK_CORRUPT",
+              409,
+              "Promotion pack bytes differ",
+            );
           const encoded: string[] = [];
           for (let offset = 0; offset < bytes.length; offset += 65536)
-            encoded.push(Array.from(bytes.subarray(offset, offset + 65536), byte => byte.toString(16).padStart(2, "0")).join(""));
-          pack = { pack_hex: encoded.join(""), pack_payload_digest: locator.payload_digest, candidate_tree_oid: locator.tree_oid };
+            encoded.push(
+              Array.from(bytes.subarray(offset, offset + 65536), (byte) =>
+                byte.toString(16).padStart(2, "0"),
+              ).join(""),
+            );
+          pack = {
+            pack_hex: encoded.join(""),
+            pack_payload_digest: locator.payload_digest,
+            candidate_tree_oid: locator.tree_oid,
+          };
         }
         const info = await repo.info();
         const token = await repo.createToken("write", 180);

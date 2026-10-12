@@ -252,7 +252,10 @@ pub fn tree_oid(directory: &Path, limits: Limits, hydration: HydrationBudget) ->
 }
 
 pub(super) fn tree_oid_with_objects(
-    directory: &Path, limits: Limits, hydration: HydrationBudget, repository: Option<&Repository>,
+    directory: &Path,
+    limits: Limits,
+    hydration: HydrationBudget,
+    repository: Option<&Repository>,
 ) -> Result<Oid> {
     fn visit(
         root: &Path,
@@ -288,7 +291,16 @@ pub(super) fn tree_oid_with_objects(
             let metadata = fs::symlink_metadata(&path)
                 .map_err(|error| Error::InvalidInput(error.to_string()))?;
             if metadata.is_dir() {
-                visit(root, &path, depth + 1, limits, hydration, entries, total, odb)?;
+                visit(
+                    root,
+                    &path,
+                    depth + 1,
+                    limits,
+                    hydration,
+                    entries,
+                    total,
+                    odb,
+                )?;
                 continue;
             }
             if entries.len() >= limits.max_entries {
@@ -354,7 +366,9 @@ pub(super) fn tree_oid_with_objects(
             }
             let oid = Oid::hash_object(git2::ObjectType::Blob, &contents)?;
             if let Some(odb) = odb {
-                if odb.write(git2::ObjectType::Blob, &contents)? != oid { return Err(Error::RevisionMismatch); }
+                if odb.write(git2::ObjectType::Blob, &contents)? != oid {
+                    return Err(Error::RevisionMismatch);
+                }
             }
             entries.insert(key, super::Entry { oid, mode });
         }
@@ -376,7 +390,9 @@ pub(super) fn tree_oid_with_objects(
     let tree_oid = super::synthesize_tree(&entries, &mut trees, limits)?;
     if let Some(odb) = odb {
         for (oid, bytes) in trees {
-            if odb.write(git2::ObjectType::Tree, &bytes)? != oid { return Err(Error::RevisionMismatch); }
+            if odb.write(git2::ObjectType::Tree, &bytes)? != oid {
+                return Err(Error::RevisionMismatch);
+            }
         }
     }
     Ok(tree_oid)

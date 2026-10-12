@@ -339,21 +339,39 @@ fn main() -> std::result::Result<(), Box<dyn std::error::Error>> {
                     #[derive(Deserialize)]
                     #[serde(deny_unknown_fields)]
                     struct Preparation {
-                        schema_version: u32, candidate_digest: String, repo_id: String,
-                        expected_oid: String, decision_id: String, basis_digest: String,
-                        author: klocgit_engine::git::commit::Author, max_pack_bytes: usize,
+                        schema_version: u32,
+                        candidate_digest: String,
+                        repo_id: String,
+                        expected_oid: String,
+                        decision_id: String,
+                        basis_digest: String,
+                        author: klocgit_engine::git::commit::Author,
+                        max_pack_bytes: usize,
                     }
                     let input: Preparation = serde_json::from_slice(&bytes)?;
                     let (workspace, _) = materialized.as_ref().ok_or(Error::RevisionMismatch)?;
-                    if input.schema_version != 1 || input.candidate_digest != workspace.candidate.candidate_digest ||
-                        input.max_pack_bytes > 8 * 1024 * 1024 { return Err(Error::RevisionMismatch); }
-                    let prepared = klocgit_engine::git::commit::prepare(workspace.path(), &workspace.candidate,
-                        &input.repo_id, git2::Oid::from_str(&input.expected_oid)?, &input.decision_id,
-                        &input.basis_digest, &input.author, input.max_pack_bytes)?;
-                    json(serde_json::json!({ "schema_version": 1, "candidate_digest": workspace.candidate.candidate_digest,
+                    if input.schema_version != 1
+                        || input.candidate_digest != workspace.candidate.candidate_digest
+                        || input.max_pack_bytes > 8 * 1024 * 1024
+                    {
+                        return Err(Error::RevisionMismatch);
+                    }
+                    let prepared = klocgit_engine::git::commit::prepare(
+                        workspace.path(),
+                        &workspace.candidate,
+                        &input.repo_id,
+                        git2::Oid::from_str(&input.expected_oid)?,
+                        &input.decision_id,
+                        &input.basis_digest,
+                        &input.author,
+                        input.max_pack_bytes,
+                    )?;
+                    json(
+                        serde_json::json!({ "schema_version": 1, "candidate_digest": workspace.candidate.candidate_digest,
                         "target_oid": prepared.target_oid.to_string(), "tree_oid": prepared.tree_oid.to_string(),
                         "expected_oid": prepared.expected_oid.to_string(), "payload_digest": prepared.payload_digest,
-                        "pack_hex": prepared.pack.iter().map(|byte| format!("{byte:02x}")).collect::<String>() }))
+                        "pack_hex": prepared.pack.iter().map(|byte| format!("{byte:02x}")).collect::<String>() }),
+                    )
                 }
                 ("analysis", "/workspace/blob") => {
                     #[derive(Deserialize)]

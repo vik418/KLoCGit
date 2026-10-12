@@ -7,7 +7,10 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { createServer as portServer } from "node:net";
 import test from "node:test";
-import { hashProjection, sealCandidate } from "../../../packages/contracts/src/index.ts";
+import {
+  hashProjection,
+  sealCandidate,
+} from "../../../packages/contracts/src/index.ts";
 
 const image = process.env.KLOCGIT_NATIVE_IMAGE;
 assert.match(image ?? "", /^sha256:[0-9a-f]{64}$/);
@@ -167,11 +170,17 @@ test("native receive-pack CAS rejects stale and concurrent promotions and retain
             status = Number(value.split(" ")[0]);
           else response.setHeader(name, value);
         }
-        const finish = () => response.writeHead(status).end(bytes.subarray(boundary + 4));
-      if (url.pathname.endsWith("/info/refs") && url.searchParams.get("service") === "git-upload-pack" && initialReads.length < 2) {
-        initialReads.push(finish);
-        if (initialReads.length === 2) initialReads.forEach(finish => finish());
-      } else finish();
+        const finish = () =>
+          response.writeHead(status).end(bytes.subarray(boundary + 4));
+        if (
+          url.pathname.endsWith("/info/refs") &&
+          url.searchParams.get("service") === "git-upload-pack" &&
+          initialReads.length < 2
+        ) {
+          initialReads.push(finish);
+          if (initialReads.length === 2)
+            initialReads.forEach((finish) => finish());
+        } else finish();
       });
       backend.on("error", () => response.writeHead(502).end());
     },
@@ -271,7 +280,11 @@ test("native receive-pack CAS rejects stale and concurrent promotions and retain
     .filter(({ outcome }) => outcome.body.status === "APPLIED");
   assert.equal(applied.length, 1, JSON.stringify(outcomes));
   const winner = applied[0].index;
-  assert.equal(outcomes[1 - winner].body.status, "NO_EFFECT", JSON.stringify(outcomes));
+  assert.equal(
+    outcomes[1 - winner].body.status,
+    "NO_EFFECT",
+    JSON.stringify(outcomes),
+  );
   assert.equal(
     git(["--git-dir", remote, "rev-parse", "refs/heads/main"]),
     targets[winner],
@@ -294,38 +307,123 @@ test("native receive-pack CAS rejects stale and concurrent promotions and retain
   writeFileSync(join(workspace, "state.txt"), "novel composed state");
   const localObjects = join(directory, "candidate-objects.git");
   git(["init", "--bare", localObjects]);
-  const novelBlob = git(["--git-dir", localObjects, "hash-object", "-w", "--stdin"], "novel composed state");
-  const scratchTree = git(["--git-dir", localObjects, "mktree"], "100644 blob " + novelBlob + "\tstate.txt\n");
-  const candidate = await sealCandidate({ candidate_spec_id: await hashProjection("test.novel-spec", {}), repo_tree_oids: { repo: scratchTree },
-    materialization_record: { executor_id: "test", materialized_at: new Date().toISOString(), conflicts_encountered: [] } });
-  const basis_digest = await hashProjection("test.novel-basis", { candidate_digest: candidate.candidate_digest });
-  const prepare = JSON.parse(execFileSync("target/debug/klocgit-engine", [], {
-    input: JSON.stringify({ operation: "prepare_commit", workspace, candidate, repo_id: "repo", expected_oid: targets[winner],
-      decision_id: "novel-decision", basis_digest, author: { name: "Engineer", email: "engineer@example.test", unix_timestamp: 1700000000 },
-      max_pack_bytes: 1024 * 1024 }), encoding: "utf8",
-  }));
-  assert.throws(() => git(["--git-dir", remote, "cat-file", "-e", prepare.target_oid]));
-  assert.throws(() => git(["--git-dir", remote, "cat-file", "-e", prepare.tree_oid]));
-  const novelOperation = { scope, ref: "refs/heads/main", expected_oid: targets[winner], target_oid: prepare.target_oid, idempotency_key: randomUUID() };
-  const novel = await instances[winner].call("/git/cas", { schema_version: 1, remote: remoteUrl, artifact_token: transportToken,
-    ref_name: novelOperation.ref, expected_oid: novelOperation.expected_oid, target_oid: novelOperation.target_oid,
-    idempotency_key: novelOperation.idempotency_key, operation_digest: await hashProjection("klocgit.git-cas", novelOperation),
-    pack_hex: prepare.pack_hex, pack_payload_digest: prepare.payload_digest, candidate_tree_oid: prepare.tree_oid });
+  const novelBlob = git(
+    ["--git-dir", localObjects, "hash-object", "-w", "--stdin"],
+    "novel composed state",
+  );
+  const scratchTree = git(
+    ["--git-dir", localObjects, "mktree"],
+    "100644 blob " + novelBlob + "\tstate.txt\n",
+  );
+  const candidate = await sealCandidate({
+    candidate_spec_id: await hashProjection("test.novel-spec", {}),
+    repo_tree_oids: { repo: scratchTree },
+    materialization_record: {
+      executor_id: "test",
+      materialized_at: new Date().toISOString(),
+      conflicts_encountered: [],
+    },
+  });
+  const basis_digest = await hashProjection("test.novel-basis", {
+    candidate_digest: candidate.candidate_digest,
+  });
+  const prepare = JSON.parse(
+    execFileSync("target/debug/klocgit-engine", [], {
+      input: JSON.stringify({
+        operation: "prepare_commit",
+        workspace,
+        candidate,
+        repo_id: "repo",
+        expected_oid: targets[winner],
+        decision_id: "novel-decision",
+        basis_digest,
+        author: {
+          name: "Engineer",
+          email: "engineer@example.test",
+          unix_timestamp: 1700000000,
+        },
+        max_pack_bytes: 1024 * 1024,
+      }),
+      encoding: "utf8",
+    }),
+  );
+  assert.throws(() =>
+    git(["--git-dir", remote, "cat-file", "-e", prepare.target_oid]),
+  );
+  assert.throws(() =>
+    git(["--git-dir", remote, "cat-file", "-e", prepare.tree_oid]),
+  );
+  const novelOperation = {
+    scope,
+    ref: "refs/heads/main",
+    expected_oid: targets[winner],
+    target_oid: prepare.target_oid,
+    idempotency_key: randomUUID(),
+  };
+  const novel = await instances[winner].call("/git/cas", {
+    schema_version: 1,
+    remote: remoteUrl,
+    artifact_token: transportToken,
+    ref_name: novelOperation.ref,
+    expected_oid: novelOperation.expected_oid,
+    target_oid: novelOperation.target_oid,
+    idempotency_key: novelOperation.idempotency_key,
+    operation_digest: await hashProjection("klocgit.git-cas", novelOperation),
+    pack_hex: prepare.pack_hex,
+    pack_payload_digest: prepare.payload_digest,
+    candidate_tree_oid: prepare.tree_oid,
+  });
   assert.equal(novel.body.status, "APPLIED", JSON.stringify(novel));
-  assert.equal(git(["--git-dir", remote, "rev-parse", "refs/heads/main"]), prepare.target_oid);
-  assert.equal(git(["--git-dir", remote, "show", "refs/heads/main:state.txt"]), "novel composed state");
-  assert.equal(git(["--git-dir", remote, "rev-parse", "refs/heads/main^"]), targets[winner]);
+  assert.equal(
+    git(["--git-dir", remote, "rev-parse", "refs/heads/main"]),
+    prepare.target_oid,
+  );
+  assert.equal(
+    git(["--git-dir", remote, "show", "refs/heads/main:state.txt"]),
+    "novel composed state",
+  );
+  assert.equal(
+    git(["--git-dir", remote, "rev-parse", "refs/heads/main^"]),
+    targets[winner],
+  );
 
   initialReads.length = 0;
-  const sameTargetCommands = await Promise.all(instances.map(async () => {
-    const command = { scope, ref: "refs/heads/main", expected_oid: prepare.target_oid, target_oid: targets[1 - winner], idempotency_key: randomUUID() };
-    return { schema_version: 1, remote: remoteUrl, artifact_token: transportToken, ref_name: command.ref,
-      expected_oid: command.expected_oid, target_oid: command.target_oid, idempotency_key: command.idempotency_key,
-      operation_digest: await hashProjection("klocgit.git-cas", command) };
-  }));
-  const sameTarget = await Promise.all(instances.map((instance, index) => instance.call("/git/cas", sameTargetCommands[index])));
-  assert.equal(sameTarget.filter(outcome => outcome.body.status === "APPLIED").length, 1, JSON.stringify(sameTarget));
-  assert.equal(sameTarget.filter(outcome => outcome.body.status === "NO_EFFECT").length, 1, JSON.stringify(sameTarget));
+  const sameTargetCommands = await Promise.all(
+    instances.map(async () => {
+      const command = {
+        scope,
+        ref: "refs/heads/main",
+        expected_oid: prepare.target_oid,
+        target_oid: targets[1 - winner],
+        idempotency_key: randomUUID(),
+      };
+      return {
+        schema_version: 1,
+        remote: remoteUrl,
+        artifact_token: transportToken,
+        ref_name: command.ref,
+        expected_oid: command.expected_oid,
+        target_oid: command.target_oid,
+        idempotency_key: command.idempotency_key,
+        operation_digest: await hashProjection("klocgit.git-cas", command),
+      };
+    }),
+  );
+  const sameTarget = await Promise.all(
+    instances.map((instance, index) =>
+      instance.call("/git/cas", sameTargetCommands[index]),
+    ),
+  );
+  assert.equal(
+    sameTarget.filter((outcome) => outcome.body.status === "APPLIED").length,
+    1,
+    JSON.stringify(sameTarget),
+  );
+  assert.equal(
+    sameTarget.filter((outcome) => outcome.body.status === "NO_EFFECT").length,
+    1,
+    JSON.stringify(sameTarget),
+  );
   const fresh = await instances[1 - winner].call("/git/operation", {
     idempotency_key: commands[winner].idempotency_key,
     operation_digest: commands[winner].operation_digest,
