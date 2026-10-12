@@ -1,5 +1,10 @@
 import assert from "node:assert/strict";
-import { execFileSync } from "node:child_process";
+import { execFileSync, execFile } from "node:child_process";
+import { createServer } from "node:https";
+import { randomBytes } from "node:crypto";
+import { readObject } from "../src/routes/objects.ts";
+import { signToken } from "../src/auth.ts";
+import type { Bindings } from "../src/runtime.ts";
 import {
   chmodSync,
   cpSync,
@@ -26,16 +31,41 @@ const image_oid = process.env.KLOCGIT_SANDBOX_IMAGE;
 assert.match(image_oid ?? "", /^sha256:[0-9a-f]{64}$/);
 
 // Fixture toolchains are measured from the exact image used by the runner.
-const version = (command: string[]) => execFileSync("docker", [
-  "--host=unix:///var/run/docker.sock", "run", "--rm", "--network=none",
-  "--env=HTTP_PROXY=", "--env=HTTPS_PROXY=", image_oid!, ...command,
-], { encoding: "utf8", timeout: 30_000 }).trim();
-const fixtureMatrix = { schema_version: 1, entries: [
-  { language: "typescript", version: version(["node", "--version"]).replace(/^v/, ""), image_oid },
-  { language: "python", version: version(["python", "--version"]).replace(/^Python /, ""), image_oid },
-  { language: "go", version: version(["go", "version"]).split(" ")[2].replace(/^go/, ""), image_oid },
-] };
-
+const version = (command: string[]) =>
+  execFileSync(
+    "docker",
+    [
+      "--host=unix:///var/run/docker.sock",
+      "run",
+      "--rm",
+      "--network=none",
+      "--env=HTTP_PROXY=",
+      "--env=HTTPS_PROXY=",
+      image_oid!,
+      ...command,
+    ],
+    { encoding: "utf8", timeout: 30_000 },
+  ).trim();
+const fixtureMatrix = {
+  schema_version: 1,
+  entries: [
+    {
+      language: "typescript",
+      version: version(["node", "--version"]).replace(/^v/, ""),
+      image_oid,
+    },
+    {
+      language: "python",
+      version: version(["python", "--version"]).replace(/^Python /, ""),
+      image_oid,
+    },
+    {
+      language: "go",
+      version: version(["go", "version"]).split(" ")[2].replace(/^go/, ""),
+      image_oid,
+    },
+  ],
+};
 
 async function snapshot(
   directory: string,
@@ -82,7 +112,11 @@ async function evaluate(
     evaluator_id: "trusted-sandbox",
     evaluator_version: "1",
     image_oid,
-    language: workspace.endsWith("python") ? "python" : workspace.endsWith("go") ? "go" : "typescript",
+    language: workspace.endsWith("python")
+      ? "python"
+      : workspace.endsWith("go")
+        ? "go"
+        : "typescript",
     supported_toolchains: fixtureMatrix,
     trusted_suite_state_digest: await hashProjection("klocgit.trusted-suite", {
       tree_oid: trusted.tree_oid,
@@ -429,4 +463,97 @@ test("isolated futures pass while their clean composition exposes a semantic int
     outcomes.push(result.evidence.result);
   }
   assert.deepEqual(outcomes, ["PASSED", "PASSED", "FAILED"]);
+});
+
+test("native materialization hydrates pinned Artifacts objects over an authenticated broker", async (t) => {
+  const certificateDirectory = mkdtempSync(join(tmpdir(), "klocgit-broker-tls-"));
+  const directory = mkdtempSync(join(tmpdir(), "klocgit-broker-source-"));
+  t.after(() => { rmSync(certificateDirectory, { recursive: true, force: true }); rmSync(directory, { recursive: true, force: true }); });
+  cpSync(join(fixtures, "typescript"), directory, { recursive: true });
+  const git = (args: string[]) => execFileSync("git", ["-C", directory, ...args], { encoding: "utf8", stdio: ["pipe", "pipe", "pipe"] }).trim();
+  git(["init"]); git(["config", "user.name", "Fixture"]); git(["config", "user.email", "fixture@example.org"]);
+  writeFileSync(join(directory, "api.ts"), "export function retries(): number { return 0; }\n");
+  writeFileSync(join(directory, "removed.bin"), Buffer.alloc(1024 * 1024, 8));
+  git(["add", "."]); git(["commit", "-m", "baseline"]);
+  const base = git(["rev-parse", "HEAD"]);
+  const removedBlob = git(["rev-parse", base + ":removed.bin"]);
+  const before = readFileSync(join(directory, "api.ts"), "utf8");
+  const after = "export function retries(): number { return 1; }\n";
+  writeFileSync(join(directory, "api.ts"), after);
+  rmSync(join(directory, "removed.bin")); git(["add", "."]); git(["commit", "-m", "candidate"]);
+  const oid = git(["rev-parse", "HEAD"]);
+  const state = { repo_id: "repo", commit_oid: oid, tree_oid: git(["rev-parse", oid + "^{tree}"]),
+    parent_oids: git(["show", "-s", "--format=%P", oid]).split(" ").filter(Boolean) };
+  const revision = await sealFutureRevision(state, {
+    system_id: "product", ref: "refs/futures/fixture/task", producer: { actor_id: "fixture" }, observed_at: new Date().toISOString(),
+  });
+  const native = (input: unknown) => JSON.parse(execFileSync("cargo",
+    ["run", "--quiet", "-p", "klocgit-engine", "--bin", "klocgit-engine"],
+    { cwd: root, input: JSON.stringify(input), encoding: "utf8", timeout: 180_000 }));
+  const effects = native({ operation: "analyze", future_revision_id: revision.id, language: "typescript",
+    changes: [{ path: "api.ts", before, after }] });
+  const reduction = native({ operation: "reduce", base_revisions: { repo: base },
+    futures: [{ state, revision, effects, changed_paths: ["api.ts", "removed.bin"], required_future_ids: [] }],
+    budget: { max_candidates: 8, max_futures: 100, max_footprint_entries: 1000, max_output_bytes: 1000000 } });
+  const cert = join(certificateDirectory, "cert.pem"); const key = join(certificateDirectory, "key.pem");
+  execFileSync("openssl", ["req", "-x509", "-newkey", "rsa:2048", "-nodes", "-keyout", key, "-out", cert,
+    "-days", "1", "-subj", "/CN=127.0.0.1", "-addext", "subjectAltName=IP:127.0.0.1"], { stdio: "ignore" });
+  const scope = { tenant_id: "tenant", organization_id: "organization", repo_id: "repo", objective_id: "task" };
+  const objectReads: { kind: string; oid: string }[] = [];
+  const repository = {
+    readCommit: async (hash: string) => ({ hash, treeHash: git(["rev-parse", hash + "^{tree}"]),
+      parents: git(["show", "-s", "--format=%P", hash]).split(" ").filter(Boolean) }),
+    readTree: async (hash: string) => git(["ls-tree", hash]).split("\n").filter(Boolean).map(line => {
+      const [head, name] = line.split("\t"); const [mode, type, hash] = head.split(" ");
+      return { name, mode: mode === "040000" ? "40000" : mode, hash,
+        type: type === "tree" ? "tree" : mode === "100755" ? "exec" : mode === "120000" ? "symlink" : mode === "160000" ? "gitlink" : "blob" };
+    }),
+    readBlob: async (hash: string) => new Blob([execFileSync("git", ["-C", directory, "cat-file", "blob", hash])]),
+    [Symbol.dispose]: () => {},
+  };
+  const secret = randomBytes(32).toString("hex");
+  const env = { INTERNAL_SIGNING_KEY: secret, ARTIFACTS_REPOSITORIES: JSON.stringify([{ ...scope, artifacts_name: "fixture" }]),
+    ARTIFACTS: { get: async () => repository } } as unknown as Bindings;
+  const token = await signToken({ schema_version: 1, aud: "git-objects", action: "read", scope,
+    expires_at: Date.now() + 300000, max_object_bytes: 16 * 1024 * 1024 }, secret);
+  const server = createServer({ key: readFileSync(key), cert: readFileSync(cert) }, async (request, response) => {
+    try {
+      const chunks = []; for await (const chunk of request) chunks.push(chunk);
+      const body = Buffer.concat(chunks); const input = JSON.parse(body.toString("utf8")); objectReads.push({ kind: input.kind, oid: input.oid });
+      const headers = Object.fromEntries(Object.entries(request.headers).filter(([, value]) => typeof value === "string"));
+      const result = await readObject(new Request("https://broker.test/internal/git-objects", {
+        method: "POST", headers: headers as Record<string, string>, body,
+      }), env);
+      response.writeHead(result.status, Object.fromEntries(result.headers)); response.end(Buffer.from(await result.arrayBuffer()));
+    } catch { response.writeHead(500); response.end(); }
+  });
+  await new Promise<void>(resolve => server.listen(0, "127.0.0.1", resolve));
+  t.after(() => new Promise<void>((resolve, reject) => server.close(error => error ? reject(error) : resolve())));
+  const address = server.address(); assert(address && typeof address !== "string");
+  const trusted = await snapshot(join(fixtures, "typescript-checks")); t.after(() => trusted.dispose());
+  const policy = { schema_version: 1, evaluator_id: "trusted-broker-checks", evaluator_version: "1",
+    image_oid, language: "typescript", supported_toolchains: fixtureMatrix,
+    trusted_suite_state_digest: await hashProjection("klocgit.trusted-suite", { tree_oid: trusted.tree_oid }),
+    checks: [{ id: "vitest", command: ["node", "/opt/node-tools/node_modules/vitest/vitest.mjs", "run",
+      "--globals", "--root", "/checks", "--config", "/checks/vitest.config.cjs"] }],
+    timeout_ms: 60000, memory_bytes: 536870912, pids_limit: 256, max_log_bytes: 65536 };
+  const input = {
+    operation: "evaluate_objects", broker_endpoint: "https://127.0.0.1:" + address.port + "/internal/git-objects",
+    read_capability: token, scope, candidate_spec: reduction.candidate_specs[0],
+    sources: [{ state, revision, effects }], trusted_suite: trusted.location, policy,
+  };
+  const output = await new Promise<string>((resolve, reject) => {
+    const child = execFile("cargo", ["run", "--quiet", "-p", "klocgit-engine", "--bin", "klocgit-engine"], {
+      cwd: root, encoding: "utf8", timeout: 180000, maxBuffer: 8 * 1024 * 1024,
+      env: { ...process.env, SSL_CERT_FILE: cert },
+    }, (error, stdout) => error ? reject(error) : resolve(stdout));
+    child.stdin!.end(JSON.stringify(input));
+  });
+  const result = JSON.parse(output);
+  assert.equal(result.evidence.result, "PASSED", JSON.stringify(result.receipt));
+  assert.equal(result.evidence.subject_digest, result.candidate.candidate_digest);
+  assert(!objectReads.some(read => read.kind === "blob" && read.oid === removedBlob));
+  assert(objectReads.some(read => read.kind === "tree"));
+  assert(result.hydrated_bytes < 1024 * 1024);
+  assert.equal(git(["rev-parse", "HEAD"]), oid);
 });
