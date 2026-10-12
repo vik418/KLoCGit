@@ -10,7 +10,7 @@ RUN --mount=type=secret,id=proxy_ca \
     certificate=/etc/ssl/certs/ca-certificates.crt; \
     if [ -f /run/secrets/proxy_ca ]; then certificate=/run/secrets/proxy_ca; fi; \
     apt-get -o Acquire::https::CaInfo="$certificate" update && \
-    apt-get -o Acquire::https::CaInfo="$certificate" install -y --no-install-recommends gcc libc6-dev ca-certificates && \
+    apt-get -o Acquire::https::CaInfo="$certificate" install -y --no-install-recommends gcc libc6-dev ca-certificates passwd && \
     rm -rf /var/lib/apt/lists/* && \
     useradd --uid 10001 --create-home klocgit
 RUN --mount=type=secret,id=proxy_ca \
