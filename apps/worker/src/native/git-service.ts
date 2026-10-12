@@ -1,3 +1,4 @@
+export { ContainerProxy } from "@cloudflare/containers";
 import { hashProjection } from "../../../../packages/contracts/src/index.ts";
 import { signToken, verifyInternal, sameScope } from "../auth.ts";
 import { Failure, failureResponse, readJson, validateScope } from "../runtime.ts";
@@ -30,6 +31,7 @@ function repositoryName(env: GitBindings, scope: Scope): string {
 export class GitContainer extends NativeContainer {
   protected role = "git";
   interceptHttps = true;
+  static outbound = async (): Promise<Response> => new Response("Forbidden", { status: 403 });
 
   static outboundHandlers: typeof NativeContainer.outboundHandlers = {
     git: async (request, _env, context): Promise<Response> => {

@@ -1,3 +1,4 @@
+export { ContainerProxy } from "@cloudflare/containers";
 import {
   hashProjection,
   payloadDigest,
