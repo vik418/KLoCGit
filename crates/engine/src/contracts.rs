@@ -229,7 +229,8 @@ pub enum AnalysisStatus {
     Unsupported,
     Failed,
 }
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "lowercase")]
 pub enum Language {
     Typescript,
     Python,
@@ -292,10 +293,10 @@ impl CandidateSpec {
             || self.selected_future_revisions.is_empty()
             || self.creation_reason.is_empty()
             || self.composition_manifest.iter().any(|slice| {
-                (!self
+                !self
                     .selected_future_revisions
                     .contains(&slice.source_future_id)
-                    || !self.base_revisions.contains_key(&slice.repo_id))
+                    || !self.base_revisions.contains_key(&slice.repo_id)
             })
         {
             return Err(Error::InvalidInput("invalid candidate selection".into()));

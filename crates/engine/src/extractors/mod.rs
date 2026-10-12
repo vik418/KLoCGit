@@ -9,7 +9,8 @@ use std::collections::{BTreeMap, BTreeSet};
 use std::panic::{catch_unwind, AssertUnwindSafe};
 use tree_sitter::{Node, Parser};
 
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, serde::Serialize, serde::Deserialize)]
+#[serde(deny_unknown_fields)]
 pub struct SourceChange {
     pub path: String,
     pub before: Option<String>,

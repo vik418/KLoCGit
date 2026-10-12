@@ -1,0 +1,19 @@
+{
+  "name": "@klocgit/worker",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "test": "node --test tests/*.test.ts",
+    "check": "tsc --noEmit",
+    "build": "esbuild src/index.ts --bundle --format=esm --platform=browser --external:cloudflare:workers --outfile=dist/worker.js"
+  },
+  "dependencies": {
+    "hono": "4.12.5"
+  },
+  "devDependencies": {
+    "@cloudflare/workers-types": "^4.20261006.0",
+    "esbuild": "0.25.0",
+    "miniflare": "^4.20261001.0",
+    "typescript": "5.9.3"
+  }
+}

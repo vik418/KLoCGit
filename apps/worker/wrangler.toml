@@ -1,0 +1,47 @@
+name = "klocgit"
+main = "src/index.ts"
+compatibility_date = "2026-10-01"
+
+[vars]
+AUTH_ISSUER = "klocgit"
+AUTH_AUDIENCE = "klocgit-api"
+
+[[durable_objects.bindings]]
+name = "OBJECTIVES"
+class_name = "ObjectiveCoordinator"
+
+[[durable_objects.bindings]]
+name = "REFS"
+class_name = "RefCoordinator"
+
+[[migrations]]
+tag = "v1"
+new_sqlite_classes = ["ObjectiveCoordinator", "RefCoordinator"]
+
+[[r2_buckets]]
+binding = "PAYLOADS"
+bucket_name = "klocgit-payloads"
+
+[[queues.producers]]
+binding = "ANALYSIS_QUEUE"
+queue = "klocgit-analysis"
+
+[[queues.producers]]
+binding = "DEAD_LETTER_QUEUE"
+queue = "klocgit-analysis-dlq"
+
+[[queues.consumers]]
+queue = "klocgit-analysis"
+max_retries = 5
+dead_letter_queue = "klocgit-analysis-dlq"
+
+[[services]]
+binding = "GIT_EXECUTOR"
+service = "klocgit-git-executor"
+
+[[services]]
+binding = "ENGINE"
+service = "klocgit-engine"
+
+[observability]
+enabled = true

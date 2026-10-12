@@ -24,6 +24,12 @@ jobs:
         run: |
           cargo fmt --all
           npx --yes prettier@3.9.9 --write packages/contracts/src/index.ts packages/contracts/src/canonical.ts packages/contracts/tests/*.ts packages/contracts/tsconfig.json tests/fixtures/canonical.golden.json tests/fixtures/typescript/**/*.ts tests/fixtures/typescript/**/*.json
+      - name: Install worker tooling
+        run: npm install --prefix apps/worker
+      - name: Format worker source
+        run: npx --yes prettier@3.9.9 --write apps/worker/src/**/*.ts apps/worker/src/*.ts apps/worker/tests/*.ts apps/worker/package.json apps/worker/tsconfig.json
+      - name: Check worker types
+        run: npm run check --prefix apps/worker
       - name: Check contract types
         run: npx --yes --package typescript@5.9.3 tsc -p packages/contracts/tsconfig.json
       - name: Rust engine gate
@@ -32,6 +38,8 @@ jobs:
         run: npm run test:contracts
       - name: Cross-language gate
         run: npm run test:canonical-cross-language
+      - name: Coordination gate
+        run: npm run test:coordination
       - name: Collect reproducible source
         if: always()
         run: |
@@ -50,11 +58,14 @@ jobs:
           for (const path of ['packages/contracts/src/index.ts', 'packages/contracts/src/canonical.ts', 'packages/contracts/tsconfig.json']) files.push(path);
           walk('packages/contracts/tests');
           walk('tests/fixtures');
+          walk('apps/worker/src');
+          walk('apps/worker/tests');
+          files.push('apps/worker/package.json', 'apps/worker/package-lock.json', 'apps/worker/tsconfig.json');
           for (const path of files) {
             try {
               console.log('KLOCGIT_SOURCE ' + JSON.stringify({ path, content: readFileSync(path, 'utf8') }));
             } catch (error) {
-              if (path !== 'Cargo.lock') throw error;
+              if (path !== 'Cargo.lock' && path !== 'apps/worker/package-lock.json') throw error;
             }
           }
           NODE

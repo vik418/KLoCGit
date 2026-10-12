@@ -12,7 +12,7 @@
     "lint": "tsc --noEmit",
     "test:contracts": "node --test packages/contracts/tests/canonical.test.ts",
     "test:canonical-cross-language": "node --test packages/contracts/tests/cross-language.test.ts",
-    "test:coordination": "tsx apps/worker/test-coordination.ts",
+    "test:coordination": "npm test --prefix apps/worker",
     "test:materialization": "tsx services/evaluator/test-materialization.ts",
     "test:policy": "tsx packages/policy/test-policy.ts",
     "test:e2e": "tsx tests/e2e/test-full-lifecycle.ts"
