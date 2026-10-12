@@ -132,7 +132,9 @@ app.post(prefix + "/futures", async (context) => {
   );
 });
 
-app.post("/internal/git-objects", context => readObject(context.req.raw, context.env));
+app.post("/internal/git-objects", (context) =>
+  readObject(context.req.raw, context.env),
+);
 
 app.notFound(() =>
   Response.json(

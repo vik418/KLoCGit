@@ -1,11 +1,6 @@
 {
-  "include": [
-    "../workspace",
-    "test_api.py"
-  ],
+  "include": ["../workspace", "test_api.py"],
   "typeCheckingMode": "strict",
   "pythonVersion": "3.12",
-  "extraPaths": [
-    "../workspace"
-  ]
+  "extraPaths": ["../workspace"]
 }

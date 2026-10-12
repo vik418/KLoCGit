@@ -64,8 +64,13 @@ impl BrokerSource {
             .set("x-klocgit-object-capability", &self.capability)
             .send_string(&serde_json::to_string(&command)?)
             .map_err(|error| match error {
-                ureq::Error::Status(status, _) => Error::InvalidInput(format!("Git object broker rejected the read: HTTP {status}")),
-                ureq::Error::Transport(error) => Error::InvalidInput(format!("Git object broker transport failed: {:?}", error.kind())),
+                ureq::Error::Status(status, _) => Error::InvalidInput(format!(
+                    "Git object broker rejected the read: HTTP {status}"
+                )),
+                ureq::Error::Transport(error) => Error::InvalidInput(format!(
+                    "Git object broker transport failed: {:?}",
+                    error.kind()
+                )),
             })?;
         if response
             .header("content-length")

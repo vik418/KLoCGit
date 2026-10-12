@@ -363,15 +363,22 @@ fn execution_tree_detects_changed_bytes_permissions_and_unsafe_paths() {
     let directory = tempfile::tempdir().unwrap();
     let file = directory.path().join("api.ts");
     std::fs::write(&file, b"export const value = 1;").unwrap();
-    let budget = HydrationBudget { max_blob_bytes: 1024, max_total_bytes: 4096 };
+    let budget = HydrationBudget {
+        max_blob_bytes: 1024,
+        max_total_bytes: 4096,
+    };
     let original = tree_oid(directory.path(), Limits::default(), budget).unwrap();
     std::fs::write(&file, b"export const value = 2;").unwrap();
     let changed = tree_oid(directory.path(), Limits::default(), budget).unwrap();
     assert_ne!(original, changed);
-    #[cfg(unix)] {
+    #[cfg(unix)]
+    {
         use std::os::unix::fs::PermissionsExt;
         std::fs::set_permissions(&file, std::fs::Permissions::from_mode(0o755)).unwrap();
-        assert_ne!(changed, tree_oid(directory.path(), Limits::default(), budget).unwrap());
+        assert_ne!(
+            changed,
+            tree_oid(directory.path(), Limits::default(), budget).unwrap()
+        );
         std::os::unix::fs::symlink("/etc/passwd", directory.path().join("escape")).unwrap();
         assert!(tree_oid(directory.path(), Limits::default(), budget).is_err());
     }

@@ -7,5 +7,10 @@ export function charge(id: string): void {
   charges++;
 }
 
-export function reset(): void { charged.clear(); charges = 0; }
-export function count(): number { return charges; }
+export function reset(): void {
+  charged.clear();
+  charges = 0;
+}
+export function count(): number {
+  return charges;
+}

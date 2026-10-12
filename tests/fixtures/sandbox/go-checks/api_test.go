@@ -1,8 +1,8 @@
 package checks
 
 import (
-	"testing"
 	retry "example.org/klocgit-fixture"
+	"testing"
 )
 
 func TestRetryLimit(t *testing.T) {

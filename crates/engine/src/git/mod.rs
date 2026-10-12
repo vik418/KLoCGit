@@ -79,12 +79,15 @@ pub fn compose(
     futures: &[FutureSource<'_>],
     limits: Limits,
 ) -> Result<Composition> {
-    let sources: Vec<_> = futures.iter().map(|source| objects::ObjectFuture {
-        revision: source.revision,
-        state: source.state,
-        effects: source.effects,
-        objects: source.repository,
-    }).collect();
+    let sources: Vec<_> = futures
+        .iter()
+        .map(|source| objects::ObjectFuture {
+            revision: source.revision,
+            state: source.state,
+            effects: source.effects,
+            objects: source.repository,
+        })
+        .collect();
     compose_from_objects(base_repo, repo_id, base_oid, &sources, limits)
 }
 
