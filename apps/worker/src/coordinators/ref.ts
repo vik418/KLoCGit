@@ -111,7 +111,7 @@ export class RefCoordinator extends DurableObject<Bindings> {
         throw new Failure("INVALID_INPUT", 400, "Invalid promotion command");
       }
       const path = new URL(request.url).pathname;
-      if (!["/authorize", "/promote", "/reconcile"].includes(path))
+      if (!["/authorize", "/promote", "/reconcile", "/status"].includes(path))
         throw new Failure("NOT_FOUND", 404, "Unknown operation");
       const command_digest = await hashProjection(
         "klocgit.promotion-command",
@@ -133,6 +133,15 @@ export class RefCoordinator extends DurableObject<Bindings> {
           ).toString()
       ) {
         throw new Failure("FORBIDDEN", 403, "Ref scope differs");
+      }
+      if (path === "/status") {
+        const prior = this.row(command.idempotency_key);
+        if (prior && prior.command_digest !== command_digest)
+          throw new Failure("IDEMPOTENCY_MISMATCH", 409, "Recovery inputs differ");
+        return Response.json({ schema_version: 1,
+          status: prior?.status ?? "NOT_STARTED",
+          result: prior?.result ? JSON.parse(prior.result) : null,
+        });
       }
       if (path === "/authorize") {
         if (this.active())

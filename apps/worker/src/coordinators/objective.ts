@@ -7,11 +7,16 @@ import {
 import type {
   Producer,
   EffectSet,
+  CandidateSpec,
+  Candidate,
+  Evidence,
 } from "../../../../packages/contracts/src/index.ts";
 import { sameScope, authorize, verifyInternal } from "../auth.ts";
 import type { Principal } from "../auth.ts";
 import { packEvent } from "../events.ts";
 import { GitStore } from "../git-store.ts";
+import { DecisionStore } from "./decisions.ts";
+import type { ReviewCommand, PreparedCandidate } from "./decisions.ts";
 import {
   Failure,
   failureResponse,
@@ -54,6 +59,7 @@ type FutureRow = {
 };
 
 export class ObjectiveCoordinator extends DurableObject<Bindings> {
+  private decisions: DecisionStore;
   constructor(ctx: DurableObjectState, env: Bindings) {
     super(ctx, env);
     ctx.storage.sql.exec(
@@ -86,7 +92,7 @@ export class ObjectiveCoordinator extends DurableObject<Bindings> {
     );
     ctx.storage.sql.exec(
       "CREATE TABLE IF NOT EXISTS audit (sequence INTEGER PRIMARY KEY AUTOINCREMENT, schema_version INTEGER NOT NULL, action TEXT NOT NULL, actor_id TEXT NOT NULL, trace_id TEXT NOT NULL, object_id TEXT NOT NULL)",
-    );
+    );    this.decisions = new DecisionStore(ctx.storage, env);
   }
 
   private version(): number {
@@ -128,8 +134,14 @@ export class ObjectiveCoordinator extends DurableObject<Bindings> {
           payload_digest?: string;
           summary?: unknown;
           cursor?: string;
-        }
-      >(request);
+          spec_id?: string;
+          candidate_specs?: CandidateSpec[];
+          reduction_status?: string;
+          candidate?: Candidate;
+          evidence?: Evidence;
+          prepared?: PreparedCandidate;
+        } & Partial<ReviewCommand>
+      >(request, 4 * 1024 * 1024);
       validateScope(body.scope);
       const action = new URL(request.url).pathname.slice(1);
       if (
@@ -138,7 +150,8 @@ export class ObjectiveCoordinator extends DurableObject<Bindings> {
           "status",
           "analysis",
           "reduction",
-          "reduction-page",
+          "reduction-page", "candidates", "candidate-input", "evaluation",
+          "decisions", "review", "promotion-input", "promote",
         ].includes(action)
       )
         throw new Failure("NOT_FOUND", 404, "Unknown operation");
@@ -159,9 +172,36 @@ export class ObjectiveCoordinator extends DurableObject<Bindings> {
       )
         throw new Failure("FORBIDDEN", 403, "Objective scope differs");
       if (action === "status") return this.status();
+      if (action === "decisions") return Response.json(await this.decisions.list(body.scope));
+      if (["reduction-page", "analysis", "reduction", "candidates", "candidate-input", "evaluation"].includes(action) &&
+          grant.actor_id !== "engine")
+        throw new Failure("FORBIDDEN", 403, "Only the analysis service may record derived state");
       if (action === "reduction-page") return this.reductionPage(body);
-      if (action === "analysis") return await this.analysis(body);
-      if (action === "reduction") return this.reduction(body);
+      if (action === "analysis") { this.decisions.assertIdle(); return await this.analysis(body); }
+      if (action === "reduction") { this.decisions.assertIdle(); return this.reduction(body); }
+      if (action === "candidates") {
+        await this.decisions.register(body.scope, body.version!, body.candidate_specs!, body.reduction_status!);
+        await this.ctx.storage.setAlarm(Date.now() + 5000);
+        await this.flush();
+        return Response.json({ schema_version: 1, accepted: true });
+      }
+      if (action === "candidate-input") {
+        const input = await this.decisions.input(body.scope, body.version!, body.spec_id!);
+        return Response.json({ schema_version: 1, input });
+      }
+      if (action === "evaluation") {
+        await this.decisions.evaluated(body.scope, body.version!, body.spec_id!, body.candidate!, body.evidence!);
+        return Response.json({ schema_version: 1, accepted: true });
+      }
+      if (["review", "promotion-input", "promote"].includes(action)) {
+        if (!body.principal || grant.actor_id !== body.principal.sub || body.principal.exp * 1000 <= Date.now())
+          throw new Failure("FORBIDDEN", 403, "Decision authorization expired");
+        authorize(body.principal, body.scope, "promote");
+        const command = body as ReviewCommand;
+        if (action === "review") return Response.json(await this.decisions.review(command));
+        if (action === "promotion-input") return Response.json(await this.decisions.promotionInput(command));
+        return Response.json(await this.decisions.promote(command, body.prepared));
+      }
       if (
         grant.actor_id !== body.principal.sub ||
         body.principal.exp * 1000 <= Date.now()
@@ -206,6 +246,7 @@ export class ObjectiveCoordinator extends DurableObject<Bindings> {
   }
 
   private async ingest(command: IngestCommand): Promise<Response> {
+    this.decisions.assertIdle();
     if (
       !/^refs\/futures\/[^ ~^:?*\[\\\x00-\x20]+\/[^ ~^:?*\[\\\x00-\x20]+$/.test(
         command.ref,
@@ -439,7 +480,7 @@ export class ObjectiveCoordinator extends DurableObject<Bindings> {
         type:
           payload.operation === "reduce"
             ? "objective.reduce"
-            : "future.analyze",
+            : payload.operation === "evaluate" ? "candidate.evaluate" : "future.analyze",
         scope: payload.scope,
         subject_version: job.version,
         payload,

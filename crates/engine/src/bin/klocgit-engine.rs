@@ -8,6 +8,17 @@ use std::io::{self, Read};
 #[derive(Deserialize)]
 #[serde(tag = "operation", rename_all = "snake_case", deny_unknown_fields)]
 enum Request {
+    PrepareCandidate {
+        base_repository: String,
+        repo_id: String,
+        candidate_spec: klocgit_engine::contracts::CandidateSpec,
+        sources: Vec<SourceRepository>,
+        expected_oid: String,
+        decision_id: String,
+        basis_digest: String,
+        author: klocgit_engine::git::commit::Author,
+        max_pack_bytes: usize,
+    },
     PrepareCommit {
         workspace: String,
         candidate: klocgit_engine::contracts::Candidate,
@@ -79,14 +90,12 @@ struct SourceRepository {
     effects: klocgit_engine::contracts::EffectSet,
 }
 
-fn evaluate_candidate(
+fn local_workspace(
     base_repository: String,
-    repo_id: String,
+    repo_id: &str,
     candidate_spec: klocgit_engine::contracts::CandidateSpec,
     sources: Vec<SourceRepository>,
-    trusted_suite: String,
-    policy: klocgit_engine::sandbox::EvaluationPolicy,
-) -> Result<serde_json::Value, Box<dyn std::error::Error>> {
+) -> Result<klocgit_engine::git::workspace::Workspace, Box<dyn std::error::Error>> {
     let base = git2::Repository::open(base_repository)?;
     let repositories: Result<Vec<_>, _> = sources
         .iter()
@@ -106,7 +115,7 @@ fn evaluate_candidate(
     let workspace = klocgit_engine::git::workspace::materialize(
         &candidate_spec,
         &base,
-        &repo_id,
+        repo_id,
         &observed,
         klocgit_engine::git::Limits::default(),
         klocgit_engine::git::workspace::HydrationBudget {
@@ -119,6 +128,19 @@ fn evaluate_candidate(
             conflicts_encountered: vec![],
         },
     )?;
+
+    Ok(workspace)
+}
+
+fn evaluate_candidate(
+    base_repository: String,
+    repo_id: String,
+    candidate_spec: klocgit_engine::contracts::CandidateSpec,
+    sources: Vec<SourceRepository>,
+    trusted_suite: String,
+    policy: klocgit_engine::sandbox::EvaluationPolicy,
+) -> Result<serde_json::Value, Box<dyn std::error::Error>> {
+    let workspace = local_workspace(base_repository, &repo_id, candidate_spec, sources)?;
     let result = klocgit_engine::sandbox::evaluate(
         workspace.path(),
         std::path::Path::new(&trusted_suite),
@@ -142,6 +164,23 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     }
     let input: Request = serde_json::from_slice(&bytes)?;
     let output = match input {
+        Request::PrepareCandidate {
+            base_repository, repo_id, candidate_spec, sources, expected_oid,
+            decision_id, basis_digest, author, max_pack_bytes,
+        } => {
+            let workspace = local_workspace(base_repository, &repo_id, candidate_spec, sources)?;
+            let prepared = klocgit_engine::git::commit::prepare(
+                workspace.path(), &workspace.candidate, &repo_id,
+                git2::Oid::from_str(&expected_oid)?, &decision_id, &basis_digest,
+                &author, max_pack_bytes,
+            )?;
+            serde_json::json!({
+                "schema_version": 1, "candidate_digest": workspace.candidate.candidate_digest,
+                "expected_oid": prepared.expected_oid.to_string(), "target_oid": prepared.target_oid.to_string(),
+                "tree_oid": prepared.tree_oid.to_string(), "payload_digest": prepared.payload_digest,
+                "pack_hex": prepared.pack.iter().map(|byte| format!("{byte:02x}")).collect::<String>(),
+            })
+        }
         Request::PrepareCommit {
             workspace,
             candidate,

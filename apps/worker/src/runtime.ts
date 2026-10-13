@@ -26,6 +26,7 @@ export interface Bindings {
   AUTH_AUDIENCE: string;
   CANONICAL_REF: string;
   REDUCTION_BUDGET: string;
+  REVIEW_POLICY?: string;
 }
 
 export interface ObservedRevision {

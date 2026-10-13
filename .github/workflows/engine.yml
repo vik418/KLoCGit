@@ -33,7 +33,7 @@ jobs:
           python -m black tests/fixtures/sandbox/python tests/fixtures/sandbox/python-checks
           gofmt -w tests/fixtures/sandbox/go tests/fixtures/sandbox/go-checks
       - name: Format worker source
-        run: npx --yes prettier@3.9.9 --write apps/worker/src/**/*.ts apps/worker/src/*.ts apps/worker/tests/*.ts apps/worker/package.json apps/worker/tsconfig.json packages/policy/src/*.ts packages/policy/tests/*.ts packages/policy/tsconfig.json
+        run: npx --yes prettier@3.9.9 --write apps/worker/src/**/*.ts apps/worker/src/*.ts apps/worker/tests/**/*.ts apps/worker/tests/*.ts apps/worker/package.json apps/worker/tsconfig.json packages/policy/src/*.ts packages/policy/tests/*.ts packages/policy/tsconfig.json
       - name: Check test syntax
         run: |
           for source in apps/worker/tests/*.ts packages/policy/tests/*.ts; do node --check "$source"; done
@@ -65,6 +65,8 @@ jobs:
           echo "KLOCGIT_NATIVE_IMAGE=$image_oid" >> "$GITHUB_ENV"
       - name: Sandbox gate
         run: npm run test:sandbox
+      - name: Decision workflow gate
+        run: npm run test:decisions
       - name: Collect reproducible source
         if: always()
         run: |
