@@ -158,7 +158,7 @@ app.post(prefix + "/futures", async (context) => {
 
 app.post("/api/login", async context => {
   const input = await readJson<{ credential: string }>(context.req.raw);
-  if (!context.env.AUTH_TOKEN || context.env.AUTH_TOKEN.length < 32 || !context.env.ACTOR_ID || !context.env.OWNER_SCOPE)
+  if (!context.env.AUTH_TOKEN || !context.env.ACTOR_ID || !context.env.OWNER_SCOPE)
     throw new Failure("AUTH_NOT_CONFIGURED", 503, "Owner access is not configured");
   if (typeof input.credential !== "string" || input.credential.length > 4096)
     throw new Failure("UNAUTHENTICATED", 401, "Credential is invalid");
