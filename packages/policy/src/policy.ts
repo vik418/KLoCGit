@@ -184,7 +184,10 @@ export class PolicyEvaluator {
       if ((await policyDigest(this.policy)) !== basis.policy_digest)
         block("POLICY_CHANGED", basis.policy_digest);
       // A review covers the choices shown, not just the selected implementation.
-      const analyses: CandidateAnalysis[] = [context, ...(context.alternatives ?? [])];
+      const analyses: CandidateAnalysis[] = [
+        context,
+        ...(context.alternatives ?? []),
+      ];
       const candidates = new Set<string>();
       const effects = new Map<string, EffectSet>();
       const levels = ["PATH", "STRUCTURAL", "SEMANTIC"];
@@ -195,28 +198,38 @@ export class PolicyEvaluator {
           spec.id !== analysis.spec.id ||
           spec.spec_digest !== analysis.spec.spec_digest ||
           candidate.candidate_spec_id !== spec.id
-        ) block("SPEC_CHANGED", analysis.spec.id);
+        )
+          block("SPEC_CHANGED", analysis.spec.id);
         if (
           candidate.id !== analysis.candidate.id ||
           candidate.candidate_digest !== analysis.candidate.candidate_digest ||
           !basis.candidate_digests.includes(candidate.candidate_digest) ||
           candidates.has(candidate.candidate_digest)
-        ) block("CANDIDATE_CHANGED", analysis.candidate.candidate_digest);
+        )
+          block("CANDIDATE_CHANGED", analysis.candidate.candidate_digest);
         candidates.add(candidate.candidate_digest);
         if (
           (await hashProjection("klocgit.review-base", spec.base_revisions)) !==
-            (await hashProjection("klocgit.review-base", basis.canonical_ref_oids)) ||
-          Object.keys(spec.base_revisions).length !== Object.keys(candidate.repo_tree_oids).length ||
+            (await hashProjection(
+              "klocgit.review-base",
+              basis.canonical_ref_oids,
+            )) ||
+          Object.keys(spec.base_revisions).length !==
+            Object.keys(candidate.repo_tree_oids).length ||
           Object.keys(spec.base_revisions).some(
             (repo) => !Object.hasOwn(candidate.repo_tree_oids, repo),
           )
-        ) block("BASE_CHANGED", candidate.candidate_digest);
-        const observed = new Set(analysis.effects.map((effect) => effect.future_revision_id));
+        )
+          block("BASE_CHANGED", candidate.candidate_digest);
+        const observed = new Set(
+          analysis.effects.map((effect) => effect.future_revision_id),
+        );
         if (
           !analysis.effects.length ||
           observed.size !== spec.selected_future_revisions.length ||
           spec.selected_future_revisions.some((id) => !observed.has(id))
-        ) block("ANALYSIS_MISSING", spec.id);
+        )
+          block("ANALYSIS_MISSING", spec.id);
         const selectedDigests = new Set<string>();
         for (const effect of analysis.effects) {
           const sealed = await sealEffectSet(effect);
@@ -224,34 +237,50 @@ export class PolicyEvaluator {
             block("EFFECT_CORRUPT", effect.future_revision_id);
           selectedDigests.add(sealed.effect_digest);
           effects.set(sealed.effect_digest, sealed);
-          if (basis.required_analysis_status[sealed.effect_digest] !== sealed.status)
+          if (
+            basis.required_analysis_status[sealed.effect_digest] !==
+            sealed.status
+          )
             block("ANALYSIS_BINDING_CHANGED", effect.future_revision_id);
           if (sealed.status !== "COMPLETE")
             block("ANALYSIS_" + sealed.status, effect.future_revision_id);
-          if (levels.indexOf(sealed.capability) < levels.indexOf(this.policy.required_capability))
+          if (
+            levels.indexOf(sealed.capability) <
+            levels.indexOf(this.policy.required_capability)
+          )
             block("CAPABILITY_REQUIRED", effect.future_revision_id);
         }
         if (
-          (await hashProjection("klocgit.effect-summary", [...selectedDigests].sort())) !==
-          analysis.spec.effect_summary_digest
-        ) block("SPEC_EFFECTS_CHANGED", spec.id);
+          (await hashProjection(
+            "klocgit.effect-summary",
+            [...selectedDigests].sort(),
+          )) !== analysis.spec.effect_summary_digest
+        )
+          block("SPEC_EFFECTS_CHANGED", spec.id);
       }
       if (
         candidates.size !== basis.candidate_digests.length ||
         basis.candidate_digests.some((digest) => !candidates.has(digest))
-      ) block("CANDIDATE_ANALYSIS_MISSING", basis.basis_digest);
+      )
+        block("CANDIDATE_ANALYSIS_MISSING", basis.basis_digest);
       if (
         !effects.size ||
         Object.keys(basis.required_analysis_status).length !== effects.size
-      ) block("ANALYSIS_BINDING_CHANGED", basis.basis_digest);
-      for (const [subject, status] of Object.entries(basis.required_analysis_status)) {
+      )
+        block("ANALYSIS_BINDING_CHANGED", basis.basis_digest);
+      for (const [subject, status] of Object.entries(
+        basis.required_analysis_status,
+      )) {
         if (!effects.has(subject)) block("ANALYSIS_MISSING", subject);
         if (status !== "COMPLETE") block("ANALYSIS_" + status, subject);
       }
       if (
-        (await hashProjection("klocgit.effect-summary", [...effects.keys()].sort())) !==
-        basis.material_effect_digest
-      ) block("EFFECTS_CHANGED", basis.material_effect_digest);
+        (await hashProjection(
+          "klocgit.effect-summary",
+          [...effects.keys()].sort(),
+        )) !== basis.material_effect_digest
+      )
+        block("EFFECTS_CHANGED", basis.material_effect_digest);
       for (const evidence of context.evidence) {
         const sealed = await sealEvidence(evidence);
         if (
@@ -295,7 +324,9 @@ export class PolicyEvaluator {
           );
           const conditionallyValid =
             reviewedCandidates.size === basis.candidate_digests.length &&
-            basis.candidate_digests.every((digest) => reviewedCandidates.has(digest)) &&
+            basis.candidate_digests.every((digest) =>
+              reviewedCandidates.has(digest),
+            ) &&
             review.predicates.length > 0 &&
             review.predicates.some(
               (predicate) => predicate.kind === "CANDIDATE_UNCHANGED",
