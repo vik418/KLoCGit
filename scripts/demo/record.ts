@@ -179,8 +179,13 @@ try {
       await page.getByRole("button", { name: "Create repository", exact: true }).click();
       const result = await response; repository = await result.json();
       if (!result.ok() || !repository.repo_id) throw new Error("Live repository import did not complete");
-      await until(async () => (await api(live, base + "/" + repository.repo_id)).state === "READY", 180000);
-      await page.getByRole("button", { name: "Copy clone URL", exact: true }).waitFor();
+      await until(async () => {
+        const code = await api(live, base + "/" + repository.repo_id + "/code");
+        return !code.empty && code.commits.length > 0;
+      }, 180000);
+      await page.getByRole("button", { name: "All repositories", exact: true }).click();
+      await page.getByRole("button").filter({ hasText: name }).first().click();
+      await page.getByRole("button", { name: "Fork", exact: true }).waitFor();
     });
     await scene(page, "Isolated repositories", "Live Cloudflare", "The browser reads actual Git trees and commits. Code and history are inspectable without leaving the application.", 12, async () => {
       const rows = page.locator("section button").filter({ hasText: /\.json$|\.toml$|\.md$/ });

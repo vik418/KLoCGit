@@ -263,8 +263,8 @@ for (const resource of ["code", "file", "token"] as const) {
       const token = await repository.createToken("read", 900);
       return context.json({ schema_version: 1, remote: info.remote, token: token.plaintext, expires_at: token.expiresAt });
     }
-    const ref = context.req.query("ref") ?? "refs/heads/" + info.defaultBranch;
-    if (!ref.startsWith("refs/") && !/^[0-9a-f]{40}$/.test(ref))
+    const ref = context.req.query("ref") ?? "HEAD";
+    if (ref !== "HEAD" && !ref.startsWith("refs/") && !/^[0-9a-f]{40}$/.test(ref))
       throw new Failure("INVALID_INPUT", 400, "Git ref is invalid");
     const commits = await repository.log({ ref, limit: 30 });
     if (!commits.length) return context.json({ schema_version: 1, empty: true, commits: [], entries: [], ref });
