@@ -1,0 +1,68 @@
+name: Record competition demo
+
+on:
+  push:
+    branches: [feat/convergence-platform]
+    paths:
+      - 'scripts/demo/**'
+      - '.github/workflows/demo.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: klocgit-demo-recording
+  cancel-in-progress: false
+
+jobs:
+  record:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@1.90.0
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+      - name: Install recording tools
+        run: |
+          npm ci --prefix apps/worker
+          npm ci --prefix apps/web
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends ffmpeg
+          node apps/web/node_modules/playwright/cli.js install --with-deps chromium
+      - name: Build native engine and evaluator
+        run: |
+          cargo build --locked -p klocgit-engine
+          docker build -f tests/fixtures/sandbox/Dockerfile -t klocgit-demo-evaluator tests/fixtures/sandbox
+          image_oid=$(docker image inspect --format '{{.Id}}' klocgit-demo-evaluator)
+          echo "KLOCGIT_SANDBOX_IMAGE=$image_oid" >> "$GITHUB_ENV"
+      - name: Format the recording checkout
+        run: npx --yes prettier@3.9.9 --write scripts/demo/*.ts
+      - name: Record actual application flows
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+        run: node scripts/demo/record.ts
+      - name: Encode submission video
+        run: |
+          ffmpeg -hide_banner -y -f concat -safe 0 -i demo-output/clips.txt -vf "scale=-2:1080,pad=1920:1080:(ow-iw)/2:(oh-ih)/2" -c:v libx264 -preset veryfast -crf 20 -pix_fmt yuv420p -r 25 -movflags +faststart -an demo-output/klocgit-demo.mp4
+      - name: Publish download
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+        run: node scripts/demo/publish.ts
+      - name: Save recording and receipts
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: klocgit-competition-demo
+          path: |
+            demo-output/klocgit-demo.mp4
+            demo-output/poster.png
+            demo-output/narration.txt
+            demo-output/recording.json
+            demo-output/download.json
+          if-no-files-found: ignore
+          retention-days: 14

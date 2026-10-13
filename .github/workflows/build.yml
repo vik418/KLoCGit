@@ -3,6 +3,9 @@ name: Build
 on:
   push:
     branches: [feat/convergence-platform]
+    paths-ignore:
+      - 'scripts/demo/**'
+      - '.github/workflows/demo.yml'
   pull_request:
 
 permissions:
