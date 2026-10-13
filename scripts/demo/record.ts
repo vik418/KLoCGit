@@ -8,6 +8,7 @@ import { signToken } from "../../apps/worker/src/auth.ts";
 import { decisionFixture } from "../../apps/worker/tests/helpers/decisions.ts";
 import { until } from "../../apps/worker/tests/helpers/convergence.ts";
 import { interactionDemo } from "./interaction.ts";
+import { beginRecording, finishRecording, quietWait, sceneStart, sceneEnd, type RecordedClip } from "./presentation.ts";
 
 const root = resolve(import.meta.dirname, "../..");
 const output = join(root, "demo-output");
@@ -15,7 +16,7 @@ mkdirSync(join(output, "recordings"), { recursive: true });
 const { chromium } = createRequire(join(root, "apps/web/package.json"))("@playwright/test");
 const cleanup: (() => unknown)[] = [];
 const lifecycle = { after: (fn: () => unknown) => cleanup.push(fn) };
-const clips: string[] = [];
+const clips: RecordedClip[] = [];
 const transcript: { time: number; seconds: number; chapter: string; text: string }[] = [];
 const proof: Record<string, unknown> = {};
 let elapsed = 0;
@@ -70,10 +71,12 @@ async function caption(page: any, chapter: string, mode: string, text: string) {
 
 async function scene(page: any, chapter: string, mode: string, text: string, seconds: number, action?: () => Promise<void>) {
   const began = Date.now();
+  const start = sceneStart(page);
   await caption(page, chapter, mode, text);
   if (action) await action();
   await caption(page, chapter, mode, text);
-  await page.waitForTimeout(Math.max(0, seconds * 1000 - (Date.now() - began)));
+  await page.waitForTimeout(seconds * 1000);
+  sceneEnd(page, start);
   const duration = (Date.now() - began) / 1000;
   transcript.push({ time: elapsed, seconds: duration, chapter, text }); elapsed += duration;
 }
@@ -98,12 +101,13 @@ async function clip(chapter: string, run: (page: any) => Promise<void>) {
   const context = await browser.newContext({ viewport: { width: 1600, height: 1000 },
     recordVideo: { dir: join(output, "recordings"), size: { width: 1600, height: 1000 } } });
   const page = await context.newPage(); page.setDefaultTimeout(90000);
+  await beginRecording(page);
   const began = Date.now();
   try { await run(page); }
   catch (error) { console.log("KLOCGIT_DEMO_FRAME " + (await page.screenshot({ type: "jpeg", quality: 55 })).toString("base64")); throw error; }
   finally {
     await context.close();
-    const path = await page.video().path(); clips.push(path);
+    const path = await page.video().path(); clips.push(finishRecording(page, path));
     console.log(JSON.stringify({ chapter, seconds: Math.round((Date.now() - began) / 1000) }));
   }
 }
@@ -156,42 +160,40 @@ try {
       "Git stores the source. KLoCGit coordinates possible states, evidence, decisions, and promotion.",
       "Humans, agents, CI, and ordinary Git clients can all produce work.",
     ]);
-    await scene(page, "The idea", "Product overview", "Generating more code is easy. Understanding which combinations to accept is the harder problem.", 10);
-    await scene(page, "The idea", "Product overview", "The native unit of work is an isolated future. The human reviews an unresolved choice, rather than every producer session.", 12);
-    await scene(page, "The idea", "Demo scope", "First: a live Workers and Artifacts repository flow. Then: a local convergence run with real Git, the Rust engine, and isolated execution.", 10);
+    await scene(page, "The idea", "Demo scope", "Live repositories first. Local convergence next.", 2);
   });
 
   await clip("Isolated repositories", async page => {
     await signIn(page, "https://klocgit.vikalpmishra71.workers.dev/", live.token);
     await page.getByRole("heading", { name: "Repositories", exact: true }).waitFor();
-    await scene(page, "Isolated repositories", "Live Cloudflare", "This is the deployed application. Workers serves the interface and API; Artifacts stores the Git repositories.", 9);
+    await scene(page, "Isolated repositories", "Live Cloudflare", "Live on Cloudflare Workers and Artifacts.", 2);
     const name = "demo-source-" + (process.env.GITHUB_RUN_ID ?? Date.now());
     const base = "/api/tenants/" + live.organization.tenant_id + "/organizations/" + live.organization.organization_id + "/repos";
-    await scene(page, "Isolated repositories", "Live Cloudflare", "Import an ordinary Git repository. Producers do not need a proprietary Git client.", 12, async () => {
+    await scene(page, "Isolated repositories", "Live Cloudflare", "Import ordinary Git. Use any Git client.", 2, async () => {
       await page.getByRole("button", { name: "New repository", exact: true }).click();
       await page.getByLabel("Repository name", { exact: true }).fill(name);
       await page.getByLabel("Description", { exact: true }).fill("Cloudflare competition demonstration");
       await page.getByLabel("Import from a public Git URL", { exact: true }).fill("https://github.com/vik418/KLoCGit.git");
     });
     let repository: any;
-    await scene(page, "Isolated repositories", "Live Cloudflare", "Repository creation is an authenticated, durable operation. The source remains ordinary Git.", 15, async () => {
+    await scene(page, "Isolated repositories", "Live Cloudflare", "Create a durable Artifacts repository.", 2, async () => {
       const response = page.waitForResponse((result: any) => new URL(result.url()).pathname === base && result.request().method() === "POST");
       await page.getByRole("button", { name: "Create repository", exact: true }).click();
-      const result = await response; repository = await result.json();
+      const result = await quietWait(page, () => response); repository = await result.json();
       if (!result.ok() || !repository.repo_id) throw new Error("Live repository import did not complete");
-      await until(async () => {
+      await quietWait(page, () => until(async () => {
         const code = await api(live, base + "/" + repository.repo_id + "/code");
         return !code.empty && code.commits.length > 0;
-      }, 180000);
+      }, 180000));
       await page.getByRole("button", { name: "All repositories", exact: true }).click();
       await page.getByRole("button").filter({ hasText: name }).first().click();
       await page.getByRole("button", { name: "Fork", exact: true }).waitFor();
     });
-    await scene(page, "Isolated repositories", "Live Cloudflare", "The browser reads actual Git trees and commits. Code and history are inspectable without leaving the application.", 12, async () => {
+    await scene(page, "Isolated repositories", "Live Cloudflare", "Browse actual Git files and history.", 2, async () => {
       const rows = page.locator("section button").filter({ hasText: /\.json$|\.toml$|\.md$/ });
       if (await rows.count()) { await rows.first().click(); await page.locator("pre").waitFor(); }
     });
-    await scene(page, "Isolated repositories", "Live Cloudflare", "A fork gives a producer an isolated repository derived from the same baseline.", 12, async () => {
+    await scene(page, "Isolated repositories", "Live Cloudflare", "Fork an isolated workspace for a producer.", 2, async () => {
       const back = page.getByRole("button", { name: "Back to files", exact: true }); if (await back.count()) await back.click();
       await page.getByRole("button", { name: "Fork", exact: true }).click();
       await page.getByLabel("Repository name", { exact: true }).fill(name + "-producer-1");
@@ -201,13 +203,13 @@ try {
     const forks = await Promise.all([2, 3, 4, 5].map(index => api(live, base + "/" + repository.repo_id + "/fork",
       { name: name + "-producer-" + index, description: "Isolated demo producer " + index })));
     proof.live = { repository, forks };
-    await scene(page, "Isolated repositories", "Live Cloudflare", "Five isolated forks now exist in Artifacts. Isolation keeps one producer's Git activity separate from another's.", 10, async () => {
+    await scene(page, "Isolated repositories", "Live Cloudflare", "Five producers. Five isolated Artifacts forks.", 2, async () => {
       await page.getByRole("button", { name: "All repositories", exact: true }).click();
       await page.getByRole("button", { name: "Attention", exact: true }).click();
       await page.getByRole("button", { name: "Repositories", exact: true }).click();
       await page.getByRole("heading", { name: "Repositories", exact: true }).waitFor();
     });
-    await scene(page, "Isolated repositories", "Demo boundary", "The following convergence scenario runs locally. It uses the same application code, with Cloudflare runtime emulation and local Git service adapters.", 8);
+    await scene(page, "Isolated repositories", "Demo boundary", "Next: local convergence with the real Rust engine.", 2);
   });
 
   await clip("Decision convergence", async page => {
@@ -218,25 +220,25 @@ try {
     await page.getByLabel("Name", { exact: true }).fill("Vikalp Mishra");
     await page.getByLabel("Email", { exact: true }).fill("vikalpmishra71@gmail.com");
     const packets = await accepted.decisions();
-    await scene(page, "Decision convergence", "Local runtime · real engine", "Five Git-produced futures entered this scenario. The engine formed " + packets.length + " unresolved decision group" + (packets.length === 1 ? "." : "s."), 12);
-    await scene(page, "Decision convergence", "Local runtime · real engine", "Two futures have identical implementation trees. Their histories remain separate; duplicate code does not require a separate architectural choice.", 12);
-    await scene(page, "Decision convergence", "Local runtime · real engine", "Competing retry implementations remain alternatives. Orthogonal telemetry and auth-file changes are composed with each approach.", 12, async () => {
+    await scene(page, "Decision convergence", "Local runtime · real engine", "Five futures → " + packets.length + " decision group" + (packets.length === 1 ? "." : "s."), 2);
+    await scene(page, "Decision convergence", "Local runtime · real engine", "Duplicate implementation, separate histories.", 2);
+    await scene(page, "Decision convergence", "Local runtime · real engine", "Choose retries. Keep the independent improvements.", 2, async () => {
       const alternatives = page.getByRole("radio", { name: /^Alternative / });
       if (await alternatives.count() > 1) await alternatives.nth(1).check();
     });
-    await scene(page, "Blast radius", "Local runtime · structural extraction", "Public exports, dependency changes, and migration flags explain the affected surface. Structural analysis is not a proof of semantic correctness.", 12, async () => {
+    await scene(page, "Blast radius", "Local runtime · structural extraction", "Inspect API changes, dependencies, and migrations.", 2, async () => {
       const heading = page.getByRole("heading", { name: "Public API", exact: true }).first(); await heading.scrollIntoViewIfNeeded();
       const provenance = page.getByText("Changed files and source attribution", { exact: true }).first(); await provenance.click();
     });
-    await scene(page, "Evidence", "Local runtime · isolated execution", "Each composed candidate was materialized and checked as an exact state. The trusted checks run outside producer-controlled test files.", 12, async () => {
+    await scene(page, "Evidence", "Local runtime · isolated execution", "Trusted checks evaluate the exact composed state.", 2, async () => {
       const button = page.getByRole("button", { name: "Inspect evidence trusted-sandbox", exact: true }).first();
       await button.scrollIntoViewIfNeeded(); await button.click();
       await page.getByLabel("Test receipt", { exact: true }).first().waitFor();
     });
-    await scene(page, "Evidence", "Local runtime · inspectable receipts", "The receipt binds the candidate, evaluator, configuration, environment, and payload. Passing checks establish only the behavior they measured.", 12);
+    await scene(page, "Evidence", "Local runtime · inspectable receipts", "Inspect the exact-state evidence receipt.", 2);
     const selected = (await accepted.decisions())[0];
     const oldHead = accepted.git(["--git-dir", join(accepted.directory, "remote.git"), "rev-parse", "refs/heads/main"]);
-    await scene(page, "Canonical promotion", "Local runtime · real Git CAS", "One approval authorizes the reviewed state. Promotion checks both its current decision basis and the expected Git head.", 12, async () => {
+    await scene(page, "Canonical promotion", "Local runtime · real Git CAS", "Approve the reviewed state. Promote with Git CAS.", 2, async () => {
       const button = page.getByRole("button", { name: "Approve and promote", exact: true }).first();
       await button.scrollIntoViewIfNeeded(); await button.click();
       await page.getByRole("heading", { name: "Nothing needs your decision", exact: true }).waitFor({ timeout: 180000 });
@@ -254,20 +256,20 @@ try {
       "Future B records every charge attempt.",
       "Neither file overlaps the other. Both isolated states pass the trusted payment check.",
     ], "A · retry.ts\n" + payment.source.retryAfter + "\nB · ledger.ts\n" + payment.source.ledgerAfter);
-    await scene(page, "Semantic interaction", "Local Rust engine · real container", "Now a separate payment example. Retrying delivery and recording each attempt are independently valid under this application's check.", 14);
+    await scene(page, "Semantic interaction", "Local Rust engine · real container", "Retry passes alone. Ledger passes alone.", 2);
     await editorial(page, "Evaluate the exact combination.", payment.results.map(row => row.label + ": " + row.evidence.result),
       payment.results.map(row => row.label + "\nCandidate: " + row.candidate.candidate_digest + "\nTree: " + row.candidate.repo_tree_oids.repo).join("\n\n"));
-    await scene(page, "Semantic interaction", "Local Rust engine · real container", "The actual results are PASSED, PASSED, FAILED. Git composition succeeded, but the composed behavior violated the at-most-once charge constraint.", 14);
+    await scene(page, "Semantic interaction", "Local Rust engine · real container", "Both pass alone. Together: duplicate charges.", 2);
     const failure = payment.results[2];
     const logs = failure.receipt.checks.map((row: any) => row.stdout + "\n" + row.stderr).join("\n").replace(/\u001b\[[0-9;]*m/g, "");
     await editorial(page, "Two charges. One payment.", ["The failing receipt belongs to the composed candidate, not either isolated future."], logs.slice(-2600));
-    await scene(page, "Semantic interaction", "Observed failure · bounded claim", "This is executable evidence of one interaction. It does not claim that every semantic conflict is automatically discoverable.", 16);
+    await scene(page, "Semantic interaction", "Observed failure · bounded claim", "Clean Git merge. Failed composed behavior.", 2);
     await editorial(page, "Tests guide the decision; they do not replace it.", [
       "Preserve the materially different approaches.",
       "Reject this invalid combination under the explicit payment constraint.",
       "Ask for judgment when alternatives or uncertainty remain.",
     ], payment.check);
-    await scene(page, "Semantic interaction", "Trusted check", "KLoCGit should reduce attention by explaining the remaining choices, while making the evidence and its limits inspectable.", 14);
+    await scene(page, "Semantic interaction", "Trusted check", "Evidence explains the remaining decision.", 2);
   });
 
   await clip("Stale decision protection", async page => {
@@ -279,18 +281,18 @@ try {
     const packet = (await raced.decisions())[0];
     const review = await raced.act("review", packet);
     if (!review.ok) throw new Error("The stale scenario review was not recorded");
-    await scene(page, "Stale decision protection", "Local runtime · separate scenario", "A review is now recorded. Before promotion, an external Git producer advances main with an overlapping change.", 12, async () => {
+    await scene(page, "Stale decision protection", "Local runtime · separate scenario", "An external push changes main after review.", 2, async () => {
       raced.git(["-C", join(raced.directory, "driver"), "push",
         "--force-with-lease=refs/heads/main:" + raced.base, "origin", raced.commits[2] + ":refs/heads/main"]);
     });
-    await scene(page, "Stale decision protection", "Local runtime · live stream", "The attention stream marks the decision stale. The old approval cannot silently apply to this changed state.", 12, async () => {
+    await scene(page, "Stale decision protection", "Local runtime · live stream", "Changed state: the old review becomes stale.", 2, async () => {
       await page.getByText("Review needs updating", { exact: true }).first().waitFor({ timeout: 30000 });
       const rejected = await raced.act("promote", packet);
       const result = await rejected.json();
       if (rejected.status !== 409) throw new Error("A stale promotion was not rejected");
       proof.stale = { http_status: rejected.status, result };
     });
-    await scene(page, "Stale decision protection", "Local runtime · CAS", "The attempted stale promotion returned HTTP 409. The external push remains authoritative in Git.", 12);
+    await scene(page, "Stale decision protection", "Local runtime · CAS", "Stale promotion rejected: HTTP 409.", 2);
   });
 
   await clip("Required analysis", async page => {
@@ -299,10 +301,10 @@ try {
     await page.getByRole("radio", { name: "Alternative 1", exact: true }).first().waitFor();
     await page.getByLabel("Name", { exact: true }).fill("Vikalp Mishra");
     await page.getByLabel("Email", { exact: true }).fill("vikalpmishra71@gmail.com");
-    await scene(page, "Required analysis", "Local runtime · fail closed", "This policy requires a semantic capability that the structural extractor does not provide. The UI explains the blocker.", 12, async () => {
+    await scene(page, "Required analysis", "Local runtime · fail closed", "Missing required analysis blocks approval.", 2, async () => {
       await page.getByText("Required analysis capability is unavailable", { exact: true }).first().scrollIntoViewIfNeeded();
     });
-    await scene(page, "Required analysis", "Local runtime · authorization gate", "Approval stays disabled. A required capability cannot be silently downgraded just to make the queue look complete.", 12, async () => {
+    await scene(page, "Required analysis", "Local runtime · authorization gate", "Fail closed. Inspect the blocker.", 2, async () => {
       const button = page.getByRole("button", { name: "Approve and promote", exact: true }).first();
       await button.scrollIntoViewIfNeeded();
       if (await button.isEnabled()) throw new Error("Required missing analysis did not block approval");
@@ -317,23 +319,23 @@ try {
       "Queues: asynchronous analysis. R2: evidence payloads.",
       "Rust containers: extraction, reduction, composition, and evaluation.",
     ]);
-    await scene(page, "Where Cloudflare fits", "Architecture", "Cloudflare supplies programmable Git storage, asynchronous transport, durable coordination, and execution infrastructure.", 12);
+    await scene(page, "Where Cloudflare fits", "Architecture", "Artifacts · Workers · Durable Objects · Queues · R2", 2);
     await editorial(page, "Demonstrated, with clear boundaries.", [
       "Live: repository import, source browsing, and isolated Artifacts forks.",
       "Local: deterministic reduction, exact-state evaluation, review, Git CAS, and stale-decision rejection.",
       "The full live convergence path and enterprise feature set remain unfinished.",
     ]);
-    await scene(page, "Current scope", "Implementation boundaries", "This recording distinguishes the deployed repository baseline from the local convergence implementation. It does not claim enterprise GA.", 12);
+    await scene(page, "Current scope", "Implementation boundaries", "Live repository flow. Local convergence. Full v1 unfinished.", 2);
     await editorial(page, "Explore many states. Accept one coherent result.", [
       "The goal: human attention proportional to meaningful choices, not the amount of generated work.",
       "Open source: github.com/vik418/KLoCGit",
       "Implementation branch: feat/convergence-platform",
     ]);
-    await scene(page, "KLoCGit", "Software-state convergence", "The canonical output is ordinary Git. Evidence and decisions preserve how that state was chosen.", 10);
+    await scene(page, "KLoCGit", "Software-state convergence", "Ordinary Git. Inspectable decisions and evidence.", 2);
     console.log("KLOCGIT_DEMO_POSTER " + (await page.screenshot({ path: join(output, "poster.png") })).toString("base64"));
   });
 
-  writeFileSync(join(output, "clips.txt"), clips.map(path => "file '" + path.replaceAll("'", "'\\''") + "'").join("\n"));
+  writeFileSync(join(output, "clips.json"), JSON.stringify(clips, null, 2));
   writeFileSync(join(output, "narration.txt"), transcript.map(item => item.chapter + "\n" + item.text + "\n").join("\n"));
   writeFileSync(join(output, "recording.json"), JSON.stringify({ schema_version: 1, source_commit: process.env.GITHUB_SHA, measured_seconds: elapsed, chapters: transcript, proof }, null, 2));
   console.log(JSON.stringify({ recorded_seconds: elapsed, clips: clips.length }));
