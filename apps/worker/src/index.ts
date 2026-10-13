@@ -1,4 +1,5 @@
 import { Hono } from "hono";
+import { streamSSE } from "hono/streaming";
 import { readObject } from "./routes/objects.ts";
 import { callEngine } from "./internal.ts";
 import {
@@ -167,6 +168,29 @@ app.get(prefix + "/decisions", async (context) => {
     { schema_version: 1, scope: target },
     principal.sub,
   );
+});
+
+app.get(prefix + "/decisions/stream", async (context) => {
+  const target = scope(context.req.param());
+  const principal = await authenticate(context.req.raw, context.env);
+  authorize(principal, target, "read");
+  return streamSSE(context, async (stream) => {
+    let previous = "";
+    while (!stream.aborted && principal.exp * 1000 > Date.now()) {
+      const response = await callObjective(
+        context.env, target, "decisions",
+        { schema_version: 1, scope: target }, principal.sub,
+      );
+      if (!response.ok) break;
+      const snapshot = await readJson<Record<string, unknown>>(response, 8 * 1024 * 1024);
+      const serialized = JSON.stringify(snapshot);
+      if (serialized !== previous) {
+        await stream.writeSSE({ event: "attention", data: serialized });
+        previous = serialized;
+      } else await stream.write(": heartbeat\n\n");
+      await stream.sleep(2000);
+    }
+  });
 });
 
 app.get(prefix + "/decisions/:decision/evidence/:evidence", async (context) => {

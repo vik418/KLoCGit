@@ -92,7 +92,8 @@ export class ObjectiveCoordinator extends DurableObject<Bindings> {
     );
     ctx.storage.sql.exec(
       "CREATE TABLE IF NOT EXISTS audit (sequence INTEGER PRIMARY KEY AUTOINCREMENT, schema_version INTEGER NOT NULL, action TEXT NOT NULL, actor_id TEXT NOT NULL, trace_id TEXT NOT NULL, object_id TEXT NOT NULL)",
-    );    this.decisions = new DecisionStore(ctx.storage, env);
+    );
+    this.decisions = new DecisionStore(ctx.storage, env);
   }
 
   private version(): number {
@@ -150,8 +151,14 @@ export class ObjectiveCoordinator extends DurableObject<Bindings> {
           "status",
           "analysis",
           "reduction",
-          "reduction-page", "candidates", "candidate-input", "evaluation",
-          "decisions", "review", "promotion-input", "promote",
+          "reduction-page",
+          "candidates",
+          "candidate-input",
+          "evaluation",
+          "decisions",
+          "review",
+          "promotion-input",
+          "promote",
         ].includes(action)
       )
         throw new Failure("NOT_FOUND", 404, "Unknown operation");
@@ -172,35 +179,78 @@ export class ObjectiveCoordinator extends DurableObject<Bindings> {
       )
         throw new Failure("FORBIDDEN", 403, "Objective scope differs");
       if (action === "status") return this.status();
-      if (action === "decisions") return Response.json(await this.decisions.list(body.scope));
-      if (["reduction-page", "analysis", "reduction", "candidates", "candidate-input", "evaluation"].includes(action) &&
-          grant.actor_id !== "engine")
-        throw new Failure("FORBIDDEN", 403, "Only the analysis service may record derived state");
+      if (action === "decisions")
+        return Response.json(await this.decisions.list(body.scope));
+      if (
+        [
+          "reduction-page",
+          "analysis",
+          "reduction",
+          "candidates",
+          "candidate-input",
+          "evaluation",
+        ].includes(action) &&
+        grant.actor_id !== "engine"
+      )
+        throw new Failure(
+          "FORBIDDEN",
+          403,
+          "Only the analysis service may record derived state",
+        );
       if (action === "reduction-page") return this.reductionPage(body);
-      if (action === "analysis") { this.decisions.assertIdle(); return await this.analysis(body); }
-      if (action === "reduction") { this.decisions.assertIdle(); return this.reduction(body); }
+      if (action === "analysis") {
+        this.decisions.assertIdle();
+        return await this.analysis(body);
+      }
+      if (action === "reduction") {
+        this.decisions.assertIdle();
+        return this.reduction(body);
+      }
       if (action === "candidates") {
-        await this.decisions.register(body.scope, body.version!, body.candidate_specs!, body.reduction_status!);
+        await this.decisions.register(
+          body.scope,
+          body.version!,
+          body.candidate_specs!,
+          body.reduction_status!,
+        );
         await this.ctx.storage.setAlarm(Date.now() + 5000);
         await this.flush();
         return Response.json({ schema_version: 1, accepted: true });
       }
       if (action === "candidate-input") {
-        const input = await this.decisions.input(body.scope, body.version!, body.spec_id!);
+        const input = await this.decisions.input(
+          body.scope,
+          body.version!,
+          body.spec_id!,
+        );
         return Response.json({ schema_version: 1, input });
       }
       if (action === "evaluation") {
-        await this.decisions.evaluated(body.scope, body.version!, body.spec_id!, body.candidate!, body.evidence!);
+        await this.decisions.evaluated(
+          body.scope,
+          body.version!,
+          body.spec_id!,
+          body.candidate!,
+          body.evidence!,
+        );
         return Response.json({ schema_version: 1, accepted: true });
       }
       if (["review", "promotion-input", "promote"].includes(action)) {
-        if (!body.principal || grant.actor_id !== body.principal.sub || body.principal.exp * 1000 <= Date.now())
+        if (
+          !body.principal ||
+          grant.actor_id !== body.principal.sub ||
+          body.principal.exp * 1000 <= Date.now()
+        )
           throw new Failure("FORBIDDEN", 403, "Decision authorization expired");
         authorize(body.principal, body.scope, "promote");
         const command = body as ReviewCommand;
-        if (action === "review") return Response.json(await this.decisions.review(command));
-        if (action === "promotion-input") return Response.json(await this.decisions.promotionInput(command));
-        return Response.json(await this.decisions.promote(command, body.prepared));
+        if (action === "review")
+          return Response.json(await this.decisions.review(command));
+        if (action === "promotion-input")
+          return Response.json(await this.decisions.promotionInput(command));
+        return Response.json(
+          await this.decisions.promote(command, body.prepared),
+        );
       }
       if (
         grant.actor_id !== body.principal.sub ||
@@ -373,7 +423,12 @@ export class ObjectiveCoordinator extends DurableObject<Bindings> {
           revision.id,
         )
         .toArray()[0];
-      if (!known && command.principal.capability) {
+      const current = this.ctx.storage.sql
+        .exec<{ revision_id: string }>(
+          "SELECT revision_id FROM current_refs WHERE ref = ?", command.ref,
+        ).toArray()[0];
+      const changed = current?.revision_id !== revision.id;
+      if (changed && command.principal.capability) {
         const capability = command.principal.capability;
         this.ctx.storage.sql.exec(
           "INSERT OR IGNORE INTO capabilities (id, claims_digest, remaining) VALUES (?, ?, ?)",
@@ -402,7 +457,13 @@ export class ObjectiveCoordinator extends DurableObject<Bindings> {
           capability.id,
         );
       }
-      const version = known?.version ?? this.version() + 1;
+      const version = this.version() + (changed ? 1 : 0);
+      if (changed) {
+        this.ctx.storage.sql.exec(
+          "INSERT INTO metadata (key, value) VALUES (?, ?) ON CONFLICT (key) DO UPDATE SET value = excluded.value",
+          "version", String(version),
+        );
+      }
       if (!known) {
         const record = JSON.stringify({ schema_version: 1, state, revision });
         this.ctx.storage.sql.exec(
@@ -411,11 +472,6 @@ export class ObjectiveCoordinator extends DurableObject<Bindings> {
           command.ref,
           version,
           record,
-        );
-        this.ctx.storage.sql.exec(
-          "INSERT INTO metadata (key, value) VALUES (?, ?) ON CONFLICT (key) DO UPDATE SET value = excluded.value",
-          "version",
-          String(version),
         );
         const payload = {
           schema_version: 1,
@@ -444,6 +500,7 @@ export class ObjectiveCoordinator extends DurableObject<Bindings> {
         command.ref,
         revision.id,
       );
+      if (known && changed) this.enqueueReduction(version);
       response = {
         revision_id: revision.id,
         state_digest: revision.state_digest,
@@ -480,7 +537,9 @@ export class ObjectiveCoordinator extends DurableObject<Bindings> {
         type:
           payload.operation === "reduce"
             ? "objective.reduce"
-            : payload.operation === "evaluate" ? "candidate.evaluate" : "future.analyze",
+            : payload.operation === "evaluate"
+              ? "candidate.evaluate"
+              : "future.analyze",
         scope: payload.scope,
         subject_version: job.version,
         payload,
@@ -571,36 +630,7 @@ export class ObjectiveCoordinator extends DurableObject<Bindings> {
           String(version),
           "version",
         );
-        const incomplete = this.ctx.storage.sql
-          .exec(
-            "SELECT 1 FROM current_refs c JOIN futures f ON c.revision_id = f.revision_id WHERE f.effects IS NULL LIMIT 1",
-          )
-          .toArray().length;
-        if (!incomplete) {
-          const scope = JSON.parse(
-            this.ctx.storage.sql
-              .exec<{ value: string }>(
-                "SELECT value FROM metadata WHERE key = ?",
-                "scope",
-              )
-              .one().value,
-          );
-          const payload = {
-            schema_version: 1,
-            operation: "reduce",
-            scope,
-            version,
-          };
-          this.ctx.storage.sql.exec(
-            "INSERT INTO outbox (job_id, version, payload, actor_id, expires_at, status) VALUES (?, ?, ?, ?, ?, ?)",
-            "reduce-" + version,
-            version,
-            JSON.stringify(payload),
-            "engine",
-            Date.now() + 86400000,
-            "PENDING",
-          );
-        }
+        this.enqueueReduction(version);
       });
       await this.ctx.storage.setAlarm(Date.now() + 5000);
       await this.flush();
@@ -609,6 +639,40 @@ export class ObjectiveCoordinator extends DurableObject<Bindings> {
       schema_version: 1,
       effect_digest: sealed.effect_digest,
     });
+  }
+
+
+  private enqueueReduction(version: number): void {
+    const incomplete = this.ctx.storage.sql
+      .exec(
+        "SELECT 1 FROM current_refs c JOIN futures f ON c.revision_id = f.revision_id WHERE f.effects IS NULL LIMIT 1",
+      )
+      .toArray().length;
+    if (!incomplete) {
+      const scope = JSON.parse(
+        this.ctx.storage.sql
+          .exec<{ value: string }>(
+            "SELECT value FROM metadata WHERE key = ?",
+            "scope",
+          )
+          .one().value,
+      );
+      const payload = {
+        schema_version: 1,
+        operation: "reduce",
+        scope,
+        version,
+      };
+      this.ctx.storage.sql.exec(
+        "INSERT INTO outbox (job_id, version, payload, actor_id, expires_at, status) VALUES (?, ?, ?, ?, ?, ?)",
+        "reduce-" + version,
+        version,
+        JSON.stringify(payload),
+        "engine",
+        Date.now() + 86400000,
+        "PENDING",
+      );
+    }
   }
 
   private reductionPage(command: {

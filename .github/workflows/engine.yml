@@ -65,8 +65,18 @@ jobs:
           echo "KLOCGIT_NATIVE_IMAGE=$image_oid" >> "$GITHUB_ENV"
       - name: Sandbox gate
         run: npm run test:sandbox
+      - name: Install web tooling
+        run: npm install --prefix apps/web
+      - name: Format web source
+        run: npx --yes prettier@3.9.9 --write apps/web/src/**/*.tsx apps/web/src/**/*.ts apps/web/src/*.tsx apps/web/src/*.ts apps/web/src/*.css apps/web/*.json apps/web/*.ts packages/contracts/src/views.ts
+      - name: Build web application
+        run: npm run build --prefix apps/web
+      - name: Install browser
+        run: node apps/web/node_modules/playwright/cli.js install --with-deps chromium
       - name: Decision workflow gate
         run: npm run test:decisions
+      - name: Core browser gate
+        run: npm run test:ui:core
       - name: Collect reproducible source
         if: always()
         run: |
@@ -77,7 +87,7 @@ jobs:
             for (const item of readdirSync(path, { withFileTypes: true })) {
               const child = path + '/' + item.name;
               if (item.isDirectory()) walk(child);
-              else if (/\.(rs|ts|json|cjs|py|go|toml)$/.test(child)) files.push(child);
+              else if (/\.(rs|ts|tsx|css|json|cjs|py|go|toml)$/.test(child)) files.push(child);
             }
           };
           walk('crates/engine/src');
@@ -88,6 +98,8 @@ jobs:
           walk('packages/policy/tests');
           files.push('packages/policy/tsconfig.json');
           walk('tests/fixtures');
+          walk('apps/web/src');
+          files.push('apps/web/package-lock.json', 'apps/web/package.json', 'apps/web/tsconfig.json', 'apps/web/vite.config.ts', 'apps/web/components.json', 'packages/contracts/src/views.ts');
           walk('apps/worker/src');
           walk('apps/worker/tests');
           files.push('apps/worker/package.json', 'apps/worker/package-lock.json', 'apps/worker/tsconfig.json');

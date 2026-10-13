@@ -34,17 +34,8 @@ import type { PromotionCommand } from "./ref.ts";
 
 const MAX_RECORD_BYTES = 4 * 1024 * 1024;
 
-export interface DecisionPacket {
-  schema_version: 1;
-  version: number;
-  reduction_status: string;
-  review_sequence: number;
-  decision: Decision;
-  question: string;
-  candidates: CandidateAnalysis[];
-  evidence: Evidence[];
-  blockers: Record<string, PolicyResult["blockers"]>;
-}
+import type { DecisionPacket } from "../../../../packages/contracts/src/views.ts";
+export type { DecisionPacket } from "../../../../packages/contracts/src/views.ts";
 
 export interface ReviewCommand {
   schema_version: 1;
