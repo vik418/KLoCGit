@@ -15,7 +15,7 @@ import type {
   Evidence,
   Predicate,
 } from "../../../packages/contracts/src/index.ts";
-import { authenticate, authorize, signToken } from "./auth.ts";
+import { authenticate, authorize, authorizeOrganization, signToken } from "./auth.ts";
 import { unpackEvent } from "./events.ts";
 import type { EventEnvelope } from "./events.ts";
 import { objectiveName } from "./coordinators/objective.ts";
@@ -33,8 +33,11 @@ import type {
   DecisionPacket,
 } from "./coordinators/decisions.ts";
 import { EvidenceStore } from "./evidence-store.ts";
+import { callDirectory } from "./routes/repositories.ts";
+import { directoryName } from "./coordinators/repositories.ts";
 
 export { ObjectiveCoordinator } from "./coordinators/objective.ts";
+export { RepositoryDirectory } from "./coordinators/repositories.ts";
 export { RefCoordinator } from "./coordinators/ref.ts";
 
 const API_VERSION = "2026-10-12";
@@ -152,6 +155,138 @@ app.post(prefix + "/futures", async (context) => {
   );
 });
 
+app.post("/api/login", async context => {
+  const input = await readJson<{ credential: string }>(context.req.raw);
+  if (!context.env.AUTH_TOKEN || context.env.AUTH_TOKEN.length < 32 || !context.env.ACTOR_ID || !context.env.OWNER_SCOPE)
+    throw new Failure("AUTH_NOT_CONFIGURED", 503, "Owner access is not configured");
+  if (typeof input.credential !== "string" || input.credential.length > 4096)
+    throw new Failure("UNAUTHENTICATED", 401, "Credential is invalid");
+  const encode = new TextEncoder();
+  const [expected, supplied] = await Promise.all([
+    crypto.subtle.digest("SHA-256", encode.encode(context.env.AUTH_TOKEN)),
+    crypto.subtle.digest("SHA-256", encode.encode(input.credential)),
+  ]);
+  const a = new Uint8Array(expected), b = new Uint8Array(supplied);
+  let difference = 0;
+  for (let i = 0; i < a.length; i++) difference |= a[i] ^ b[i];
+  if (difference) throw new Failure("UNAUTHENTICATED", 401, "Credential is invalid");
+  let organization: { tenant_id: string; organization_id: string };
+  try { organization = JSON.parse(context.env.OWNER_SCOPE); }
+  catch { throw new Failure("AUTH_NOT_CONFIGURED", 503, "Owner scope is not configured"); }
+  identifier(organization.tenant_id); identifier(organization.organization_id);
+  const now = Math.floor(Date.now() / 1000);
+  const token = await signToken({
+    sub: context.env.ACTOR_ID, actor_type: "human", iss: context.env.AUTH_ISSUER,
+    aud: context.env.AUTH_AUDIENCE, iat: now, exp: now + 3600, grants: [],
+    organization_grants: [{ scope: organization, actions: ["read", "ingest", "promote", "agent:mint", "repository:create", "repository:fork"] }],
+  }, context.env.AUTH_SIGNING_KEY);
+  return context.json({ schema_version: 1, token });
+});
+
+const repositoryPrefix = "/api/tenants/:tenant/organizations/:organization/repos";
+app.get(repositoryPrefix, async context => {
+  const organization = { tenant_id: identifier(context.req.param("tenant")), organization_id: identifier(context.req.param("organization")) };
+  const principal = await authenticate(context.req.raw, context.env);
+  authorizeOrganization(principal, organization, "read");
+  return callDirectory(context.env, organization, "list", { principal }, principal.sub);
+});
+app.get("/api/tenants/:tenant/organizations/:organization/objectives", async context => {
+  const organization = { tenant_id: identifier(context.req.param("tenant")), organization_id: identifier(context.req.param("organization")) };
+  const principal = await authenticate(context.req.raw, context.env);
+  authorizeOrganization(principal, organization, "read");
+  return callDirectory(context.env, organization, "objectives", { principal }, principal.sub);
+});
+app.post(repositoryPrefix + "/:repo/objectives", async context => {
+  const organization = { tenant_id: identifier(context.req.param("tenant")), organization_id: identifier(context.req.param("organization")) };
+  const principal = await authenticate(context.req.raw, context.env);
+  authorizeOrganization(principal, organization, "ingest");
+  const input = await readJson<{ objective_id: string; statement: string }>(context.req.raw);
+  return callDirectory(context.env, organization, "objective-create", { principal,
+    repo_id: identifier(context.req.param("repo")), objective_id: identifier(input.objective_id),
+    statement: input.statement, idempotency_key: context.req.header("Idempotency-Key") ?? input.objective_id,
+  }, principal.sub);
+});
+
+app.get(repositoryPrefix + "/discover", async context => {
+  const organization = { tenant_id: identifier(context.req.param("tenant")), organization_id: identifier(context.req.param("organization")) };
+  const principal = await authenticate(context.req.raw, context.env);
+  authorizeOrganization(principal, organization, "read");
+  return callDirectory(context.env, organization, "discover", { principal }, principal.sub);
+});
+app.post(repositoryPrefix + "/connect", async context => {
+  const organization = { tenant_id: identifier(context.req.param("tenant")), organization_id: identifier(context.req.param("organization")) };
+  const principal = await authenticate(context.req.raw, context.env);
+  authorizeOrganization(principal, organization, "repository:create");
+  const input = await readJson<{ name: string; artifacts_name: string }>(context.req.raw);
+  const idempotency_key = context.req.header("Idempotency-Key");
+  if (!idempotency_key) throw new Failure("IDEMPOTENCY_KEY_REQUIRED", 400, "Repository connection key is required");
+  return callDirectory(context.env, organization, "connect", { principal, repo_id: identifier(input.name),
+    source_repo_id: identifier(input.artifacts_name), idempotency_key }, principal.sub);
+});
+
+for (const action of ["create", "fork"] as const) {
+  app.post(repositoryPrefix + (action === "create" ? "" : "/:repo/fork"), async context => {
+    const organization = { tenant_id: identifier(context.req.param("tenant")), organization_id: identifier(context.req.param("organization")) };
+    const principal = await authenticate(context.req.raw, context.env);
+    authorizeOrganization(principal, organization, action === "create" ? "repository:create" : "repository:fork");
+    const input = await readJson<{ name: string; description?: string; source_url?: string }>(context.req.raw);
+    const idempotency_key = context.req.header("Idempotency-Key");
+    if (!idempotency_key) throw new Failure("IDEMPOTENCY_KEY_REQUIRED", 400, "Repository operation key is required");
+    return callDirectory(context.env, organization, action, {
+      principal, repo_id: identifier(input.name), description: input.description ?? "",
+      ...(input.source_url ? { source_url: input.source_url } : {}),
+      ...(action === "fork" ? { source_repo_id: identifier(context.req.param("repo")) } : {}), idempotency_key,
+    }, principal.sub);
+  });
+}
+app.get(repositoryPrefix + "/:repo", async context => {
+  const organization = { tenant_id: identifier(context.req.param("tenant")), organization_id: identifier(context.req.param("organization")) };
+  const principal = await authenticate(context.req.raw, context.env);
+  authorizeOrganization(principal, organization, "read");
+  return callDirectory(context.env, organization, "get", { principal, repo_id: identifier(context.req.param("repo")) }, principal.sub);
+});
+for (const resource of ["code", "file", "token"] as const) {
+  app.get(repositoryPrefix + "/:repo/" + resource, async context => {
+    const organization = { tenant_id: identifier(context.req.param("tenant")), organization_id: identifier(context.req.param("organization")) };
+    const principal = await authenticate(context.req.raw, context.env);
+    authorizeOrganization(principal, organization, "read");
+    const response = await callDirectory(context.env, organization, "get", {
+      principal, repo_id: identifier(context.req.param("repo")),
+    }, principal.sub);
+    if (!response.ok) return response;
+    const record = await readJson<{ artifacts_name: string }>(response);
+    if (!context.env.ARTIFACTS) throw new Failure("CONFIGURATION_REQUIRED", 503, "Artifacts is not configured");
+    using repository = await context.env.ARTIFACTS.get(record.artifacts_name);
+    const info = await repository.info();
+    if (resource === "token") {
+      const token = await repository.createToken("read", 900);
+      return context.json({ schema_version: 1, remote: info.remote, token: token.plaintext, expires_at: token.expiresAt });
+    }
+    const ref = context.req.query("ref") ?? "refs/heads/" + info.defaultBranch;
+    if (!ref.startsWith("refs/") && !/^[0-9a-f]{40}$/.test(ref))
+      throw new Failure("INVALID_INPUT", 400, "Git ref is invalid");
+    const commits = await repository.log({ ref, limit: 30 });
+    if (!commits.length) return context.json({ schema_version: 1, empty: true, commits: [], entries: [], ref });
+    const selected = commits[0];
+    if (resource === "file") {
+      const path = context.req.query("path") ?? "";
+      if (!path || path.startsWith("/") || path.includes("\\") || path.split("/").some(part => !part || part === "." || part === ".."))
+        throw new Failure("INVALID_INPUT", 400, "File path is invalid");
+      const file = await repository.readFile({ ref: selected.hash, path });
+      if (!file) throw new Failure("NOT_FOUND", 404, "File is unavailable");
+      if (file.size > 1024 * 1024) throw new Failure("FILE_TOO_LARGE", 413, "Use Git to fetch this large file");
+      const content = await file.text();
+      return context.json({ schema_version: 1, commit_oid: selected.hash, path, content });
+    }
+    const tree_oid = context.req.query("tree") ?? selected.treeHash;
+    if (!/^[0-9a-f]{40}$/.test(tree_oid)) throw new Failure("INVALID_INPUT", 400, "Tree OID is invalid");
+    const tree = await repository.readTree(tree_oid);
+    return context.json({ schema_version: 1, ref, commit_oid: selected.hash, tree_oid,
+      commits: commits.map(value => ({ oid: value.hash, message: value.message, parents: value.parents })),
+      entries: tree?.entries ?? [] });
+  });
+}
+
 app.get("/api/session", async (context) => {
   const principal = await authenticate(context.req.raw, context.env);
   return context.json({
@@ -160,6 +295,7 @@ app.get("/api/session", async (context) => {
     actor_type: principal.actor_type,
     expires_at: principal.exp,
     grants: principal.grants,
+    organization_grants: principal.organization_grants ?? [],
   });
 });
 
@@ -334,16 +470,25 @@ for (const action of ["review", "promote"] as const) {
   });
 }
 
+app.post("/internal/repositories/resolve", async context => {
+  const request = context.req.raw;
+  const body = await readJson<{ scope: { tenant_id: string; organization_id: string }; repo_id: string }>(request);
+  identifier(body.scope.tenant_id); identifier(body.scope.organization_id); identifier(body.repo_id);
+  const name = await directoryName(body.scope);
+  return context.env.REPOSITORIES.getByName(name).fetch("https://repository.internal/resolve", {
+    method: "POST", headers: request.headers, body: JSON.stringify(body),
+  });
+});
+
 app.post("/internal/git-objects", (context) =>
   readObject(context.req.raw, context.env),
 );
 
-app.notFound(() =>
-  Response.json(
-    { error: { code: "NOT_FOUND", message: "Resource not found" } },
-    { status: 404 },
-  ),
-);
+app.notFound(context => {
+  if (!context.req.path.startsWith("/api/") && !context.req.path.startsWith("/internal/") && context.env.ASSETS)
+    return context.env.ASSETS.fetch(context.req.raw);
+  return Response.json({ error: { code: "NOT_FOUND", message: "Resource not found" } }, { status: 404 });
+});
 
 async function analyze(env: Bindings, envelope: EventEnvelope): Promise<void> {
   const payload = (await unpackEvent(env, envelope)) as {

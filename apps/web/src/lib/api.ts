@@ -37,6 +37,16 @@ export class Client {
     return response.json() as Promise<T>;
   }
 
+  static async owner(credential: string) {
+    const response = await fetch("/api/login", { method: "POST",
+      headers: { "Content-Type": "application/json", "KLoCGit-Version": API_VERSION },
+      body: JSON.stringify({ credential }) });
+    const result = await response.json();
+    if (!response.ok) throw new ApiError(response.status, result.error?.code ?? "UNAVAILABLE",
+      result.error?.message ?? "Sign-in failed.");
+    return new Client(result.token);
+  }
+
   session() { return this.request<Session>("/api/session"); }
   decisions(scope: Scope) { return this.request<AttentionSnapshot>(objectivePath(scope) + "/decisions"); }
   evidence(scope: Scope, packet: DecisionPacket, digest: string) {

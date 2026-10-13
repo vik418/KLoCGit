@@ -5,6 +5,7 @@ import type {
   Session,
 } from "../../../packages/contracts/src/views.ts";
 import { ApiError, Client, objectivePath } from "@/lib/api";
+import { RepositoryBrowser } from "@/components/repositories/RepositoryBrowser";
 import { DecisionCard } from "@/components/queue/DecisionCard";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -21,6 +22,8 @@ import {
 
 export function App() {
   const [credential, setCredential] = useState("");
+  const [method, setMethod] = useState<"owner" | "token">("owner");
+  const [view, setView] = useState<"repositories" | "attention">("attention");
   const [client, setClient] = useState<Client | null>(null);
   const [session, setSession] = useState<Session | null>(null);
   const [scope, setScope] = useState<Scope | null>(null);
@@ -29,6 +32,7 @@ export function App() {
   const [connecting, setConnecting] = useState(false);
   const [live, setLive] = useState(false);
   const [author, setAuthor] = useState({ name: "", email: "" });
+  const [objectives, setObjectives] = useState<{ objective_id: string; statement: string; scope: Scope }[]>([]);
   const scopes = useMemo(() => {
     const map = new Map<string, Scope>();
     for (const grant of session?.grants ?? []) {
@@ -42,8 +46,9 @@ export function App() {
       )
         map.set(objectivePath(item as Scope), item as Scope);
     }
+    for (const objective of objectives) map.set(objectivePath(objective.scope), objective.scope);
     return [...map.values()];
-  }, [session]);
+  }, [session, objectives]);
 
   const refresh = useCallback(async () => {
     if (!client || !scope) return;
@@ -94,10 +99,11 @@ export function App() {
     event.preventDefault();
     setConnecting(true);
     setError(null);
-    const connection = new Client(credential.trim());
     try {
+      const connection = method === "owner" ? await Client.owner(credential.trim()) : new Client(credential.trim());
       const identity = await connection.session();
       setSession(identity);
+      setView(identity.organization_grants?.length ? "repositories" : "attention");
       setClient(connection);
       setCredential("");
       setScope(null);
@@ -107,6 +113,21 @@ export function App() {
       setConnecting(false);
     }
   }
+
+  useEffect(() => {
+    if (!client || !session) return;
+    const read = async () => {
+      const found = await Promise.all((session.organization_grants ?? []).map(async grant => {
+        const target = grant.scope;
+        const result = await client.request<{ objectives: { objective_id: string; statement: string; scope: Scope }[] }>(
+          "/api/tenants/" + encodeURIComponent(target.tenant_id) + "/organizations/" +
+          encodeURIComponent(target.organization_id) + "/objectives");
+        return result.objectives;
+      }));
+      setObjectives(found.flat());
+    };
+    void read().catch(cause => setError(cause.message));
+  }, [client, session, view]);
 
   useEffect(() => {
     if (!scope && scopes.length) setScope(scopes[0]);
@@ -129,7 +150,11 @@ export function App() {
               onSubmit={(event) => void signIn(event)}
               className="space-y-4"
             >
-              <div>
+              <fieldset className="flex gap-2" aria-label="Sign-in method">
+                  <Button type="button" size="sm" variant={method === "owner" ? "secondary" : "ghost"} onClick={() => setMethod("owner")}>Owner key</Button>
+                  <Button type="button" size="sm" variant={method === "token" ? "secondary" : "ghost"} onClick={() => setMethod("token")}>Access token</Button>
+                </fieldset>
+                <div>
                 <label htmlFor="credential" className="mb-2 block font-medium">
                   Access credential
                 </label>
@@ -160,11 +185,14 @@ export function App() {
     <div className="min-h-dvh">
       <header className="sticky top-0 z-20 border-b bg-background/95 backdrop-blur">
         <div className="mx-auto flex h-14 max-w-6xl items-center justify-between px-5">
-          <span className="font-semibold tracking-wide text-primary">
-            KLoCGit
-          </span>
+          <div className="flex items-center gap-3"><span className="font-semibold tracking-wide text-primary">KLoCGit</span>
+              {!!session.organization_grants?.length && <nav aria-label="Product">
+                <Button size="sm" variant={view === "repositories" ? "secondary" : "ghost"} onClick={() => setView("repositories")}>Repositories</Button>
+                <Button size="sm" variant={view === "attention" ? "secondary" : "ghost"} onClick={() => setView("attention")}>Attention</Button>
+              </nav>}
+            </div>
           <div className="flex items-center gap-3">
-            <span className="text-xs text-muted-foreground">
+            <span className="hidden text-xs text-muted-foreground sm:inline">
               {session.actor_id}
             </span>
             <Button
@@ -183,8 +211,8 @@ export function App() {
           </div>
         </div>
       </header>
-      <div className="mx-auto grid max-w-6xl md:grid-cols-[220px_1fr]">
-        <aside className="border-b p-5 md:min-h-[calc(100dvh-3.5rem)] md:border-r md:border-b-0">
+      <div className={"mx-auto grid max-w-6xl " + (view === "attention" ? "md:grid-cols-[220px_1fr]" : "")}>
+        {view === "attention" && (<aside className="border-b p-5 md:min-h-[calc(100dvh-3.5rem)] md:border-r md:border-b-0">
           <p className="mb-4 text-xs font-medium tracking-wide text-muted-foreground">
             OBJECTIVES
           </p>
@@ -216,8 +244,9 @@ export function App() {
               </Button>
             ))}
           </nav>
-        </aside>
+        </aside>)}
         <main className="min-w-0 p-5 sm:p-8">
+        {view === "repositories" ? <RepositoryBrowser client={client} session={session} /> : <>
           <div className="mb-7 flex items-start justify-between gap-4">
             <div>
               <h1 className="text-2xl font-semibold tracking-tight">
@@ -358,7 +387,8 @@ export function App() {
           <p className="mt-6 text-xs text-muted-foreground" role="status">
             {live ? "Live updates connected" : "Connecting live updates"}
           </p>
-        </main>
+        </>}
+</main>
       </div>
     </div>
   );

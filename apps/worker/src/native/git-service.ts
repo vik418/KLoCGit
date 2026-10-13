@@ -36,34 +36,28 @@ function oid(value: string): void {
     throw new Failure("INVALID_INPUT", 400, "Invalid Git object ID");
 }
 
-function repositoryName(env: GitBindings, scope: Scope): string {
-  let mappings: {
-    tenant_id: string;
-    organization_id: string;
-    repo_id: string;
-    artifacts_name: string;
-  }[];
-  try {
-    mappings = JSON.parse(env.ARTIFACTS_REPOSITORIES);
-  } catch {
-    throw new Failure(
-      "CONFIGURATION_REQUIRED",
-      503,
-      "Repository mappings are required",
-    );
+async function repositoryName(env: GitBindings, scope: Scope): Promise<string> {
+  if (env.CONTROL_PLANE) {
+    const organization = { tenant_id: scope.tenant_id, organization_id: scope.organization_id };
+    const body = { schema_version: 1, scope: organization, repo_id: scope.repo_id };
+    const token = await signToken({
+      schema_version: 1, aud: "repository", scope: organization, action: "resolve",
+      actor_id: "git-executor", expires_at: Date.now() + 60000,
+      subject_digest: await hashProjection("klocgit.repository-command", body),
+    }, env.INTERNAL_SIGNING_KEY);
+    const response = await env.CONTROL_PLANE.fetch("https://control.internal/internal/repositories/resolve", {
+      method: "POST", headers: { "content-type": "application/json", "x-klocgit-internal": token },
+      body: JSON.stringify(body),
+    });
+    if (!response.ok) throw new Failure("REPOSITORY_UNAVAILABLE", response.status, "Repository mapping is unavailable");
+    return (await readJson<{ artifacts_name: string }>(response)).artifacts_name;
   }
-  const matches = mappings.filter(
-    (mapping) =>
-      mapping.tenant_id === scope.tenant_id &&
-      mapping.organization_id === scope.organization_id &&
-      mapping.repo_id === scope.repo_id,
-  );
-  if (matches.length !== 1)
-    throw new Failure(
-      "FORBIDDEN",
-      403,
-      "Repository is outside this resource scope",
-    );
+  let mappings: { tenant_id: string; organization_id: string; repo_id: string; artifacts_name: string }[];
+  try { mappings = JSON.parse(env.ARTIFACTS_REPOSITORIES); }
+  catch { throw new Failure("CONFIGURATION_REQUIRED", 503, "Repository mappings are required"); }
+  const matches = mappings.filter(mapping => mapping.tenant_id === scope.tenant_id &&
+    mapping.organization_id === scope.organization_id && mapping.repo_id === scope.repo_id);
+  if (matches.length !== 1) throw new Failure("FORBIDDEN", 403, "Repository is outside this resource scope");
   return matches[0].artifacts_name;
 }
 
@@ -246,7 +240,7 @@ export default {
           403,
           "Git command is outside the authorized scope",
         );
-      const repo = await env.ARTIFACTS.get(repositoryName(env, input.scope));
+      const repo = await env.ARTIFACTS.get(await repositoryName(env, input.scope));
       try {
         if (action === "observe") {
           if (!input.ref?.startsWith("refs/"))

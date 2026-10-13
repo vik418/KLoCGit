@@ -41,9 +41,10 @@ export interface AttentionSnapshot {
 export interface Session {
   schema_version: 1;
   actor_id: string;
-  actor_type: "human" | "agent";
+  actor_type: "human" | "agent" | "service";
   expires_at: number;
   grants: { scope: Partial<Scope>; actions: string[] }[];
+  organization_grants?: { scope: Pick<Scope, "tenant_id" | "organization_id">; actions: string[] }[];
 }
 
 export interface ForwardPortProof {

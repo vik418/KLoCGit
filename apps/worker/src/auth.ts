@@ -1,7 +1,7 @@
-import { Failure, strictUtf8, validateScope } from "./runtime.ts";
+import { Failure, identifier, strictUtf8, validateScope } from "./runtime.ts";
 import type { Bindings, Scope } from "./runtime.ts";
 
-export type Action = "read" | "ingest" | "agent:mint" | "promote";
+export type Action = "read" | "ingest" | "agent:mint" | "promote" | "repository:create" | "repository:fork";
 export interface Principal {
   sub: string;
   actor_type: "human" | "agent" | "service";
@@ -10,6 +10,7 @@ export interface Principal {
   exp: number;
   iat: number;
   grants: { scope: Scope; actions: Action[] }[];
+  organization_grants?: { scope: Pick<Scope, "tenant_id" | "organization_id">; actions: Action[] }[];
   capability?: { id: string; scope: Scope; budget: number };
 }
 
@@ -134,10 +135,20 @@ export async function authenticate(
     if (
       !Array.isArray(grant.actions) ||
       grant.actions.some(
-        (value) => !["read", "ingest", "agent:mint", "promote"].includes(value),
+        (value) => !["read", "ingest", "agent:mint", "promote", "repository:create", "repository:fork"].includes(value),
       )
     )
       throw new Failure("UNAUTHENTICATED", 401, "Invalid grants");
+  }
+  if (claims.organization_grants !== undefined) {
+    if (claims.actor_type !== "human" || !Array.isArray(claims.organization_grants) || claims.organization_grants.length > 128)
+      throw new Failure("UNAUTHENTICATED", 401, "Organization grants are invalid");
+    for (const grant of claims.organization_grants) {
+      identifier(grant.scope.tenant_id); identifier(grant.scope.organization_id);
+      if (!Array.isArray(grant.actions) || grant.actions.some(value =>
+          !["read", "ingest", "agent:mint", "promote", "repository:create", "repository:fork"].includes(value)))
+        throw new Failure("UNAUTHENTICATED", 401, "Organization actions are invalid");
+    }
   }
   if (claims.actor_type === "agent") {
     const capability = claims.capability;
@@ -179,6 +190,8 @@ export function authorize(
       "Agent scope does not allow this action",
     );
   if (
+    !principal.organization_grants?.some(grant => principal.actor_type === "human" &&
+      grant.scope.tenant_id === scope.tenant_id && grant.scope.organization_id === scope.organization_id && grant.actions.includes(action)) &&
     !principal.grants.some(
       (grant) =>
         sameScope(grant.scope, scope) && grant.actions.includes(action),
@@ -189,6 +202,14 @@ export function authorize(
       403,
       "Resource scope does not allow this action",
     );
+}
+
+export function authorizeOrganization(
+  principal: Principal, scope: Pick<Scope, "tenant_id" | "organization_id">, action: Action,
+): void {
+  if (principal.actor_type !== "human" || !principal.organization_grants?.some(grant =>
+      grant.scope.tenant_id === scope.tenant_id && grant.scope.organization_id === scope.organization_id &&
+      grant.actions.includes(action))) throw new Failure("FORBIDDEN", 403, "Organization permission is required");
 }
 
 export interface InternalGrant {

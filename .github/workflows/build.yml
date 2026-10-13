@@ -82,7 +82,7 @@ jobs:
             return body.result;
           };
           const scripts = await get('/workers/scripts');
-          console.log(JSON.stringify({ workers: scripts?.map(value => value.id) ?? [] }));
+          console.log(JSON.stringify({ workers: scripts?.filter(value => ['klocgit', 'klocgit-engine', 'klocgit-git-executor'].includes(value.id)).map(value => ({ id: value.id, migration_tag: value.migration_tag, fields: Object.keys(value) })) ?? [] }));
           for (const name of ['klocgit', 'klocgit-engine', 'klocgit-git-executor']) {
             if (!scripts?.some(value => value.id === name)) continue;
             const settings = await get('/workers/scripts/' + name + '/settings');
@@ -95,5 +95,5 @@ jobs:
             }));
           }
           const namespaces = await get('/artifacts/namespaces?limit=100');
-          console.log(JSON.stringify({ artifacts: namespaces }));
+          console.log(JSON.stringify({ artifacts: Array.isArray(namespaces) ? namespaces.filter(value => value.namespace === 'klocgit').map(value => ({ namespace: value.namespace, repo_count: value.repo_count })) : null }));
           NODE

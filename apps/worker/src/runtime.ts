@@ -11,6 +11,11 @@ export interface Scope {
 }
 
 export interface Bindings {
+  REPOSITORIES: DurableObjectNamespace;
+  AUTH_TOKEN?: string;
+  ACTOR_ID?: string;
+  OWNER_SCOPE?: string;
+  ASSETS?: Fetcher;
   OBJECTIVES: DurableObjectNamespace;
   REFS: DurableObjectNamespace;
   PAYLOADS: R2Bucket;
