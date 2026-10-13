@@ -123,9 +123,12 @@ export class RepositoryDirectory extends DurableObject<Bindings> {
         if (action === "discover") {
           const page = await this.env.ARTIFACTS.list({ limit: 100 });
           const mapped = new Set(this.ctx.storage.sql.exec<{ record: string }>("SELECT record FROM repositories").toArray().map(row => JSON.parse(row.record).artifacts_name));
-          return Response.json({ schema_version: 1, repositories: page.repos.filter(repo => !mapped.has(repo.name)).map(repo => ({
-            name: repo.name, status: repo.status,
-          })), cursor: page.cursor ?? null });
+          const repositories = await Promise.all(page.repos.filter(repo => !mapped.has(repo.name)).map(async descriptor => {
+            try { using handle = await this.env.ARTIFACTS!.get(descriptor.name); await handle.info();
+              return { name: descriptor.name, status: "ready" }; }
+            catch { return { name: descriptor.name, status: "unknown" }; }
+          }));
+          return Response.json({ schema_version: 1, repositories, cursor: page.cursor ?? null });
         }
         const repo_id = identifier(body.repo_id);
         const artifacts_name = identifier(body.source_repo_id);
