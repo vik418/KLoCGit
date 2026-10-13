@@ -1,4 +1,10 @@
-import type { Candidate, CandidateSpec, Decision, EffectSet, Evidence } from "./index.ts";
+import type {
+  Candidate,
+  CandidateSpec,
+  Decision,
+  EffectSet,
+  Evidence,
+} from "./index.ts";
 
 export interface Scope {
   tenant_id: string;

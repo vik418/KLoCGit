@@ -132,7 +132,7 @@ pub fn materialize_from_objects(
     )
 }
 
-fn checkout(
+pub(crate) fn checkout(
     specification: &CandidateSpec,
     repo_id: &str,
     composition: Composition,

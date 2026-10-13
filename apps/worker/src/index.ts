@@ -19,7 +19,13 @@ import { authenticate, authorize, signToken } from "./auth.ts";
 import { unpackEvent } from "./events.ts";
 import type { EventEnvelope } from "./events.ts";
 import { objectiveName } from "./coordinators/objective.ts";
-import { Failure, failureResponse, identifier, readJson, strictUtf8 } from "./runtime.ts";
+import {
+  Failure,
+  failureResponse,
+  identifier,
+  readJson,
+  strictUtf8,
+} from "./runtime.ts";
 import type { Bindings, Scope } from "./runtime.ts";
 import type {
   ReviewCommand,
@@ -178,11 +184,17 @@ app.get(prefix + "/decisions/stream", async (context) => {
     let previous = "";
     while (!stream.aborted && principal.exp * 1000 > Date.now()) {
       const response = await callObjective(
-        context.env, target, "decisions",
-        { schema_version: 1, scope: target }, principal.sub,
+        context.env,
+        target,
+        "decisions",
+        { schema_version: 1, scope: target },
+        principal.sub,
       );
       if (!response.ok) break;
-      const snapshot = await readJson<Record<string, unknown>>(response, 8 * 1024 * 1024);
+      const snapshot = await readJson<Record<string, unknown>>(
+        response,
+        8 * 1024 * 1024,
+      );
       const serialized = JSON.stringify(snapshot);
       if (serialized !== previous) {
         await stream.writeSSE({ event: "attention", data: serialized });
@@ -582,9 +594,7 @@ async function reduceObjective(
     );
   // An absent deployment policy is visible as configuration failure, never a relaxed gate.
   if (env.REVIEW_POLICY) {
-    const reduction = JSON.parse(
-      strictUtf8(reductionBytes!),
-    ) as {
+    const reduction = JSON.parse(strictUtf8(reductionBytes!)) as {
       candidate_specs: CandidateSpec[];
       status: string;
     };

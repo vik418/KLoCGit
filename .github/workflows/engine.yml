@@ -68,7 +68,7 @@ jobs:
       - name: Install web tooling
         run: npm install --prefix apps/web
       - name: Format web source
-        run: npx --yes prettier@3.9.9 --write apps/web/src/**/*.tsx apps/web/src/**/*.ts apps/web/src/*.tsx apps/web/src/*.ts apps/web/src/*.css apps/web/*.json apps/web/*.ts packages/contracts/src/views.ts
+        run: npx --yes prettier@3.9.9 --no-error-on-unmatched-pattern --write apps/web/src/**/*.tsx apps/web/src/**/*.ts apps/web/src/*.tsx apps/web/src/*.ts apps/web/src/*.css apps/web/*.json apps/web/*.ts packages/contracts/src/views.ts
       - name: Build web application
         run: npm run build --prefix apps/web
       - name: Install browser

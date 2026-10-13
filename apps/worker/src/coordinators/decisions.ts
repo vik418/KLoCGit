@@ -612,9 +612,7 @@ export class DecisionStore {
     return reviewPolicy;
   }
 
-  async list(
-    scope: Scope,
-  ): Promise<{
+  async list(scope: Scope): Promise<{
     schema_version: number;
     decisions: DecisionPacket[];
     pending_candidates: number;

@@ -35,14 +35,23 @@ const root = resolve(import.meta.dirname, "../../../..");
 export interface FixtureOptions {
   sourceDirectory?: string;
   bindings?: Record<string, string>;
-  engine?: (action: string, input: any, context: {
-    driver: string; remote: string; base: string;
-    git: (args: string[]) => string;
-    bucket: () => Promise<any>;
-  }) => Promise<WorkerResponse | undefined>;
+  engine?: (
+    action: string,
+    input: any,
+    context: {
+      driver: string;
+      remote: string;
+      base: string;
+      git: (args: string[]) => string;
+      bucket: () => Promise<any>;
+    },
+  ) => Promise<WorkerResponse | undefined>;
 }
 
-export async function fixture(t: { after: (fn: () => unknown) => void }, optionsOverride: FixtureOptions = {}) {
+export async function fixture(
+  t: { after: (fn: () => unknown) => void },
+  optionsOverride: FixtureOptions = {},
+) {
   const directory = mkdtempSync(join(tmpdir(), "klocgit-coordination-"));
   const driver = join(directory, "driver");
   const remote = join(directory, "remote.git");
@@ -60,7 +69,8 @@ export async function fixture(t: { after: (fn: () => unknown) => void }, options
     }).trim();
   git(["init", "--bare", remote]);
   git(["init", driver]);
-  if (optionsOverride.sourceDirectory) cpSync(optionsOverride.sourceDirectory, driver, { recursive: true });
+  if (optionsOverride.sourceDirectory)
+    cpSync(optionsOverride.sourceDirectory, driver, { recursive: true });
   git(["-C", driver, "config", "user.name", "Fixture"]);
   git(["-C", driver, "config", "user.email", "fixture@example.org"]);
   writeFileSync(
@@ -135,7 +145,11 @@ export async function fixture(t: { after: (fn: () => unknown) => void }, options
   const serviceBindings = {
     GIT_EXECUTOR: async (request: Request) => {
       const input = (await request.json()) as {
-        promotion_pack?: { payload_digest: string; tree_oid: string; candidate_digest: string };
+        promotion_pack?: {
+          payload_digest: string;
+          tree_oid: string;
+          candidate_digest: string;
+        };
         scope: Scope;
         ref: string;
         expected_oid?: string;
@@ -188,19 +202,47 @@ export async function fixture(t: { after: (fn: () => unknown) => void }, options
         try {
           if (input.promotion_pack) {
             const bucket = await mf.getR2Bucket("PAYLOADS");
-            const key = "promotion-packs/" + await hashProjection("klocgit.promotion-pack.scope", input.scope) +
-              "/" + input.promotion_pack.payload_digest.slice(7);
+            const key =
+              "promotion-packs/" +
+              (await hashProjection(
+                "klocgit.promotion-pack.scope",
+                input.scope,
+              )) +
+              "/" +
+              input.promotion_pack.payload_digest.slice(7);
             const pack = await bucket.get(key);
             assert.ok(pack);
             const bytes = new Uint8Array(await pack.arrayBuffer());
-            const { payloadDigest } = await import("../../../../packages/contracts/src/index.ts");
-            assert.equal(await payloadDigest(bytes), input.promotion_pack.payload_digest);
-            execFileSync("git", ["-C", driver, "index-pack", "--stdin", "--strict"], {
-              input: bytes, stdio: ["pipe", "ignore", "pipe"],
-            });
-            assert.equal(git(["-C", driver, "rev-parse", input.target_oid + "^{tree}"]), input.promotion_pack.tree_oid);
-            assert.equal(git(["-C", driver, "rev-list", "--parents", "-n", "1", input.target_oid!]),
-              input.target_oid + " " + input.expected_oid);
+            const { payloadDigest } =
+              await import("../../../../packages/contracts/src/index.ts");
+            assert.equal(
+              await payloadDigest(bytes),
+              input.promotion_pack.payload_digest,
+            );
+            execFileSync(
+              "git",
+              ["-C", driver, "index-pack", "--stdin", "--strict"],
+              {
+                input: bytes,
+                stdio: ["pipe", "ignore", "pipe"],
+              },
+            );
+            assert.equal(
+              git(["-C", driver, "rev-parse", input.target_oid + "^{tree}"]),
+              input.promotion_pack.tree_oid,
+            );
+            assert.equal(
+              git([
+                "-C",
+                driver,
+                "rev-list",
+                "--parents",
+                "-n",
+                "1",
+                input.target_oid!,
+              ]),
+              input.target_oid + " " + input.expected_oid,
+            );
           }
           git([
             "-C",
@@ -248,14 +290,21 @@ export async function fixture(t: { after: (fn: () => unknown) => void }, options
         const object = await bucket.get(input.job_payload_ref);
         assert.ok(object);
         const bytes = new Uint8Array(await object.arrayBuffer());
-        const { payloadDigest } = await import("../../../../packages/contracts/src/index.ts");
+        const { payloadDigest } =
+          await import("../../../../packages/contracts/src/index.ts");
         assert.equal(await payloadDigest(bytes), input.job_payload_digest);
-        input = JSON.parse(new TextDecoder("utf-8", { fatal: true }).decode(bytes));
+        input = JSON.parse(
+          new TextDecoder("utf-8", { fatal: true }).decode(bytes),
+        );
       }
       const action = new URL(request.url).pathname.slice(1);
       if (optionsOverride.engine) {
         const output = await optionsOverride.engine(action, input, {
-          driver, remote, base, git, bucket: () => mf.getR2Bucket("PAYLOADS"),
+          driver,
+          remote,
+          base,
+          git,
+          bucket: () => mf.getR2Bucket("PAYLOADS"),
         });
         if (output) return output;
       }
@@ -551,4 +600,3 @@ export async function until(check: () => Promise<boolean>, timeout = 20_000) {
     await new Promise((resolve) => setTimeout(resolve, 50));
   }
 }
-

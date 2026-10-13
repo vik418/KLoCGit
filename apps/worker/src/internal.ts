@@ -14,7 +14,8 @@ export async function callEngine(
   supplied: { scope: Scope } & Record<string, unknown>,
 ): Promise<Response> {
   let body: { scope: Scope } & Record<string, unknown> = {
-    ...supplied, execution_id: crypto.randomUUID(),
+    ...supplied,
+    execution_id: crypto.randomUUID(),
   };
   const bytes = new TextEncoder().encode(JSON.stringify(body));
   if (bytes.length > 8 * 1024 * 1024)

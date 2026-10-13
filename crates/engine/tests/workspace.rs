@@ -383,3 +383,66 @@ fn execution_tree_detects_changed_bytes_permissions_and_unsafe_paths() {
         assert!(tree_oid(directory.path(), Limits::default(), budget).is_err());
     }
 }
+
+#[test]
+fn unchanged_base_state_is_rematerialized_with_new_identity_and_no_durable_write() {
+    use klocgit_engine::git::objects::ObjectFuture;
+    let directory = tempfile::tempdir().unwrap();
+    let repository = Repository::init_bare(directory.path()).unwrap();
+    let base = commit(&repository, None, &[("api.ts", b"export const A = 1;", 0o100644)]);
+    let head = commit(&repository, Some(base), &[("api.ts", b"export const A = 2;", 0o100644)]);
+    let moved = commit(&repository, Some(base), &[("api.ts", b"export const A = 1;", 0o100644)]);
+    repository.reference("refs/heads/main", moved, false, "fixture").unwrap();
+    let (state, revision, effects) = revision(&repository, head);
+    let sources = [FutureSource { state: &state, revision: &revision, effects: &effects, repository: &repository }];
+    let spec = compose(&repository, "repo", base, &sources, Limits::default()).unwrap().spec;
+    let hydration = HydrationBudget { max_blob_bytes: 1024, max_total_bytes: 4096 };
+    let previous = materialize(&spec, &repository, "repo", &sources, Limits::default(), hydration, metadata()).unwrap();
+    let durable_objects = objects(&repository);
+    let object_sources = [ObjectFuture { state: &state, revision: &revision, effects: &effects, objects: &repository }];
+    let ported = klocgit_engine::git::forward_port::rematerialize(
+        &spec, &previous.candidate, &repository, "repo", moved, &object_sources,
+        Limits::default(), hydration, metadata(),
+    ).unwrap();
+    assert_eq!(ported.specification.base_revisions["repo"], moved.to_string());
+    assert_ne!(ported.specification.spec_digest, spec.spec_digest);
+    assert_ne!(ported.workspace.candidate.candidate_digest, previous.candidate.candidate_digest);
+    assert_eq!(ported.workspace.candidate.repo_tree_oids, previous.candidate.repo_tree_oids);
+    assert_eq!(ported.specification.effect_summary_digest, spec.effect_summary_digest);
+    assert_eq!(std::fs::read(ported.workspace.path().join("api.ts")).unwrap(), b"export const A = 2;");
+    assert_eq!(objects(&repository), durable_objects);
+    assert_eq!(repository.find_reference("refs/heads/main").unwrap().target(), Some(moved));
+    let mut verified = ported.proof.clone();
+    verified.seal().unwrap();
+    assert_eq!(verified.proof_digest, ported.proof.proof_digest);
+    let mut substituted = previous.candidate.clone();
+    substituted.canonical.repo_tree_oids.insert("repo".into(), state.tree_oid.clone() + "0");
+    assert!(klocgit_engine::git::forward_port::rematerialize(
+        &spec, &substituted, &repository, "repo", moved, &object_sources,
+        Limits::default(), hydration, metadata(),
+    ).is_err());
+}
+
+#[test]
+fn path_disjointness_cannot_preserve_review_when_behavioral_interaction_is_unknown() {
+    use klocgit_engine::git::objects::ObjectFuture;
+    let directory = tempfile::tempdir().unwrap();
+    let repository = Repository::init_bare(directory.path()).unwrap();
+    let base = commit(&repository, None, &[("api.ts", b"export const A = 1;", 0o100644)]);
+    let head = commit(&repository, Some(base), &[("api.ts", b"export const A = 2;", 0o100644)]);
+    let moved = commit(&repository, Some(base), &[
+        ("api.ts", b"export const A = 1;", 0o100644),
+        ("config.ts", b"export const EnableSideEffects = true;", 0o100644),
+    ]);
+    let (state, revision, effects) = revision(&repository, head);
+    let sources = [FutureSource { state: &state, revision: &revision, effects: &effects, repository: &repository }];
+    let spec = compose(&repository, "repo", base, &sources, Limits::default()).unwrap().spec;
+    let hydration = HydrationBudget { max_blob_bytes: 1024, max_total_bytes: 4096 };
+    let previous = materialize(&spec, &repository, "repo", &sources, Limits::default(), hydration, metadata()).unwrap();
+    let object_sources = [ObjectFuture { state: &state, revision: &revision, effects: &effects, objects: &repository }];
+    let result = klocgit_engine::git::forward_port::rematerialize(
+        &spec, &previous.candidate, &repository, "repo", moved, &object_sources,
+        Limits::default(), hydration, metadata(),
+    );
+    assert!(matches!(result, Err(klocgit_engine::Error::Conflict(_))));
+}

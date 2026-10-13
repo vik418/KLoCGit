@@ -425,8 +425,10 @@ export class ObjectiveCoordinator extends DurableObject<Bindings> {
         .toArray()[0];
       const current = this.ctx.storage.sql
         .exec<{ revision_id: string }>(
-          "SELECT revision_id FROM current_refs WHERE ref = ?", command.ref,
-        ).toArray()[0];
+          "SELECT revision_id FROM current_refs WHERE ref = ?",
+          command.ref,
+        )
+        .toArray()[0];
       const changed = current?.revision_id !== revision.id;
       if (changed && command.principal.capability) {
         const capability = command.principal.capability;
@@ -461,7 +463,8 @@ export class ObjectiveCoordinator extends DurableObject<Bindings> {
       if (changed) {
         this.ctx.storage.sql.exec(
           "INSERT INTO metadata (key, value) VALUES (?, ?) ON CONFLICT (key) DO UPDATE SET value = excluded.value",
-          "version", String(version),
+          "version",
+          String(version),
         );
       }
       if (!known) {
@@ -640,7 +643,6 @@ export class ObjectiveCoordinator extends DurableObject<Bindings> {
       effect_digest: sealed.effect_digest,
     });
   }
-
 
   private enqueueReduction(version: number): void {
     const incomplete = this.ctx.storage.sql

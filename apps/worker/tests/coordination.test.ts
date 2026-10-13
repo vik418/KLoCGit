@@ -220,29 +220,61 @@ test("lost Git receipt remains UNKNOWN and recovers after coordinator restart", 
 test("restoring an observed Future head advances coordination without changing revision history", async (t) => {
   const f = await fixture(t);
   const ref = f.actorRefs[0];
-  const ingest = () => f.request(endpoint + "/futures", "POST", {
-    system_id: "product", ref, producer: { actor_id: "producer" },
-  });
+  const ingest = () =>
+    f.request(endpoint + "/futures", "POST", {
+      system_id: "product",
+      ref,
+      producer: { actor_id: "producer" },
+    });
   const first = await ingest();
   assert.equal(first.status, 200, await first.clone().text());
-  const original = await first.json() as { revision_id: string };
-  await until(async () => !!(await f.status()).futures.find((row: any) => row.revision.id === original.revision_id)?.effects);
-  const updated = f.commit("retry.ts", "export function RetryLimit() { return 9; }\n");
-  f.git(["-C", join(f.directory, "driver"), "push",
-    "--force-with-lease=" + ref + ":" + f.commits[0], "origin", updated + ":" + ref]);
+  const original = (await first.json()) as { revision_id: string };
+  await until(
+    async () =>
+      !!(await f.status()).futures.find(
+        (row: any) => row.revision.id === original.revision_id,
+      )?.effects,
+  );
+  const updated = f.commit(
+    "retry.ts",
+    "export function RetryLimit() { return 9; }\n",
+  );
+  f.git([
+    "-C",
+    join(f.directory, "driver"),
+    "push",
+    "--force-with-lease=" + ref + ":" + f.commits[0],
+    "origin",
+    updated + ":" + ref,
+  ]);
   assert.equal((await ingest()).status, 200);
-  await until(async () => (await f.status()).futures.every((row: any) => !!row.effects));
+  await until(async () =>
+    (await f.status()).futures.every((row: any) => !!row.effects),
+  );
   const before = await f.status();
-  f.git(["-C", join(f.directory, "driver"), "push",
-    "--force-with-lease=" + ref + ":" + updated, "origin", f.commits[0] + ":" + ref]);
+  f.git([
+    "-C",
+    join(f.directory, "driver"),
+    "push",
+    "--force-with-lease=" + ref + ":" + updated,
+    "origin",
+    f.commits[0] + ":" + ref,
+  ]);
   const restored = await ingest();
   assert.equal(restored.status, 200, await restored.clone().text());
-  const observation = await restored.json() as { revision_id: string; version: number };
+  const observation = (await restored.json()) as {
+    revision_id: string;
+    version: number;
+  };
   assert.equal(observation.revision_id, original.revision_id);
   assert(observation.version > before.version);
   const after = await f.status();
   assert.equal(after.futures.length, before.futures.length);
-  await until(async () => (await f.status()).version === observation.version && !!(await f.status()).reduction);
+  await until(
+    async () =>
+      (await f.status()).version === observation.version &&
+      !!(await f.status()).reduction,
+  );
   await f.restart();
   assert.equal((await f.status()).version, observation.version);
 });
