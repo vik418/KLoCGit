@@ -18,9 +18,13 @@ import { authenticate, authorize, signToken } from "./auth.ts";
 import { unpackEvent } from "./events.ts";
 import type { EventEnvelope } from "./events.ts";
 import { objectiveName } from "./coordinators/objective.ts";
-import { Failure, failureResponse, identifier, readJson } from "./runtime.ts";
+import { Failure, failureResponse, identifier, readJson, strictUtf8 } from "./runtime.ts";
 import type { Bindings, Scope } from "./runtime.ts";
-import type { ReviewCommand, PreparedCandidate, DecisionPacket } from "./coordinators/decisions.ts";
+import type {
+  ReviewCommand,
+  PreparedCandidate,
+  DecisionPacket,
+} from "./coordinators/decisions.ts";
 import { EvidenceStore } from "./evidence-store.ts";
 
 export { ObjectiveCoordinator } from "./coordinators/objective.ts";
@@ -141,36 +145,65 @@ app.post(prefix + "/futures", async (context) => {
   );
 });
 
-
 app.get("/api/session", async (context) => {
   const principal = await authenticate(context.req.raw, context.env);
-  return context.json({ schema_version: 1, actor_id: principal.sub,
-    actor_type: principal.actor_type, expires_at: principal.exp, grants: principal.grants });
+  return context.json({
+    schema_version: 1,
+    actor_id: principal.sub,
+    actor_type: principal.actor_type,
+    expires_at: principal.exp,
+    grants: principal.grants,
+  });
 });
 
 app.get(prefix + "/decisions", async (context) => {
   const target = scope(context.req.param());
   const principal = await authenticate(context.req.raw, context.env);
   authorize(principal, target, "read");
-  return callObjective(context.env, target, "decisions",
-    { schema_version: 1, scope: target }, principal.sub);
+  return callObjective(
+    context.env,
+    target,
+    "decisions",
+    { schema_version: 1, scope: target },
+    principal.sub,
+  );
 });
 
 app.get(prefix + "/decisions/:decision/evidence/:evidence", async (context) => {
   const target = scope(context.req.param());
   const principal = await authenticate(context.req.raw, context.env);
   authorize(principal, target, "read");
-  const response = await callObjective(context.env, target, "decisions",
-    { schema_version: 1, scope: target }, principal.sub);
+  const response = await callObjective(
+    context.env,
+    target,
+    "decisions",
+    { schema_version: 1, scope: target },
+    principal.sub,
+  );
   if (!response.ok) return response;
-  const packet = await readJson<{ decisions: DecisionPacket[] }>(response, 8 * 1024 * 1024);
-  const decision = packet.decisions.find((item) => item.decision.id === context.req.param("decision"));
-  const digest = context.req.param("evidence");
+  const packet = await readJson<{ decisions: DecisionPacket[] }>(
+    response,
+    8 * 1024 * 1024,
+  );
+  const decision = packet.decisions.find(
+    (item) => item.decision.id === context.req.param("decision"),
+  );
+  const digest = context.req.param("evidence")!;
   if (!decision?.decision.basis.evidence_digests.includes(digest))
-    throw new Failure("NOT_FOUND", 404, "Evidence is unavailable for this decision");
-  const record = await new EvidenceStore(context.env.PAYLOADS).load(target.tenant_id, digest);
+    throw new Failure(
+      "NOT_FOUND",
+      404,
+      "Evidence is unavailable for this decision",
+    );
+  const record = await new EvidenceStore(context.env.PAYLOADS).load(
+    target.tenant_id,
+    digest,
+  );
   return new Response(record.payload, {
-    headers: { "content-type": "application/json", "x-content-type-options": "nosniff" },
+    headers: {
+      "content-type": "application/json",
+      "x-content-type-options": "nosniff",
+    },
   });
 });
 
@@ -180,38 +213,88 @@ for (const action of ["review", "promote"] as const) {
     const principal = await authenticate(context.req.raw, context.env);
     authorize(principal, target, "promote");
     const input = await readJson<{
-      basis_digest: string; candidate_digest: string; predicates?: Predicate[];
+      basis_digest: string;
+      candidate_digest: string;
+      predicates?: Predicate[];
       author?: { name: string; email: string };
     }>(context.req.raw);
     const key = context.req.header("Idempotency-Key");
     if (!key || key.length > 256)
-      throw new Failure("IDEMPOTENCY_KEY_REQUIRED", 400, "An idempotency key is required");
+      throw new Failure(
+        "IDEMPOTENCY_KEY_REQUIRED",
+        400,
+        "An idempotency key is required",
+      );
     const command: ReviewCommand = {
-      schema_version: 1, scope: target, principal, idempotency_key: key,
-      decision_id: context.req.param("decision"), basis_digest: input.basis_digest,
-      candidate_digest: input.candidate_digest, predicates: input.predicates ?? [],
+      schema_version: 1,
+      scope: target,
+      principal,
+      idempotency_key: key,
+      decision_id: context.req.param("decision")!,
+      basis_digest: input.basis_digest,
+      candidate_digest: input.candidate_digest,
+      predicates: input.predicates ?? [],
       ...(input.author ? { author: input.author } : {}),
     };
     if (action === "review")
-      return callObjective(context.env, target, "review", command, principal.sub, principal.exp * 1000);
-    const result = await callObjective(context.env, target, "promotion-input", command, principal.sub, principal.exp * 1000);
+      return callObjective(
+        context.env,
+        target,
+        "review",
+        command,
+        principal.sub,
+        principal.exp * 1000,
+      );
+    const result = await callObjective(
+      context.env,
+      target,
+      "promotion-input",
+      command,
+      principal.sub,
+      principal.exp * 1000,
+    );
     if (!result.ok) return result;
-    const preparation = await readJson<Record<string, unknown>>(result, 4 * 1024 * 1024);
+    const preparation = await readJson<Record<string, unknown>>(
+      result,
+      4 * 1024 * 1024,
+    );
     let prepared: PreparedCandidate | undefined;
     if (!preparation.prior_command) {
-      if (!input.author || typeof input.author.name !== "string" || typeof input.author.email !== "string" ||
-          !input.author.name || !input.author.email || input.author.name.length > 256 || input.author.email.length > 256 ||
-          /[<>\r\n]/.test(input.author.name + input.author.email))
-        throw new Failure("INVALID_INPUT", 400, "Commit author name and email are required");
+      if (
+        !input.author ||
+        typeof input.author.name !== "string" ||
+        typeof input.author.email !== "string" ||
+        !input.author.name ||
+        !input.author.email ||
+        input.author.name.length > 256 ||
+        input.author.email.length > 256 ||
+        /[<>\r\n]/.test(input.author.name + input.author.email)
+      )
+        throw new Failure(
+          "INVALID_INPUT",
+          400,
+          "Commit author name and email are required",
+        );
       const output = await callEngine(context.env, "prepare", {
-        ...preparation, schema_version: 1, scope: target,
-        author: { ...input.author, unix_timestamp: Math.floor(Date.now() / 1000) },
+        ...preparation,
+        schema_version: 1,
+        scope: target,
+        author: {
+          ...input.author,
+          unix_timestamp: Math.floor(Date.now() / 1000),
+        },
       });
       if (!output.ok) return output;
       prepared = await readJson<PreparedCandidate>(output);
     }
-    return callObjective(context.env, target, "promote",
-      { ...command, ...(prepared ? { prepared } : {}) }, principal.sub, principal.exp * 1000);
+    return callObjective(
+      context.env,
+      target,
+      "promote",
+      { ...command, ...(prepared ? { prepared } : {}) },
+      principal.sub,
+      principal.exp * 1000,
+    );
   });
 }
 
@@ -234,8 +317,12 @@ async function analyze(env: Bindings, envelope: EventEnvelope): Promise<void> {
     revision: Awaited<ReturnType<typeof sealFutureRevision>>;
     base_oid: string;
   };
-  if (payload.schema_version !== 1 || !payload.scope ||
-      (await objectiveName(payload.scope)) !== (await objectiveName(envelope.scope)))
+  if (
+    payload.schema_version !== 1 ||
+    !payload.scope ||
+    (await objectiveName(payload.scope)) !==
+      (await objectiveName(envelope.scope))
+  )
     throw new Failure("INVALID_EVENT", 400, "Event scope differs");
   if (envelope.type === "objective.reduce") {
     await reduceObjective(env, envelope);
@@ -278,10 +365,7 @@ async function analyze(env: Bindings, envelope: EventEnvelope): Promise<void> {
     input_payload_digest: string;
     effects: EffectSet;
     changed_paths: string[];
-  }>(
-    result,
-    32 * 1024,
-  );
+  }>(result, 32 * 1024);
   if (
     analysis.schema_version !== 1 ||
     analysis.input_payload_digest !== envelope.payload_digest
@@ -425,9 +509,7 @@ async function reduceObjective(
     payload_ref: string;
     payload_digest: string;
     summary: unknown;
-  }>(
-    result,
-  );
+  }>(result);
   if (
     output.schema_version !== 1 ||
     output.input_payload_digest !== input_payload_digest ||
@@ -441,8 +523,10 @@ async function reduceObjective(
       "Reduction input binding differs",
     );
   const object = await env.PAYLOADS.get(output.payload_ref);
-  const reductionBytes = object && object.size <= 8 * 1024 * 1024
-    ? new Uint8Array(await object.arrayBuffer()) : null;
+  const reductionBytes =
+    object && object.size <= 8 * 1024 * 1024
+      ? new Uint8Array(await object.arrayBuffer())
+      : null;
   if (
     !reductionBytes ||
     (await payloadDigest(reductionBytes)) !== output.payload_digest
@@ -474,38 +558,103 @@ async function reduceObjective(
     );
   // An absent deployment policy is visible as configuration failure, never a relaxed gate.
   if (env.REVIEW_POLICY) {
-    const reduction = JSON.parse(new TextDecoder("utf-8", { fatal: true }).decode(reductionBytes!)) as {
-      candidate_specs: CandidateSpec[]; status: string;
+    const reduction = JSON.parse(
+      strictUtf8(reductionBytes!),
+    ) as {
+      candidate_specs: CandidateSpec[];
+      status: string;
     };
     if (reduction.candidate_specs.length) {
-      const registered = await callObjective(env, envelope.scope, "candidates", {
-        schema_version: 1, scope: envelope.scope, version: envelope.subject_version,
-        candidate_specs: reduction.candidate_specs, reduction_status: reduction.status,
-      }, "engine");
+      const registered = await callObjective(
+        env,
+        envelope.scope,
+        "candidates",
+        {
+          schema_version: 1,
+          scope: envelope.scope,
+          version: envelope.subject_version,
+          candidate_specs: reduction.candidate_specs,
+          reduction_status: reduction.status,
+        },
+        "engine",
+      );
       if (registered.status === 409) return;
-      if (!registered.ok) throw new Failure("CANDIDATE_REGISTRATION_FAILED", 503, "Candidate scheduling failed");
+      if (!registered.ok)
+        throw new Failure(
+          "CANDIDATE_REGISTRATION_FAILED",
+          503,
+          "Candidate scheduling failed",
+        );
     }
   }
 }
 
-async function evaluateCandidate(env: Bindings, envelope: EventEnvelope): Promise<void> {
-  const job = await unpackEvent(env, envelope) as { spec_id: string };
-  const response = await callObjective(env, envelope.scope, "candidate-input", {
-    schema_version: 1, scope: envelope.scope, version: envelope.subject_version, spec_id: job.spec_id,
-  }, "engine");
-  if (!response.ok) throw new Failure("CANDIDATE_INPUT_UNAVAILABLE", 503, "Candidate inputs are unavailable");
-  const body = await readJson<{ input: Record<string, unknown> | null }>(response, 4 * 1024 * 1024);
+async function evaluateCandidate(
+  env: Bindings,
+  envelope: EventEnvelope,
+): Promise<void> {
+  const job = (await unpackEvent(env, envelope)) as { spec_id: string };
+  const response = await callObjective(
+    env,
+    envelope.scope,
+    "candidate-input",
+    {
+      schema_version: 1,
+      scope: envelope.scope,
+      version: envelope.subject_version,
+      spec_id: job.spec_id,
+    },
+    "engine",
+  );
+  if (!response.ok)
+    throw new Failure(
+      "CANDIDATE_INPUT_UNAVAILABLE",
+      503,
+      "Candidate inputs are unavailable",
+    );
+  const body = await readJson<{ input: Record<string, unknown> | null }>(
+    response,
+    4 * 1024 * 1024,
+  );
   if (!body.input) return;
-  const result = await callEngine(env, "evaluate", { ...body.input, schema_version: 1, scope: envelope.scope });
-  if (!result.ok) throw new Failure("EVALUATION_UNAVAILABLE", 503, "Exact-state evaluation did not complete");
-  const evaluated = await readJson<{ schema_version: number; candidate: Candidate; evidence: Evidence }>(result);
+  const result = await callEngine(env, "evaluate", {
+    ...body.input,
+    schema_version: 1,
+    scope: envelope.scope,
+  });
+  if (!result.ok)
+    throw new Failure(
+      "EVALUATION_UNAVAILABLE",
+      503,
+      "Exact-state evaluation did not complete",
+    );
+  const evaluated = await readJson<{
+    schema_version: number;
+    candidate: Candidate;
+    evidence: Evidence;
+  }>(result);
   if (evaluated.schema_version !== 1)
     throw new Failure("INVALID_EVALUATION", 409, "Evaluation schema differs");
-  const recorded = await callObjective(env, envelope.scope, "evaluation", {
-    schema_version: 1, scope: envelope.scope, version: envelope.subject_version, spec_id: job.spec_id,
-    candidate: evaluated.candidate, evidence: evaluated.evidence,
-  }, "engine");
-  if (!recorded.ok) throw new Failure("EVALUATION_REJECTED", recorded.status, "Evaluation record was rejected");
+  const recorded = await callObjective(
+    env,
+    envelope.scope,
+    "evaluation",
+    {
+      schema_version: 1,
+      scope: envelope.scope,
+      version: envelope.subject_version,
+      spec_id: job.spec_id,
+      candidate: evaluated.candidate,
+      evidence: evaluated.evidence,
+    },
+    "engine",
+  );
+  if (!recorded.ok)
+    throw new Failure(
+      "EVALUATION_REJECTED",
+      recorded.status,
+      "Evaluation record was rejected",
+    );
 }
 
 export default {
