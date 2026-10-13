@@ -1,0 +1,99 @@
+name: Build
+
+on:
+  push:
+    branches: [feat/convergence-platform]
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  application:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@1.90.0
+        with:
+          components: rustfmt
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+      - name: Install application dependencies
+        run: |
+          npm ci --prefix apps/worker
+          npm ci --prefix apps/web
+      - name: Format source
+        run: |
+          cargo fmt --all
+          npx --yes prettier@3.9.9 --no-error-on-unmatched-pattern --write apps/worker/src apps/web/src packages/contracts/src packages/policy/src
+      - name: Compile control plane
+        run: |
+          npm run check --prefix apps/worker
+          npm run build --prefix apps/worker
+      - name: Build web application
+        run: npm run build --prefix apps/web
+      - name: Build native engine
+        run: cargo build --locked -p klocgit-engine
+      - name: Collect formatted source
+        if: always()
+        run: |
+          node --input-type=module <<'NODE'
+          import { readFileSync, readdirSync } from 'node:fs';
+          const visit = path => {
+            for (const item of readdirSync(path, { withFileTypes: true })) {
+              const child = path + '/' + item.name;
+              if (item.isDirectory()) visit(child);
+              else if (/\.(rs|ts|tsx|css)$/.test(child))
+                console.log('KLOCGIT_SOURCE ' + JSON.stringify({ path: child, content: readFileSync(child, 'utf8') }));
+            }
+          };
+          for (const path of ['crates/engine/src', 'apps/worker/src', 'apps/web/src', 'packages/contracts/src', 'packages/policy/src']) visit(path);
+          NODE
+  configuration:
+    if: github.event_name == 'push'
+    runs-on: ubuntu-latest
+    timeout-minutes: 3
+    steps:
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+      - name: Inspect deployment configuration
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+        run: |
+          node --input-type=module <<'NODE'
+          const account = process.env.CLOUDFLARE_ACCOUNT_ID;
+          const token = process.env.CLOUDFLARE_API_TOKEN;
+          if (!/^[a-f0-9]{32}$/i.test(account ?? '') || !token) throw new Error('Cloudflare deployment secrets are missing.');
+          const base = 'https://api.cloudflare.com/client/v4/accounts/' + account;
+          const get = async path => {
+            const response = await fetch(base + path, {
+              headers: { Authorization: 'Bearer ' + token }, redirect: 'error',
+              signal: AbortSignal.timeout(15000),
+            });
+            const body = await response.json();
+            if (!response.ok || !body.success) {
+              console.log(JSON.stringify({ path, status: response.status, codes: body.errors?.map(value => value.code) }));
+              return null;
+            }
+            return body.result;
+          };
+          const scripts = await get('/workers/scripts');
+          console.log(JSON.stringify({ workers: scripts?.map(value => value.id) ?? [] }));
+          for (const name of ['klocgit', 'klocgit-engine', 'klocgit-git-executor']) {
+            if (!scripts?.some(value => value.id === name)) continue;
+            const settings = await get('/workers/scripts/' + name + '/settings');
+            if (settings) console.log(JSON.stringify({
+              worker: name, migration_tag: settings.migration_tag,
+              bindings: settings.bindings?.map(value => ({
+                name: value.name, type: value.type, class_name: value.class_name,
+                namespace_id: value.namespace_id, service: value.service, bucket_name: value.bucket_name,
+              })),
+            }));
+          }
+          const namespaces = await get('/artifacts/namespaces?limit=100');
+          console.log(JSON.stringify({ artifacts: namespaces }));
+          NODE

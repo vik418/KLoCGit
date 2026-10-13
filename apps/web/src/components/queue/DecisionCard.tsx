@@ -241,10 +241,10 @@ export function DecisionCard({
             <TriangleAlert aria-hidden="true" />
             <AlertDescription>
               <ul className="space-y-1">
-                {blocked.map((item, index) => (
-                  <li key={index}>
-                    {blockerLabels[item.code] ??
-                      item.code.replaceAll("_", " ").toLowerCase()}
+                {[...new Set(blocked.map((item) => item.code))].map((code) => (
+                  <li key={code}>
+                    {blockerLabels[code] ??
+                      code.replaceAll("_", " ").toLowerCase()}
                   </li>
                 ))}
               </ul>

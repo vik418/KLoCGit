@@ -45,3 +45,23 @@ export interface Session {
   expires_at: number;
   grants: { scope: Partial<Scope>; actions: string[] }[];
 }
+
+export interface ForwardPortProof {
+  schema_version: 1;
+  repo_id: string;
+  previous_spec_digest: string;
+  spec_digest: string;
+  previous_candidate_digest: string;
+  candidate_digest: string;
+  previous_base_oid: string;
+  base_oid: string;
+  base_tree_oid: string;
+  reviewed_delta_digest: string;
+  effect_summary_digest: string;
+  proof_digest: string;
+}
+
+export interface ForwardPortSource {
+  specification: CandidateSpec;
+  candidate: Candidate;
+}

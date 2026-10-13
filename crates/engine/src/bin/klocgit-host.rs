@@ -330,7 +330,7 @@ fn main() -> std::result::Result<(), Box<dyn std::error::Error>> {
                 ("analysis", "/materialize") => {
                     let workspace = host::materialize(serde_json::from_slice(&bytes)?)?;
                     let files = host::export_manifest(workspace.path())?;
-                    let result = serde_json::json!({ "schema_version": 1, "candidate": workspace.candidate,
+                    let result = serde_json::json!({ "schema_version": 1, "candidate": workspace.candidate, "forward_port_proof": workspace.forward_port_proof,
                         "files": files, "hydrated_bytes": workspace.bytes_hydrated });
                     materialized = Some((workspace, files));
                     json(result)

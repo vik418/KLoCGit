@@ -13,6 +13,8 @@ enum Request {
         repo_id: String,
         candidate_spec: klocgit_engine::contracts::CandidateSpec,
         sources: Vec<SourceRepository>,
+        #[serde(default)]
+        forward_port: Option<klocgit_engine::git::forward_port::ForwardPortSource>,
         expected_oid: String,
         decision_id: String,
         basis_digest: String,
@@ -51,6 +53,8 @@ enum Request {
         repo_id: String,
         candidate_spec: klocgit_engine::contracts::CandidateSpec,
         sources: Vec<SourceRepository>,
+        #[serde(default)]
+        forward_port: Option<klocgit_engine::git::forward_port::ForwardPortSource>,
         trusted_suite: String,
         policy: klocgit_engine::sandbox::EvaluationPolicy,
     },
@@ -95,6 +99,7 @@ fn local_workspace(
     repo_id: &str,
     candidate_spec: klocgit_engine::contracts::CandidateSpec,
     sources: Vec<SourceRepository>,
+    forward_port: Option<klocgit_engine::git::forward_port::ForwardPortSource>,
 ) -> Result<klocgit_engine::git::workspace::Workspace, Box<dyn std::error::Error>> {
     let base = git2::Repository::open(base_repository)?;
     let repositories: Result<Vec<_>, _> = sources
@@ -112,6 +117,22 @@ fn local_workspace(
             effects: &source.effects,
         })
         .collect();
+    if let Some(previous) = forward_port {
+        let objects: Vec<_> = observed.iter().map(|source| klocgit_engine::git::objects::ObjectFuture {
+            state: source.state, revision: source.revision, effects: source.effects, objects: source.repository,
+        }).collect();
+        let next_base = candidate_spec.base_revisions.get(repo_id).ok_or(klocgit_engine::Error::RevisionMismatch)?;
+        let ported = klocgit_engine::git::forward_port::rematerialize(
+            &previous.specification, &previous.candidate, &base, repo_id, git2::Oid::from_str(next_base)?,
+            &objects, klocgit_engine::git::Limits::default(),
+            klocgit_engine::git::workspace::HydrationBudget { max_blob_bytes: 16 * 1024 * 1024, max_total_bytes: 64 * 1024 * 1024 },
+            klocgit_engine::contracts::MaterializationRecord { executor_id: "sandbox-host".into(), materialized_at: String::new(), conflicts_encountered: vec![] },
+        )?;
+        if ported.specification.spec_digest != candidate_spec.spec_digest || ported.specification.id != candidate_spec.id {
+            return Err(klocgit_engine::Error::RevisionMismatch.into());
+        }
+        return Ok(ported.workspace);
+    }
     let workspace = klocgit_engine::git::workspace::materialize(
         &candidate_spec,
         &base,
@@ -139,8 +160,9 @@ fn evaluate_candidate(
     sources: Vec<SourceRepository>,
     trusted_suite: String,
     policy: klocgit_engine::sandbox::EvaluationPolicy,
+    forward_port: Option<klocgit_engine::git::forward_port::ForwardPortSource>,
 ) -> Result<serde_json::Value, Box<dyn std::error::Error>> {
-    let workspace = local_workspace(base_repository, &repo_id, candidate_spec, sources)?;
+    let workspace = local_workspace(base_repository, &repo_id, candidate_spec, sources, forward_port)?;
     let result = klocgit_engine::sandbox::evaluate(
         workspace.path(),
         std::path::Path::new(&trusted_suite),
@@ -150,6 +172,7 @@ fn evaluate_candidate(
     )?;
     Ok(serde_json::json!({
         "schema_version": 1, "candidate": workspace.candidate,
+        "forward_port_proof": workspace.forward_port_proof,
         "evidence": result.evidence, "payload": result.payload, "receipt": result.receipt,
         "hydrated_bytes": workspace.bytes_hydrated, "hydrated_files": workspace.files_hydrated,
     }))
@@ -165,10 +188,10 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     let input: Request = serde_json::from_slice(&bytes)?;
     let output = match input {
         Request::PrepareCandidate {
-            base_repository, repo_id, candidate_spec, sources, expected_oid,
+            base_repository, repo_id, candidate_spec, sources, forward_port, expected_oid,
             decision_id, basis_digest, author, max_pack_bytes,
         } => {
-            let workspace = local_workspace(base_repository, &repo_id, candidate_spec, sources)?;
+            let workspace = local_workspace(base_repository, &repo_id, candidate_spec, sources, forward_port)?;
             let prepared = klocgit_engine::git::commit::prepare(
                 workspace.path(), &workspace.candidate, &repo_id,
                 git2::Oid::from_str(&expected_oid)?, &decision_id, &basis_digest,
@@ -282,6 +305,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
             repo_id,
             candidate_spec,
             sources,
+            forward_port,
             trusted_suite,
             policy,
         } => evaluate_candidate(
@@ -291,6 +315,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
             sources,
             trusted_suite,
             policy,
+            forward_port,
         )?,
         Request::Evaluate {
             workspace,

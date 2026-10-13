@@ -364,6 +364,10 @@ async function analyze(env: Bindings, envelope: EventEnvelope): Promise<void> {
     await reduceObjective(env, envelope);
     return;
   }
+  if (envelope.type === "decision.forward-port") {
+    await forwardPortDecision(env, envelope);
+    return;
+  }
   if (envelope.type === "candidate.evaluate") {
     await evaluateCandidate(env, envelope);
     return;
@@ -621,6 +625,31 @@ async function reduceObjective(
         );
     }
   }
+}
+
+async function forwardPortDecision(env: Bindings, envelope: EventEnvelope): Promise<void> {
+  const job = await unpackEvent(env, envelope) as { port_id: string };
+  const response = await callObjective(env, envelope.scope, "forward-port-input", {
+    schema_version: 1, scope: envelope.scope, port_id: job.port_id,
+  }, "engine");
+  if (!response.ok) throw new Failure("FORWARD_PORT_UNAVAILABLE", response.status, "Forward-port inputs are unavailable");
+  const { input } = await readJson<{ input: null | {
+    states: { candidate_spec: CandidateSpec; sources: unknown[]; forward_port: unknown }[];
+  } }>(response, 4 * 1024 * 1024);
+  if (!input) return;
+  const port_results = [];
+  for (const state of input.states) {
+    const evaluation = await callEngine(env, "evaluate", {
+      schema_version: 1, scope: envelope.scope, ...state,
+    });
+    if (!evaluation.ok) throw new Failure("EVALUATION_UNAVAILABLE", evaluation.status, "Forward-port evaluation did not complete");
+    const result = await readJson<Record<string, unknown>>(evaluation, 4 * 1024 * 1024);
+    port_results.push({ spec: state.candidate_spec, ...result });
+  }
+  const accepted = await callObjective(env, envelope.scope, "forward-ported", {
+    schema_version: 1, scope: envelope.scope, port_id: job.port_id, port_results,
+  }, "engine");
+  if (!accepted.ok) throw new Failure("FORWARD_PORT_REJECTED", accepted.status, "Forward-port evidence was rejected");
 }
 
 async function evaluateCandidate(

@@ -46,6 +46,13 @@ impl ForwardPortProof {
     }
 }
 
+#[derive(Clone, Debug, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct ForwardPortSource {
+    pub specification: CandidateSpec,
+    pub candidate: Candidate,
+}
+
 pub struct ForwardPort {
     pub specification: CandidateSpec,
     pub workspace: Workspace,
@@ -111,7 +118,7 @@ pub fn rematerialize(
     let mut specification = sealed.clone();
     specification.canonical.base_revisions.insert(repo_id.into(), new_base_oid.to_string());
     specification.seal()?;
-    let workspace = checkout(
+    let mut workspace = checkout(
         &specification, repo_id, composition,
         |path, oid, max| {
             let owner = specification.composition_manifest.iter().find(|slice| slice.path == path);
@@ -137,5 +144,6 @@ pub fn rematerialize(
         proof_digest: String::new(),
     };
     proof.seal()?;
+    workspace.forward_port_proof = Some(proof.clone());
     Ok(ForwardPort { specification, workspace, proof })
 }

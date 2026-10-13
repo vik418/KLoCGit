@@ -141,6 +141,8 @@ export class ObjectiveCoordinator extends DurableObject<Bindings> {
           candidate?: Candidate;
           evidence?: Evidence;
           prepared?: PreparedCandidate;
+          port_id?: string;
+          port_results?: Parameters<DecisionStore["ported"]>[2];
         } & Partial<ReviewCommand>
       >(request, 4 * 1024 * 1024);
       validateScope(body.scope);
@@ -157,6 +159,8 @@ export class ObjectiveCoordinator extends DurableObject<Bindings> {
           "evaluation",
           "decisions",
           "review",
+          "forward-port-input",
+          "forward-ported",
           "promotion-input",
           "promote",
         ].includes(action)
@@ -183,6 +187,8 @@ export class ObjectiveCoordinator extends DurableObject<Bindings> {
         return Response.json(await this.decisions.list(body.scope));
       if (
         [
+          "forward-port-input",
+          "forward-ported",
           "reduction-page",
           "analysis",
           "reduction",
@@ -224,6 +230,13 @@ export class ObjectiveCoordinator extends DurableObject<Bindings> {
           body.spec_id!,
         );
         return Response.json({ schema_version: 1, input });
+      }
+      if (action === "forward-port-input") {
+        return Response.json({ schema_version: 1, input: await this.decisions.portInput(body.scope, body.port_id!) });
+      }
+      if (action === "forward-ported") {
+        await this.decisions.ported(body.scope, body.port_id!, body.port_results!);
+        return Response.json({ schema_version: 1, accepted: true });
       }
       if (action === "evaluation") {
         await this.decisions.evaluated(
@@ -351,9 +364,8 @@ export class ObjectiveCoordinator extends DurableObject<Bindings> {
         503,
         "Canonical ref is not configured",
       );
-    const baseline =
-      capturedBase?.value ??
-      (await store.observe(command.scope, this.env.CANONICAL_REF)).commit_oid;
+    const baseObservation = capturedBase ? undefined : await store.observe(command.scope, this.env.CANONICAL_REF);
+    const baseline = capturedBase?.value ?? baseObservation!.commit_oid;
     const observed = await store.observe(command.scope, command.ref);
     const state = { repo_id: command.scope.repo_id, ...observed };
     const revision = await sealFutureRevision(state, {
@@ -397,6 +409,10 @@ export class ObjectiveCoordinator extends DurableObject<Bindings> {
         "INSERT OR IGNORE INTO metadata (key, value) VALUES (?, ?)",
         "base_oid",
         baseline,
+      );
+      if (baseObservation) this.ctx.storage.sql.exec(
+        "INSERT OR IGNORE INTO metadata (key, value) VALUES ('base_tree_oid', ?)",
+        baseObservation.tree_oid,
       );
       this.ctx.storage.sql.exec(
         "INSERT OR IGNORE INTO metadata (key, value) VALUES (?, ?)",
@@ -538,7 +554,9 @@ export class ObjectiveCoordinator extends DurableObject<Bindings> {
       const payload = JSON.parse(job.payload);
       const envelope = await packEvent(this.env, {
         type:
-          payload.operation === "reduce"
+          payload.operation === "forward-port"
+            ? "decision.forward-port"
+            : payload.operation === "reduce"
             ? "objective.reduce"
             : payload.operation === "evaluate"
               ? "candidate.evaluate"

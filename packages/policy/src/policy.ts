@@ -16,6 +16,8 @@ import type {
   Predicate,
 } from "../../contracts/src/index.ts";
 
+import type { ForwardPortProof } from "../../contracts/src/views.ts";
+
 export interface EvidenceRequirement {
   evaluator_id: string;
   evaluator_version: string;
@@ -24,6 +26,7 @@ export interface EvidenceRequirement {
 }
 
 export interface ReviewPolicy {
+  forward_port?: "NEVER" | "UNCHANGED_BASE_STATE";
   schema_version: 1;
   required_capability: EffectSet["capability"];
   evidence_requirements: EvidenceRequirement[];
@@ -53,6 +56,15 @@ export interface EvaluationContext extends CandidateAnalysis {
   alternatives?: CandidateAnalysis[];
   evidence: Evidence[];
   reviews: Review[];
+  preserved_reviews?: PreservedReview[];
+}
+
+export interface PreservedReview {
+  source: Review;
+  source_basis: DecisionBasis;
+  source_candidates: CandidateAnalysis[];
+  proofs: ForwardPortProof[];
+  observed_base_tree_oid: string;
 }
 
 export interface PolicyResult {
@@ -66,6 +78,7 @@ export async function policyDigest(policy: ReviewPolicy): Promise<string> {
   const capabilities = ["PATH", "STRUCTURAL", "SEMANTIC"];
   if (
     policy.schema_version !== 1 ||
+    (policy.forward_port !== undefined && !["NEVER", "UNCHANGED_BASE_STATE"].includes(policy.forward_port)) ||
     !capabilities.includes(policy.required_capability) ||
     !Number.isSafeInteger(policy.minimum_reviewers) ||
     policy.minimum_reviewers < 1 ||
@@ -104,10 +117,66 @@ export async function policyDigest(policy: ReviewPolicy): Promise<string> {
   return hashProjection("klocgit.review-policy", {
     schema_version: 1,
     required_capability: policy.required_capability,
+    forward_port: policy.forward_port ?? "NEVER",
     evidence_requirements: keyed.map((item) => item.requirement),
     reviewer_actor_ids: [...new Set(policy.reviewer_actor_ids)].sort(),
     minimum_reviewers: policy.minimum_reviewers,
   });
+}
+
+async function preserveReview(
+  eligibility: PreservedReview,
+  basis: DecisionBasis,
+  context: EvaluationContext,
+): Promise<Review | null> {
+  const previous = eligibility.source;
+  if (previous.basis_digest !== eligibility.source_basis.basis_digest ||
+      previous.policy_digest !== basis.policy_digest ||
+      previous.material_effect_digest !== basis.material_effect_digest ||
+      eligibility.source_basis.material_effect_digest !== basis.material_effect_digest ||
+      eligibility.source_candidates.length !== basis.candidate_digests.length ||
+      eligibility.proofs.length !== basis.candidate_digests.length) return null;
+  const sourceBasis = await sealDecisionBasis(eligibility.source_basis);
+  if (sourceBasis.basis_digest !== eligibility.source_basis.basis_digest) return null;
+  const targets = new Map([context, ...(context.alternatives ?? [])]
+    .map(value => [value.candidate.candidate_digest, value]));
+  const identities = new Map<string, string>();
+  for (const original of eligibility.source_candidates) {
+    const proof = eligibility.proofs.find(value => value.previous_candidate_digest === original.candidate.candidate_digest);
+    const target = proof ? targets.get(proof.candidate_digest) : undefined;
+    if (!proof || !target || proof.schema_version !== 1 ||
+        proof.base_tree_oid !== eligibility.observed_base_tree_oid ||
+        proof.previous_spec_digest !== original.spec.spec_digest ||
+        proof.spec_digest !== target.spec.spec_digest ||
+        proof.effect_summary_digest !== original.spec.effect_summary_digest ||
+        proof.effect_summary_digest !== target.spec.effect_summary_digest ||
+        original.spec.base_revisions[proof.repo_id] !== proof.previous_base_oid ||
+        target.spec.base_revisions[proof.repo_id] !== proof.base_oid ||
+        basis.canonical_ref_oids[proof.repo_id] !== proof.base_oid ||
+        eligibility.source_basis.canonical_ref_oids[proof.repo_id] !== proof.previous_base_oid ||
+        !/^sha256:[0-9a-f]{64}$/.test(proof.reviewed_delta_digest) ||
+        JSON.stringify(Object.entries(original.candidate.repo_tree_oids).sort()) !==
+          JSON.stringify(Object.entries(target.candidate.repo_tree_oids).sort())) return null;
+    const { schema_version: _schema, proof_digest, ...projection } = proof;
+    if (await hashProjection("klocgit.forward-port-proof", projection) !== proof_digest) return null;
+    const originalSpec = await sealCandidateSpec(original.spec);
+    const originalCandidate = await sealCandidate(original.candidate);
+    if (originalSpec.spec_digest !== original.spec.spec_digest ||
+        originalSpec.id !== original.spec.id ||
+        originalCandidate.candidate_digest !== original.candidate.candidate_digest ||
+        originalCandidate.candidate_spec_id !== original.spec.id) return null;
+    identities.set(original.candidate.candidate_digest, proof.candidate_digest);
+  }
+  if (identities.size !== basis.candidate_digests.length ||
+      new Set(identities.values()).size !== basis.candidate_digests.length ||
+      eligibility.source_basis.candidate_digests.some(digest => !identities.has(digest)) ||
+      (previous.candidate_digests ?? [previous.candidate_digest]).length !== identities.size ||
+      !(previous.candidate_digests ?? [previous.candidate_digest]).every(digest => identities.has(digest)) ||
+      !previous.predicates.every(predicate => predicateSatisfied(predicate, basis, context))) return null;
+  const selected = identities.get(previous.candidate_digest);
+  if (selected !== context.candidate.candidate_digest) return null;
+  return { ...previous, candidate_digest: selected, candidate_digests: [...identities.values()],
+    basis_digest: basis.basis_digest };
 }
 
 function predicateSatisfied(
@@ -308,7 +377,14 @@ export class PolicyEvaluator {
       }
       if (requireReviews) {
         const reviewers = new Set<string>();
-        for (const review of context.reviews) {
+        const eligibleReviews = [...context.reviews];
+        if (this.policy.forward_port === "UNCHANGED_BASE_STATE") {
+          for (const source of context.preserved_reviews ?? []) {
+            const preserved = await preserveReview(source, basis, context);
+            if (preserved) eligibleReviews.push(preserved);
+          }
+        }
+        for (const review of eligibleReviews) {
           if (
             review.schema_version !== 1 ||
             review.actor_type !== "human" ||

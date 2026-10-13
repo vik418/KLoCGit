@@ -90,6 +90,8 @@ pub struct MaterializeJob {
     pub broker_endpoint: String,
     pub read_capability: String,
     pub candidate_spec: CandidateSpec,
+    #[serde(default)]
+    pub forward_port: Option<crate::git::forward_port::ForwardPortSource>,
     pub sources: Vec<ObjectRevision>,
 }
 
@@ -110,6 +112,21 @@ pub fn materialize(job: MaterializeJob) -> Result<Workspace> {
             objects: &source,
         })
         .collect();
+    if let Some(previous) = job.forward_port {
+        let next_base = job.candidate_spec.base_revisions.get(&job.scope.repo_id).ok_or(Error::RevisionMismatch)?;
+        let ported = crate::git::forward_port::rematerialize(
+            &previous.specification, &previous.candidate, &source, &job.scope.repo_id,
+            git2::Oid::from_str(next_base)?, &revisions, Limits::default(),
+            HydrationBudget { max_blob_bytes: 16 * 1024 * 1024, max_total_bytes: 64 * 1024 * 1024 },
+            MaterializationRecord { executor_id: "native-host".into(), materialized_at: String::new(), conflicts_encountered: vec![] },
+        )?;
+        if ported.specification.spec_digest != job.candidate_spec.spec_digest
+            || ported.specification.id != job.candidate_spec.id
+            || ported.specification.effect_summary_digest != job.candidate_spec.effect_summary_digest {
+            return Err(Error::RevisionMismatch);
+        }
+        return Ok(ported.workspace);
+    }
     crate::git::workspace::materialize_from_objects(
         &job.candidate_spec,
         &source,

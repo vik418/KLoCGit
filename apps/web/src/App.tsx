@@ -265,7 +265,7 @@ export function App() {
           {session.actor_type === "human" && (
             <details
               className="mb-6 rounded-lg border p-3"
-              open={!author.name || !author.email}
+              open
             >
               <summary className="text-sm font-medium">Commit author</summary>
               <div className="mt-3 grid gap-3 sm:grid-cols-2">

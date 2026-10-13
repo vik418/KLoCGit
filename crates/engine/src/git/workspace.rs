@@ -12,6 +12,7 @@ pub struct Workspace {
     pub candidate: Candidate,
     pub bytes_hydrated: usize,
     pub files_hydrated: usize,
+    pub forward_port_proof: Option<super::forward_port::ForwardPortProof>,
 }
 
 impl Workspace {
@@ -222,6 +223,7 @@ pub(crate) fn checkout(
         candidate,
         bytes_hydrated,
         files_hydrated,
+        forward_port_proof: None,
     })
 }
 

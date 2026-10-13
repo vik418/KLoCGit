@@ -375,6 +375,7 @@ export default {
             read_capability: await readCapability(env, scope),
             candidate_spec: body.candidate_spec,
             sources: body.sources,
+            ...(body.forward_port ? { forward_port: body.forward_port } : {}),
           }),
         );
         if (materialized.candidate.candidate_digest !== body.candidate_digest)
@@ -475,6 +476,7 @@ export default {
       const materialized = await responseJson<{
         candidate: Candidate;
         files: FileDescriptor[];
+        forward_port_proof?: unknown;
       }>(
         await native(env, scope, instance, "materialize", {
           schema_version: 1,
@@ -483,6 +485,7 @@ export default {
           read_capability: await readCapability(env, scope),
           candidate_spec: body.candidate_spec,
           sources: body.sources,
+          ...(body.forward_port ? { forward_port: body.forward_port } : {}),
         }),
       );
       const sealed = await sealCandidate(materialized.candidate);
@@ -492,6 +495,7 @@ export default {
         scope,
         candidate_digest: sealed.candidate_digest,
         policy: config.policy,
+        execution_id: instance,
       });
       for (const file of materialized.files) {
         const blob = await native(env, scope, instance, "workspace/blob", {
@@ -546,7 +550,9 @@ export default {
         result.evidence,
         Uint8Array.from(result.payload),
       );
-      return Response.json({ schema_version: 1, candidate: sealed, evidence });
+      return Response.json({ schema_version: 1, candidate: sealed, evidence,
+        ...(materialized.forward_port_proof ? { forward_port_proof: materialized.forward_port_proof } : {}),
+      });
     } catch (error) {
       return failureResponse(error);
     } finally {

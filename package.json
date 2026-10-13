@@ -4,8 +4,8 @@
   "version": "0.0.0",
   "type": "module",
   "scripts": {
-    "dev": "vite --port=3000 --host=0.0.0.0",
-    "build": "vite build && esbuild server.ts --platform=node --format=esm --outfile=server.js",
+    "dev": "npm run dev --prefix apps/web",
+    "build": "npm run build --prefix apps/web && npm run build --prefix apps/worker",
     "start": "node server.ts",
     "preview": "vite preview",
     "clean": "rm -rf dist server.js",

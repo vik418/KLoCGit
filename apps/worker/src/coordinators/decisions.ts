@@ -23,6 +23,7 @@ import type {
   Review,
   ReviewPolicy,
   PolicyResult,
+  PreservedReview,
 } from "../../../../packages/policy/src/policy.ts";
 import { EvidenceStore } from "../evidence-store.ts";
 import { GitStore } from "../git-store.ts";
@@ -34,7 +35,7 @@ import type { PromotionCommand } from "./ref.ts";
 
 const MAX_RECORD_BYTES = 4 * 1024 * 1024;
 
-import type { DecisionPacket } from "../../../../packages/contracts/src/views.ts";
+import type { DecisionPacket, ForwardPortProof, ForwardPortSource } from "../../../../packages/contracts/src/views.ts";
 export type { DecisionPacket } from "../../../../packages/contracts/src/views.ts";
 
 export interface ReviewCommand {
@@ -125,6 +126,9 @@ export class DecisionStore {
     storage.sql.exec(
       "CREATE TABLE IF NOT EXISTS decision_operations (idempotency_key TEXT PRIMARY KEY, request_digest TEXT NOT NULL, decision_id TEXT NOT NULL, schema_version INTEGER NOT NULL, command TEXT NOT NULL, status TEXT NOT NULL, active_slot INTEGER UNIQUE, result TEXT)",
     );
+    this.storage.sql.exec("CREATE TABLE IF NOT EXISTS forward_ports (port_id TEXT PRIMARY KEY, schema_version INTEGER NOT NULL, decision_id TEXT NOT NULL, source_version INTEGER NOT NULL, next_oid TEXT NOT NULL, base_tree_oid TEXT NOT NULL, packet TEXT NOT NULL, status TEXT NOT NULL, target_basis TEXT, proofs TEXT)");
+    this.storage.sql.exec("CREATE TABLE IF NOT EXISTS forward_port_sources (spec_id TEXT PRIMARY KEY, schema_version INTEGER NOT NULL, source TEXT NOT NULL)");
+
   }
 
   private version(): number {
@@ -293,11 +297,18 @@ export class DecisionStore {
     });
   }
 
+  private portSource(specId: string): ForwardPortSource | undefined {
+    const row = this.storage.sql.exec<{ source: string }>(
+      "SELECT source FROM forward_port_sources WHERE spec_id = ?", specId,
+    ).toArray()[0];
+    return row ? JSON.parse(row.source) : undefined;
+  }
+
   async input(
     scope: Scope,
     version: number,
     specId: string,
-  ): Promise<{ candidate_spec: CandidateSpec; sources: unknown[] } | null> {
+  ): Promise<{ candidate_spec: CandidateSpec; sources: unknown[]; forward_port?: ForwardPortSource } | null> {
     if (version !== this.version()) return null;
     const slot = this.slots(version).find((row) => row.spec_id === specId);
     if (!slot)
@@ -307,7 +318,8 @@ export class DecisionStore {
       return null;
     }
     const candidate_spec = JSON.parse(slot.spec) as CandidateSpec;
-    return { candidate_spec, sources: this.sources(candidate_spec) };
+    const forward_port = this.portSource(candidate_spec.id);
+    return { candidate_spec, sources: this.sources(candidate_spec), ...(forward_port ? { forward_port } : {}) };
   }
 
   async evaluated(
@@ -539,6 +551,7 @@ export class DecisionStore {
         alternatives: packet.candidates.filter((state) => state !== analysis),
         evidence: packet.evidence,
         reviews,
+        preserved_reviews: this.preservedReviews(packet, reviews),
       });
       packet.blockers[analysis.candidate.candidate_digest] = result.blockers;
       if (packet.reduction_status !== "COMPLETE")
@@ -553,6 +566,171 @@ export class DecisionStore {
         ...packet.decision,
         state: ready ? "RESOLVABLE" : "REVIEWABLE",
       };
+  }
+
+  private preservedReviews(packet: DecisionPacket, reviews: Review[]): PreservedReview[] {
+    const row = this.storage.sql.exec<{ packet: string; proofs: string; base_tree_oid: string }>(
+      "SELECT packet, proofs, base_tree_oid FROM forward_ports WHERE decision_id = ? AND target_basis = ? AND status = 'APPLIED' LIMIT 1",
+      packet.decision.id, packet.decision.basis.basis_digest,
+    ).toArray()[0];
+    if (!row) return [];
+    const original = JSON.parse(row.packet) as DecisionPacket;
+    return reviews.map(source => ({
+      source, source_basis: original.decision.basis, source_candidates: original.candidates,
+      proofs: JSON.parse(row.proofs), observed_base_tree_oid: row.base_tree_oid,
+    }));
+  }
+
+  private async schedulePort(scope: Scope, packet: DecisionPacket, next: { commit_oid: string; tree_oid: string }): Promise<void> {
+    if (packet.version !== this.version() || policy(this.env).forward_port !== "UNCHANGED_BASE_STATE") return;
+    if (packet.reduction_status !== "COMPLETE") return;
+    const tree = this.storage.sql.exec<{ value: string }>(
+      "SELECT value FROM metadata WHERE key = 'base_tree_oid'",
+    ).toArray()[0]?.value;
+    if (!tree || tree !== next.tree_oid) return;
+    const port_id = await hashProjection("klocgit.forward-port-request", {
+      scope, decision_id: packet.decision.id,
+      basis_digest: packet.decision.basis.basis_digest, next_oid: next.commit_oid,
+    });
+    this.storage.transactionSync(() => {
+      this.assertIdle();
+      if (packet.version !== this.version()) return;
+      this.storage.sql.exec(
+        "INSERT OR IGNORE INTO forward_ports (port_id, schema_version, decision_id, source_version, next_oid, base_tree_oid, packet, status) VALUES (?, 1, ?, ?, ?, ?, ?, 'PENDING')",
+        port_id, packet.decision.id, packet.version, next.commit_oid, next.tree_oid, bounded(packet),
+      );
+      const payload = { schema_version: 1, operation: "forward-port", scope, port_id, version: packet.version };
+      this.storage.sql.exec(
+        "INSERT OR IGNORE INTO outbox (job_id, version, payload, actor_id, expires_at, status) VALUES (?, ?, ?, 'engine', ?, 'PENDING')",
+        "port-" + port_id, packet.version, JSON.stringify(payload), Date.now() + 86400000,
+      );
+    });
+    await this.storage.setAlarm(Date.now() + 1);
+  }
+
+  async portInput(scope: Scope, portId: string): Promise<{
+    packet: DecisionPacket; next_oid: string; base_tree_oid: string;
+    states: { candidate_spec: CandidateSpec; sources: unknown[]; forward_port: ForwardPortSource }[];
+  } | null> {
+    const row = this.storage.sql.exec<{ packet: string; next_oid: string; source_version: number; status: string; base_tree_oid: string }>(
+      "SELECT packet, next_oid, source_version, status, base_tree_oid FROM forward_ports WHERE port_id = ?", portId,
+    ).toArray()[0];
+    if (!row || row.status !== "PENDING" || row.source_version !== this.version()) return null;
+    this.assertIdle();
+    const packet = JSON.parse(row.packet) as DecisionPacket;
+    const latest = this.load(packet.decision.id);
+    if (latest.decision.state === "RESOLVED" || latest.decision.basis.basis_digest !== packet.decision.basis.basis_digest) return null;
+    if (packet.decision.basis.policy_digest !== await policyDigest(policy(this.env))) return null;
+    const observed = await new GitStore(this.env.GIT_EXECUTOR, this.env.INTERNAL_SIGNING_KEY).observe(scope, this.env.CANONICAL_REF);
+    if (observed.commit_oid !== row.next_oid || observed.tree_oid !== row.base_tree_oid) return null;
+    const states = [];
+    for (const value of packet.candidates) {
+      const candidate_spec = await sealCandidateSpec({
+        ...value.spec, base_revisions: { [scope.repo_id]: row.next_oid },
+      });
+      states.push({ candidate_spec, sources: this.sources(value.spec),
+        forward_port: { specification: value.spec, candidate: value.candidate } });
+    }
+    return { packet, next_oid: row.next_oid, base_tree_oid: row.base_tree_oid, states };
+  }
+
+  async ported(scope: Scope, portId: string, results: {
+    spec: CandidateSpec; candidate: Candidate; evidence: Evidence; forward_port_proof: ForwardPortProof;
+  }[]): Promise<void> {
+    const input = await this.portInput(scope, portId);
+    if (!input) return;
+    if (results.length !== input.states.length) throw new Failure("INVALID_FORWARD_PORT", 409, "Candidate coverage differs");
+    const proofs: ForwardPortProof[] = [];
+    const candidates: CandidateAnalysis[] = [];
+    const evidence: Evidence[] = [];
+    for (const state of input.states) {
+      const result = results.find(value => value.spec.spec_digest === state.candidate_spec.spec_digest);
+      if (!result) throw new Failure("INVALID_FORWARD_PORT", 409, "Candidate is missing");
+      const candidate = await sealCandidate(result.candidate);
+      const proof = result.forward_port_proof;
+      const { schema_version: _schema, proof_digest, ...projection } = proof;
+      if (proof.schema_version !== 1 || candidate.candidate_digest !== result.candidate.candidate_digest ||
+          candidate.id !== result.candidate.id || candidate.candidate_spec_id !== state.candidate_spec.id ||
+          proof.proof_digest !== await hashProjection("klocgit.forward-port-proof", projection) ||
+          proof.previous_candidate_digest !== state.forward_port.candidate.candidate_digest ||
+          proof.previous_spec_digest !== state.forward_port.specification.spec_digest ||
+          proof.candidate_digest !== candidate.candidate_digest ||
+          proof.spec_digest !== state.candidate_spec.spec_digest ||
+          proof.base_oid !== input.next_oid || proof.base_tree_oid !== input.base_tree_oid ||
+          proof.repo_id !== scope.repo_id ||
+          proof.previous_base_oid !== state.forward_port.specification.base_revisions[scope.repo_id] ||
+          proof.effect_summary_digest !== state.candidate_spec.effect_summary_digest ||
+          JSON.stringify(Object.entries(candidate.repo_tree_oids).sort()) !==
+            JSON.stringify(Object.entries(state.forward_port.candidate.repo_tree_oids).sort()))
+        throw new Failure("INVALID_FORWARD_PORT", 409, "Reviewed code changed");
+      const stored = await new EvidenceStore(this.env.PAYLOADS).load(scope.tenant_id, result.evidence.evidence_digest);
+      if (stored.evidence.subject_digest !== candidate.candidate_digest)
+        throw new Failure("INVALID_EVALUATION", 409, "Forward-port evidence belongs to another state");
+      proofs.push(proof);
+      candidates.push({ spec: state.candidate_spec, candidate,
+        effects: this.sources(state.forward_port.specification).map(source => source.effects) });
+      evidence.push(stored.evidence);
+    }
+    const basis = await sealDecisionBasis({
+      ...input.packet.decision.basis,
+      candidate_digests: candidates.map(value => value.candidate.candidate_digest),
+      evidence_digests: evidence.map(value => value.evidence_digest),
+      canonical_ref_oids: { [scope.repo_id]: input.next_oid },
+    });
+    const packet: DecisionPacket = {
+      ...input.packet, version: input.packet.version + 1, candidates, evidence, blockers: {},
+      decision: DecisionLifecycle.inspect({ ...input.packet.decision, basis, state: "DISCOVERED" }),
+    };
+    // Persist eligibility separately; the authenticated review record remains untouched.
+    const reviews = this.reviews(packet.decision.id);
+    packet.review_sequence = reviews.sequence;
+    const evaluator = new PolicyEvaluator(policy(this.env));
+    let ready = false;
+    for (const candidate of candidates) {
+      const result = await evaluator.canResolve(basis, {
+        ...candidate, alternatives: candidates.filter(value => value !== candidate), evidence, reviews: reviews.reviews,
+        preserved_reviews: reviews.reviews.map(source => ({
+          source, source_basis: input.packet.decision.basis, source_candidates: input.packet.candidates,
+          proofs, observed_base_tree_oid: input.base_tree_oid,
+        })),
+      });
+      packet.blockers[candidate.candidate.candidate_digest] = result.blockers;
+      ready ||= result.allowed && packet.reduction_status === "COMPLETE";
+    }
+    packet.decision.state = ready ? "RESOLVABLE" : "REVIEWABLE";
+    const head = await new GitStore(this.env.GIT_EXECUTOR, this.env.INTERNAL_SIGNING_KEY).observe(scope, this.env.CANONICAL_REF);
+    if (head.commit_oid !== input.next_oid || head.tree_oid !== input.base_tree_oid) return;
+    this.storage.transactionSync(() => {
+      this.assertIdle();
+      if (this.version() !== input.packet.version || this.reviewSequence(packet.decision.id) !== packet.review_sequence) return;
+      this.storage.sql.exec("UPDATE metadata SET value = ? WHERE key = 'version'", String(packet.version));
+      this.storage.sql.exec("UPDATE metadata SET value = ? WHERE key = 'base_oid'", input.next_oid);
+      this.storage.sql.exec(
+        "INSERT OR IGNORE INTO decision_bases (decision_id, basis_digest, schema_version, packet) VALUES (?, ?, 1, ?)",
+        input.packet.decision.id, input.packet.decision.basis.basis_digest, bounded(input.packet),
+      );
+      for (const state of candidates) {
+        const source = input.states.find(value => value.candidate_spec.id === state.spec.id)!.forward_port;
+        this.storage.sql.exec(
+          "INSERT OR IGNORE INTO forward_port_sources (spec_id, schema_version, source) VALUES (?, 1, ?)", state.spec.id, bounded(source),
+        );
+        this.storage.sql.exec(
+          "INSERT INTO candidate_slots (version, spec_id, schema_version, spec, status, candidate, evidence) VALUES (?, ?, 1, ?, 'COMPLETE', ?, ?)",
+          packet.version, state.spec.id, bounded(state.spec), bounded(state.candidate),
+          bounded(evidence.filter(value => value.subject_digest === state.candidate.candidate_digest)),
+        );
+      }
+      this.storage.sql.exec(
+        "UPDATE forward_ports SET status = 'APPLIED', target_basis = ?, proofs = ? WHERE port_id = ?",
+        basis.basis_digest, bounded(proofs), portId,
+      );
+      this.storage.sql.exec("UPDATE decisions SET version = ?, packet = ? WHERE decision_id = ?", packet.version, bounded(packet), packet.decision.id);
+      this.storage.sql.exec(
+        "INSERT OR IGNORE INTO decision_bases (decision_id, basis_digest, schema_version, packet) VALUES (?, ?, 1, ?)",
+        packet.decision.id, basis.basis_digest, bounded(packet),
+      );
+      this.audit("review.preserved_after_forward_port", "engine", packet.decision.id);
+    });
   }
 
   private load(id: string): DecisionPacket {
@@ -589,6 +767,10 @@ export class DecisionStore {
       this.env.GIT_EXECUTOR,
       this.env.INTERNAL_SIGNING_KEY,
     ).observe(scope, this.env.CANONICAL_REF);
+    if (head.commit_oid !== packet.decision.basis.canonical_ref_oids[scope.repo_id] &&
+        packet.decision.basis.policy_digest === await policyDigest(reviewPolicy)) {
+      await this.schedulePort(scope, packet, head);
+    }
     if (
       packet.version !== this.version() ||
       packet.decision.basis.policy_digest !==
@@ -634,7 +816,7 @@ export class DecisionStore {
             packet.decision.id,
           )
           .toArray().length > 0;
-      if (packet.decision.state !== "STALE" && !pending) {
+      if (!pending) {
         try {
           await this.current(scope, packet);
         } catch (error) {
@@ -820,6 +1002,7 @@ export class DecisionStore {
       schema_version: 1,
       candidate_spec: analysis.spec,
       sources: this.sources(analysis.spec),
+      ...(this.portSource(analysis.spec.id) ? { forward_port: this.portSource(analysis.spec.id) } : {}),
       candidate_digest: input.candidate_digest,
       expected_oid:
         packet.decision.basis.canonical_ref_oids[input.scope.repo_id],
