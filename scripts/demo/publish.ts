@@ -23,7 +23,7 @@ function wrangler(args: string[]) {
 try {
   for (const name of names) wrangler(["r2", "object", "put", "klocgit-payloads/" + prefix + name,
     "--remote", "--file", join(output, name), "--content-type", name.endsWith(".mp4") ? "video/mp4" : name.endsWith(".png") ? "image/png" : "text/plain"]);
-  const player = "<!doctype html><html lang=\"en\"><meta charset=\"utf-8\"><meta name=\"viewport\" content=\"width=device-width,initial-scale=1\"><title>KLoCGit demo</title><style>body{margin:0;background:#000;color:#e7e5d8;font:16px/1.6 system-ui}main{max-width:1100px;margin:40px auto;padding:24px}h1{font-size:32px;letter-spacing:-.03em}a{color:#f5ee9e}video{width:100%;border:1px solid #333;border-radius:12px}nav{display:flex;gap:24px;flex-wrap:wrap}</style><main><h1>KLoCGit</h1><p>Fast walkthrough with visible clicks. Live repository flow and local convergence are clearly labeled.</p><video controls preload=\"metadata\" poster=\"/poster.png\" src=\"/klocgit-demo.mp4\"></video><nav><a href=\"/klocgit-demo.mp4?download=1\">Download MP4</a><a href=\"/narration.txt\">Read captions</a><a href=\"/competition.mp4?download=1\">Original 5-minute submission cut</a><a href=\"https://github.com/vik418/KLoCGit/tree/feat/convergence-platform\">Source code</a></nav></main></html>";
+  const player = `<!doctype html><html lang=\"en\"><meta charset=\"utf-8\"><meta name=\"viewport\" content=\"width=device-width,initial-scale=1\"><title>KLoCGit demo</title><style>body{margin:0;background:#000;color:#e7e5d8;font:16px/1.6 system-ui}main{max-width:1100px;margin:40px auto;padding:24px}h1{font-size:32px;letter-spacing:-.03em}a{color:#f5ee9e}video{width:100%;border:1px solid #333;border-radius:12px}nav{display:flex;gap:24px;flex-wrap:wrap}</style><main><h1>KLoCGit</h1><p>Fast walkthrough with visible clicks. Live repository flow and local convergence are clearly labeled.</p><video controls preload=\"metadata\" poster=\"/poster.png?v=${run}\" src=\"/klocgit-demo.mp4?v=${run}\"></video><nav><a href=\"/klocgit-demo.mp4?download=1&v=${run}\">Download MP4</a><a href=\"/narration.txt\">Read captions</a><a href=\"/competition.mp4?download=1\">Original 5-minute submission cut</a><a href=\"https://github.com/vik418/KLoCGit/tree/feat/convergence-platform\">Source code</a></nav></main></html>`;
   const worker = "const files = new Set(" + JSON.stringify(names) + ");\nexport default {async fetch(request, env) {\n" +
     "const url = new URL(request.url); if (request.method !== 'GET' && request.method !== 'HEAD') return new Response('Method not allowed', {status:405});\n" +
     "if (url.pathname === '/') return new Response(" + JSON.stringify(player) + ",{headers:{'content-type':'text/html;charset=utf-8'}});\n" +
@@ -41,8 +41,8 @@ try {
   ].join("\n"));
   wrangler(["deploy", "--config", join(temporary, "wrangler.toml")]);
   const deployment = { schema_version: 1, seconds: duration, bytes: statSync(file).size, source_commit: process.env.GITHUB_SHA,
-    watch_url: "https://klocgit-demo.vikalpmishra71.workers.dev/",
-    download_url: "https://klocgit-demo.vikalpmishra71.workers.dev/klocgit-demo.mp4?download=1",
+    watch_url: "https://klocgit-demo.vikalpmishra71.workers.dev/?v=" + run,
+    download_url: "https://klocgit-demo.vikalpmishra71.workers.dev/klocgit-demo.mp4?download=1&v=" + run,
     competition_download_url: "https://klocgit-demo.vikalpmishra71.workers.dev/competition.mp4?download=1" };
   for (const [path, contentType] of [["/", "text/html"], ["/klocgit-demo.mp4?download=1", "video/mp4"],
     ["/competition.mp4?download=1", "video/mp4"]]) {

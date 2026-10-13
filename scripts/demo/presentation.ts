@@ -36,6 +36,8 @@ function pointerOverlay() {
 async function pointTo(locator: any, verb: string) {
   const page = locator.page();
   await locator.scrollIntoViewIfNeeded();
+  // Navigation can replace nodes inserted before the document finishes parsing.
+  await page.evaluate(pointerOverlay);
   const box = await locator.boundingBox();
   if (!box) return;
   const label = await locator.evaluate((element: any) =>
