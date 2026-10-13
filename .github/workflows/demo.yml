@@ -24,7 +24,16 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: '24'
-      - run: npm ci --prefix apps/worker
+      - name: Build and update control Worker
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+        run: |
+          npm ci --prefix apps/worker
+          npm ci --prefix apps/web
+          npm run check --prefix apps/worker
+          npm run build --prefix apps/web
+          npx --yes wrangler@4.147.0 deploy --config apps/worker/wrangler.toml --keep-vars
       - name: Inspect Git and binding history
         env:
           CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
@@ -53,14 +62,6 @@ jobs:
           docker build -f tests/fixtures/sandbox/Dockerfile -t klocgit-demo-evaluator tests/fixtures/sandbox
           image_oid=$(docker image inspect --format '{{.Id}}' klocgit-demo-evaluator)
           echo "KLOCGIT_SANDBOX_IMAGE=$image_oid" >> "$GITHUB_ENV"
-      - name: Build and update control Worker
-        env:
-          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
-          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
-        run: |
-          npm run check --prefix apps/worker
-          npm run build --prefix apps/web
-          npx --yes wrangler@4.147.0 deploy --config apps/worker/wrangler.toml --keep-vars
       - name: Format the recording checkout
         run: npx --yes prettier@3.9.9 --write scripts/demo/*.ts
       - name: Record actual application flows

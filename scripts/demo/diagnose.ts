@@ -37,15 +37,23 @@ for (const repository of listed.body.repositories.filter((row: { name: string })
   const physical = new URL(read.body.remote).pathname.split("/").at(-1)!.replace(/\.git$/, "");
   const meta = await cf("/artifacts/namespaces/klocgit/repos/" + encodeURIComponent(physical));
   console.log(JSON.stringify({ metadata_status: meta.status, metadata: meta.success ? meta.result : undefined, error_codes: meta.errors }));
-  const head = refs.split("\n").find(line => line.endsWith("\tHEAD"))?.split("\t")[0];
+  const head = refs.split("\n").find(line => /^[0-9a-f]{40}\tHEAD$/.test(line))?.split("\t")[0];
   for (const ref of ["HEAD", "main", "refs/heads/main", ...(head ? [head] : [])]) {
     const raw = await cf("/artifacts/namespaces/klocgit/repos/" + encodeURIComponent(physical) + "/log?ref=" + encodeURIComponent(ref) + "&limit=1");
     console.log(JSON.stringify({ repository: repository.name, ref, rest_status: raw.status, rest_result: raw.result, rest_errors: raw.errors }));
   }
-  for (const ref of ["HEAD", "refs/heads/main", ...(head ? [head] : [])]) {
-    const code = await app(base + "/" + repository.repo_id + "/code?ref=" + encodeURIComponent(ref));
-    console.log(JSON.stringify({ repository: repository.name, ref, app_status: code.status, empty: code.body.empty,
-      commit_oid: code.body.commit_oid, count: code.body.commits?.length, error: code.body.error }));
-  }
+  if (!head) throw new Error("Imported repository has no Git HEAD");
+  const code = await app(base + "/" + repository.repo_id + "/code");
+  const pinned = await app(base + "/" + repository.repo_id + "/code?ref=" + head);
+  if (code.status !== 200 || code.body.commit_oid !== head || !Array.isArray(code.body.entries) || !code.body.entries.length ||
+      pinned.status !== 200 || pinned.body.commit_oid !== head)
+    throw new Error("Browser state does not match the authoritative Git ref");
+  const file = code.body.entries.find((entry: { type: string }) => entry.type === "blob");
+  if (!file) throw new Error("The imported source has no readable root file");
+  const readFile = await app(base + "/" + repository.repo_id + "/file?" + new URLSearchParams({ ref: head, path: file.name }));
+  if (readFile.status !== 200 || readFile.body.commit_oid !== head || typeof readFile.body.content !== "string")
+    throw new Error("Pinned file browsing did not succeed");
+  console.log(JSON.stringify({ repository: repository.name, verified_git_oid: head, tree_entries: code.body.entries.length, pinned_file: file.name }));
+
 }
-throw new Error("Diagnostic capture completed; recording paused until repository history is reconciled");
+console.log("Git protocol, history, trees, and pinned file browsing agree.");

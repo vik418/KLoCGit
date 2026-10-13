@@ -263,8 +263,8 @@ for (const resource of ["code", "file", "token"] as const) {
       const token = await repository.createToken("read", 900);
       return context.json({ schema_version: 1, remote: info.remote, token: token.plaintext, expires_at: token.expiresAt });
     }
-    const ref = context.req.query("ref") ?? "HEAD";
-    if (ref !== "HEAD" && !ref.startsWith("refs/") && !/^[0-9a-f]{40}$/.test(ref))
+    const ref = context.req.query("ref") ?? info.defaultBranch;
+    if (ref !== info.defaultBranch && !ref.startsWith("refs/") && !/^[0-9a-f]{40}$/.test(ref))
       throw new Failure("INVALID_INPUT", 400, "Git ref is invalid");
     const commits = await repository.log({ ref, limit: 30 });
     if (!commits.length) return context.json({ schema_version: 1, empty: true, commits: [], entries: [], ref });
@@ -282,9 +282,10 @@ for (const resource of ["code", "file", "token"] as const) {
     const tree_oid = context.req.query("tree") ?? selected.treeHash;
     if (!/^[0-9a-f]{40}$/.test(tree_oid)) throw new Failure("INVALID_INPUT", 400, "Tree OID is invalid");
     const tree = await repository.readTree(tree_oid);
+    if (!Array.isArray(tree)) throw new Failure("GIT_TREE_UNAVAILABLE", 404, "Git tree is unavailable");
     return context.json({ schema_version: 1, ref, commit_oid: selected.hash, tree_oid,
       commits: commits.map(value => ({ oid: value.hash, message: value.message, parents: value.parents })),
-      entries: tree?.entries ?? [] });
+      entries: tree });
   });
 }
 
