@@ -362,3 +362,106 @@ test("policy results bind an immutable input snapshot and cannot authorize anoth
     DecisionConflict,
   );
 });
+
+test("a multi-candidate decision binds every alternative but requires selected-state evidence", async () => {
+  const f = await fixture();
+  const effect = await sealEffectSet({
+    ...f.effect,
+    future_revision_id: "alternative",
+    modified_exports: ["api", "telemetry"],
+  });
+  const spec = await sealCandidateSpec({
+    ...f.spec,
+    selected_future_revisions: [effect.future_revision_id],
+    effect_summary_digest: await hashProjection("klocgit.effect-summary", [effect.effect_digest]),
+  });
+  const candidate = await sealCandidate({
+    ...f.candidate,
+    candidate_spec_id: spec.id,
+    repo_tree_oids: { repo: "4".repeat(40) },
+  });
+  const basis = await sealDecisionBasis({
+    ...f.basis,
+    candidate_digests: [f.candidate.candidate_digest, candidate.candidate_digest],
+    material_effect_digest: await hashProjection(
+      "klocgit.effect-summary", [f.effect.effect_digest, effect.effect_digest].sort(),
+    ),
+    required_analysis_status: {
+      [f.effect.effect_digest]: "COMPLETE", [effect.effect_digest]: "COMPLETE",
+    },
+  });
+  const review = {
+    ...f.review, basis_digest: basis.basis_digest,
+    material_effect_digest: basis.material_effect_digest,
+    candidate_digests: basis.candidate_digests,
+  };
+  const context = {
+    ...f.context, reviews: [review],
+    alternatives: [{ spec, candidate, effects: [effect] }],
+  };
+  const evaluator = new PolicyEvaluator(f.policy);
+  assert((await evaluator.canResolve(basis, context)).allowed);
+  const omitted = await evaluator.canResolve(basis, { ...context, alternatives: [] });
+  assert(!omitted.allowed);
+  assert(omitted.blockers.some((blocker) => blocker.code === "CANDIDATE_ANALYSIS_MISSING"));
+  const substituted = await evaluator.canResolve(basis, {
+    ...context,
+    alternatives: [{ ...context.alternatives[0], candidate: {
+      ...candidate, repo_tree_oids: { repo: "5".repeat(40) },
+    } }],
+  });
+  assert(!substituted.allowed);
+  const otherEvidence = await sealEvidence({
+    ...f.evidence, subject_digest: candidate.candidate_digest,
+  });
+  const otherBasis = await sealDecisionBasis({
+    ...basis, evidence_digests: [otherEvidence.evidence_digest],
+  });
+  const wrongEvidence = await evaluator.evaluateRequirements(otherBasis, {
+    ...context, evidence: [otherEvidence],
+  });
+  assert(!wrongEvidence.allowed);
+  assert(wrongEvidence.blockers.some((blocker) => blocker.code === "EVIDENCE_MISSING"));
+  const partial = await sealEffectSet({ ...effect, status: "PARTIAL" });
+  const partialSpec = await sealCandidateSpec({
+    ...spec,
+    effect_summary_digest: await hashProjection("klocgit.effect-summary", [partial.effect_digest]),
+  });
+  const partialBasis = await sealDecisionBasis({
+    ...basis,
+    material_effect_digest: await hashProjection(
+      "klocgit.effect-summary", [f.effect.effect_digest, partial.effect_digest].sort(),
+    ),
+    required_analysis_status: {
+      [f.effect.effect_digest]: "COMPLETE", [partial.effect_digest]: "PARTIAL",
+    },
+  });
+  assert(!(await evaluator.evaluateRequirements(partialBasis, {
+    ...context, alternatives: [{ spec: partialSpec, candidate, effects: [partial] }],
+  })).allowed);
+});
+
+test("conditional approval cannot float across changed alternatives with identical structural effects", async () => {
+  const f = await fixture();
+  const alternative = await sealCandidate({
+    ...f.candidate, repo_tree_oids: { repo: "4".repeat(40) },
+  });
+  const basis = await sealDecisionBasis({
+    ...f.basis,
+    candidate_digests: [f.candidate.candidate_digest, alternative.candidate_digest],
+  });
+  const conditional = {
+    ...f.review,
+    predicates: [
+      { kind: "CANDIDATE_UNCHANGED" as const, subject: f.candidate.candidate_digest },
+      { kind: "EFFECTS_UNCHANGED" as const, subject: basis.material_effect_digest },
+    ],
+  };
+  const context = {
+    ...f.context, reviews: [conditional],
+    alternatives: [{ spec: f.spec, candidate: alternative, effects: [f.effect] }],
+  };
+  const evaluator = new PolicyEvaluator(f.policy);
+  assert((await evaluator.evaluateRequirements(basis, context)).allowed);
+  assert(!(await evaluator.canResolve(basis, context)).allowed);
+});
