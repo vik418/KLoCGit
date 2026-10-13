@@ -1,3 +1,4 @@
+export { GitExecutorContainer } from "../coordinators/archive.ts";
 export { ContainerProxy } from "@cloudflare/containers";
 import {
   hashProjection,

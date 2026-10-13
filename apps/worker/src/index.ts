@@ -37,6 +37,7 @@ import { callDirectory } from "./routes/repositories.ts";
 import { directoryName } from "./coordinators/repositories.ts";
 
 export { ObjectiveCoordinator } from "./coordinators/objective.ts";
+export { WorkspaceCoordinator } from "./coordinators/archive.ts";
 export { RepositoryDirectory } from "./coordinators/repositories.ts";
 export { RefCoordinator } from "./coordinators/ref.ts";
 

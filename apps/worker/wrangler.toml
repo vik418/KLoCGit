@@ -16,9 +16,27 @@ class_name = "ObjectiveCoordinator"
 name = "REFS"
 class_name = "RefCoordinator"
 
+[[durable_objects.bindings]]
+name = "REPOSITORIES"
+class_name = "RepositoryDirectory"
+
+[[durable_objects.bindings]]
+name = "LEGACY_COORDINATOR"
+class_name = "WorkspaceCoordinator"
+
 [[migrations]]
 tag = "v1"
-new_sqlite_classes = ["ObjectiveCoordinator", "RefCoordinator"]
+new_sqlite_classes = ["WorkspaceCoordinator"]
+
+[[migrations]]
+tag = "convergence-1"
+new_sqlite_classes = ["ObjectiveCoordinator", "RefCoordinator", "RepositoryDirectory"]
+
+[assets]
+directory = "../web/dist"
+binding = "ASSETS"
+not_found_handling = "single-page-application"
+run_worker_first = ["/api/*", "/internal/*"]
 
 [[r2_buckets]]
 binding = "PAYLOADS"

@@ -7,9 +7,21 @@ compatibility_flags = ["nodejs_compat"]
 name = "GIT"
 class_name = "GitContainer"
 
+[[durable_objects.bindings]]
+name = "LEGACY_EXECUTOR"
+class_name = "GitExecutorContainer"
+
 [[migrations]]
 tag = "v1"
+new_sqlite_classes = ["GitExecutorContainer"]
+
+[[migrations]]
+tag = "convergence-1"
 new_sqlite_classes = ["GitContainer"]
+
+[[services]]
+binding = "CONTROL_PLANE"
+service = "klocgit"
 
 [[containers]]
 class_name = "GitContainer"
