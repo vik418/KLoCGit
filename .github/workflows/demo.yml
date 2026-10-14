@@ -4,8 +4,8 @@ on:
   push:
     branches: [feat/convergence-platform]
     paths:
-      - 'scripts/demo/**'
-      - '.github/workflows/demo.yml'
+      - "scripts/demo/**"
+      - ".github/workflows/demo.yml"
   workflow_dispatch:
 
 permissions:
@@ -23,7 +23,7 @@ jobs:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
         with:
-          node-version: '24'
+          node-version: "24"
       - name: Build and update control Worker
         env:
           CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
@@ -48,13 +48,18 @@ jobs:
       - uses: dtolnay/rust-toolchain@1.90.0
       - uses: actions/setup-node@v4
         with:
-          node-version: '24'
+          node-version: "24"
       - name: Install recording tools
         run: |
           npm ci --prefix apps/worker
           npm ci --prefix apps/web
           sudo apt-get update
           sudo apt-get install -y --no-install-recommends ffmpeg
+          python3 -m venv /tmp/klocgit-narrator
+          /tmp/klocgit-narrator/bin/pip install piper-tts==1.8.0
+          mkdir -p /tmp/klocgit-voice
+          curl --fail --location --retry 3 --output /tmp/klocgit-voice/voice.onnx https://huggingface.co/rhasspy/piper-voices/resolve/main/en/en_US/ljspeech/high/en_US-ljspeech-high.onnx
+          curl --fail --location --retry 3 --output /tmp/klocgit-voice/voice.onnx.json https://huggingface.co/rhasspy/piper-voices/resolve/main/en/en_US/ljspeech/high/en_US-ljspeech-high.onnx.json
           node apps/web/node_modules/playwright/cli.js install --with-deps chromium
       - name: Build native engine and evaluator
         run: |
@@ -66,10 +71,12 @@ jobs:
         run: npx --yes prettier@3.9.9 --write scripts/demo/*.ts
       - name: Record actual application flows
         env:
+          KLOCGIT_NARRATION_PYTHON: /tmp/klocgit-narrator/bin/python
+          KLOCGIT_NARRATION_MODEL: /tmp/klocgit-voice/voice.onnx
           CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
           CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
         run: node scripts/demo/record.ts
-      - name: Encode the fast cut
+      - name: Encode narrated submission video
         run: |
           node scripts/demo/encode.ts
       - name: Publish download
@@ -86,6 +93,7 @@ jobs:
             demo-output/klocgit-demo.mp4
             demo-output/poster.png
             demo-output/narration.txt
+            demo-output/chapters.json
             demo-output/recording.json
             demo-output/download.json
           if-no-files-found: ignore
